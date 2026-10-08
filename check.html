@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!-- つなぎ先の決まり: このページがつなげるのは 2 つの API の住所だけ。ほかの住所へは、案内（転送）の先も含めて
+     ブラウザがつながない。画像・字体・別のページの読み込みも無い -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com https://api.openai.com; base-uri 'none'; form-action 'none'">
+<title>環境を調べる</title>
+<!--
+  check.html — 会社の PC で最初に開く計器 1 枚。
+  このページが何を使えるか（音声認識・保存・クリップボード・API への到達）を「可／不可／未実行」で一覧にする。
+  外部参照ゼロ。鍵は持たず、送らない。ホスト名・ユーザー名・住所・ポリシーの名前は出さない。
+
+  外への要求は API の項目だけ。行き先は 2 つの API の住所だけ（上のつなぎ先の決まりで、ブラウザが守る）。
+  API 1 つにつき、多くて 3 本:
+    1. 下見の要求。送る要求の前に、ブラウザが自分で 1 回出す（ページからは止められない）
+    2. 送る要求（中身の無い呼び出し。鍵なし）を 1 回
+    3. 見るだけの要求（API の根元へ。中身も独自の見出しも無いので、下見は出ない）を 1 回。送る要求の返事が読めず、
+       案内（転送）が返ったとも分からなかったときだけ
+  だから 2 つの API で多くて 6 本。どの要求も:
+    - 案内（転送）が返っても追わない（別の住所への案内も、同じ住所の中の案内も）。返ったことは結果に書く
+    - 鍵・クッキー・どこから開いたか（ページの住所）を付けない。ファイルから開くと、送り元は「null」とだけ送られる
+    - 時間切れにしたらその場で取り消す（取り残された要求が、あとから中継に届かない）
+  見るだけの要求で分かることは少ない。2026-10-08 に確かめた事実: Anthropic の API の根元は、ページから返事を読むための
+  許可の見出しを付けずに答える（だから API に届いても、ページからは「読めない」になる）。Chromium 141 は、許可の見出しの
+  無い案内を「読めない」にする（「案内が返った」と分かるのは、案内に許可の見出しが付いているときだけ）
+  サーバから開くと、どの要求にもページの住所（どこから開いたか）が付く（ブラウザの決まり）。そのときだけ画面の上で知らせる。
+  「可」は確かめられたものだけ。確かめられなかったものは「不可」にして、補足に分かったことを書く。
+  API の 2 項目を「可」にするのは、送る要求の返事が 401 で、本文が JSON として読め、その API が鍵の無い呼び出しを
+  断るときの形のときだけ（Anthropic は error.type が authentication_error。OpenAI は error があり、error.code に
+  api_key か apikey の語があるか、error.type が invalid_request_error で error.message に api key・api_key・apikey・
+  bearer・authenticat のどれかの語がある。大小文字は問わない。下の apiShape）。401 でも形が違えば、社内の中継が止めた可能性があるので「不可」
+  貼るための文字は 15 行（見出し 1 行と項目 14 行）。項目の行は「項目: 可／不可／未実行（補足）」の形。
+  試験用の素の見た目で、色や書体は凝らない。
+-->
+<style>
+  body { margin: 0; padding: 16px; font-family: system-ui, "Yu Gothic UI", Meiryo, sans-serif; font-size: 14px; line-height: 1.5; color: #222; background: #fff; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { margin: 6px 0; }
+  button { font: inherit; padding: 6px 14px; margin-right: 8px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; max-width: 760px; }
+  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { background: #f3f3f3; }
+  col.c1 { width: 16em; } col.c2 { width: 5em; }
+  td.ok { color: #060; } td.ng { color: #a00; } td.na { color: #777; }
+  textarea { width: 100%; max-width: 760px; height: 18em; margin-top: 12px; font-family: Consolas, "BIZ UDGothic", monospace; font-size: 13px; box-sizing: border-box; }
+  #msg { color: #555; }
+  #served { color: #a00; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>環境を調べる</h1>
+<p>このページは、この PC のブラウザで何が動くかを調べて一覧にします。鍵は持ちません。会議の内容も送りません。<br>
+外へ要求を出すのは API の項目だけです。行き先は 2 つの API の住所だけで、ほかの住所にはブラウザがつながないよう、ページに決まりを入れてあります。<br>
+API 1 つにつき、多くて 3 本です。中身の無い呼び出し（送る要求）を 1 回送り、その前にブラウザが下見の要求を自分で 1 回出します。送る要求の返事が読めず、案内（転送）が返ったとも分からなかったときだけ、届いたかを見る要求（見るだけの要求）を 1 回出します。2 つの API で合わせて多くて 6 本です。どれにも鍵とクッキーは付けず、会議の内容も入れません。<br>
+案内（転送）が返っても、どの要求もその先へは行きません（同じ住所の中の案内も追いません）。時間切れにした要求は、その場で取り消します。<br>
+結果の「可」は、その場で確かめられたものだけです。確かめられなかったものは「不可」にして、補足に分かったことを書きます。API の項目は、鍵の無い呼び出しを断る返事（状態 401）が、その API の断り方の形で返ったときだけ「可」です。401 でも形が違えば、社内の中継が止めた可能性があるので「不可」にします。<br>
+クリップボードを調べるとき、貼り付け板に短い文を 1 つ書きます（いま写しているものは消えます）。残しておきたいものがあれば、先に貼り付けてから「調べる」を押してください。</p>
+<p id="served" hidden>サーバから開くと、このページの住所（どこから開いたか）が API 側に伝わります。ファイルとして開いてください（展開したフォルダの check.html をダブルクリックする）。</p>
+<p>
+  <button id="run" type="button">調べる</button>
+  <button id="copy" type="button" disabled>コピー</button>
+  <span id="msg"></span>
+</p>
+<table>
+  <colgroup><col class="c1"><col class="c2"><col></colgroup>
+  <thead><tr><th>項目</th><th>結果</th><th>補足</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<textarea id="out" readonly aria-label="貼るための文字"></textarea>
+
+<script>
+(function () {
+  'use strict';
+
+  var ITEMS = [
+    { id: 'browser', label: 'ブラウザ' },
+    { id: 'howopen', label: '開き方' },
+    { id: 'speech', label: '音声認識（ブラウザ内蔵）' },
+    { id: 'mic', label: 'マイクの入口' },
+    { id: 'clipboard', label: 'クリップボードへの書き込み' },
+    { id: 'download', label: 'ファイルのダウンロード' },
+    { id: 'idb', label: '記録の保存（ブラウザ内）' },
+    { id: 'fsa', label: 'ファイルへの直接保存' },
+    { id: 'session', label: 'タブの間だけの保存' },
+    { id: 'local', label: 'この PC に覚える保存' },
+    { id: 'an_reach', label: 'Anthropic の API に届くか' },
+    { id: 'an_cors', label: 'Anthropic の API をページから呼べるか' },
+    { id: 'oa_reach', label: 'OpenAI の API に届くか' },
+    { id: 'oa_cors', label: 'OpenAI の API をページから呼べるか' }
+  ];
+  var results = {};
+  var rows = document.getElementById('rows');
+  var out = document.getElementById('out');
+  var msg = document.getElementById('msg');
+  var btnRun = document.getElementById('run');
+  var btnCopy = document.getElementById('copy');
+
+  function set(id, verdict, detail) {
+    results[id] = { verdict: verdict, detail: detail || '' };
+    render();
+  }
+
+  function render() {
+    rows.innerHTML = '';
+    ITEMS.forEach(function (it) {
+      var r = results[it.id] || { verdict: '未実行', detail: '' };
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td'); td1.textContent = it.label;
+      var td2 = document.createElement('td'); td2.textContent = r.verdict;
+      td2.className = r.verdict === '可' ? 'ok' : (r.verdict === '不可' ? 'ng' : 'na');
+      var td3 = document.createElement('td'); td3.textContent = r.detail;
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      rows.appendChild(tr);
+    });
+    out.value = asText();
+  }
+
+  // 貼るための文字。15 行（見出しと 14 項目）。ホスト名・ユーザー名・住所・ポリシー名は入れない
+  function asText() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var lines = ['環境を調べた結果 ' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())];
+    ITEMS.forEach(function (it) {
+      var r = results[it.id] || { verdict: '未実行', detail: '' };
+      lines.push(it.label + ': ' + r.verdict + (r.detail ? '（' + r.detail + '）' : ''));
+    });
+    return lines.join('\n');
+  }
+
+  // ---- ブラウザの名前と大まかな版（ユーザーエージェントの文字列そのものは出さない） ----
+  function browserInfo() {
+    var ua = navigator.userAgent || '';
+    var m;
+    var brands = navigator.userAgentData && navigator.userAgentData.brands;
+    if (brands && brands.length) {
+      var pick = null;
+      brands.forEach(function (b) {
+        if (/Edge/i.test(b.brand)) pick = { name: 'Edge', v: b.version };
+        else if (!pick && /Chrome/i.test(b.brand) && !/Chromium/i.test(b.brand)) pick = { name: 'Chrome', v: b.version };
+      });
+      if (pick) return pick.name + ' ' + pick.v;
+    }
+    if ((m = ua.match(/Edg\/(\d+)/))) return 'Edge ' + m[1];
+    if ((m = ua.match(/Firefox\/(\d+)/))) return 'Firefox ' + m[1];
+    if ((m = ua.match(/Chrome\/(\d+)/))) return 'Chrome ' + m[1];
+    if ((m = ua.match(/Version\/(\d+).*Safari/))) return 'Safari ' + m[1];
+    return '不明';
+  }
+
+  // ---- 各項目 ----
+  function checkStatic() {
+    set('browser', '可', browserInfo());
+    set('howopen', '可', location.protocol === 'file:' ? 'ファイルから開いている' : 'サーバから開いている');
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    set('speech', SR ? '可' : '不可', SR ? '認識の口がある。実際に聞けるかはマイクの許可しだい' : '認識の口が無い');
+    var gum = navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function';
+    set('mic', gum ? '可' : '不可', gum ? '入口がある。許可は求めていない' : '入口が無い');
+    var dl = 'download' in document.createElement('a');
+    set('download', dl ? '可' : '不可', dl ? '属性がある。実際の保存は試していない' : '属性が無い');
+    var fsa = typeof window.showSaveFilePicker === 'function';
+    set('fsa', fsa ? '可' : '不可', fsa ? '関数がある。開いたときに使えるかは試していない' : '関数が無い');
+  }
+
+  function checkStorage(name, id) {
+    try {
+      var s = window[name];
+      if (!s) { set(id, '不可', '無い'); return; }
+      s.setItem('tsv.check', '1');
+      var ok = s.getItem('tsv.check') === '1';
+      s.removeItem('tsv.check');
+      set(id, ok ? '可' : '不可', ok ? '' : '書いた値が読めない');
+    } catch (e) {
+      set(id, '不可', '触ると例外になる');
+    }
+  }
+
+  function checkIdb() {
+    return new Promise(function (resolve) {
+      if (!window.indexedDB) { set('idb', '不可', '無い'); resolve(); return; }
+      var name = 'tsv-check';
+      var done = false;
+      var finish = function (v, d) { if (done) return; done = true; set('idb', v, d); try { indexedDB.deleteDatabase(name); } catch (e) { /* 消せなくてよい */ } resolve(); };
+      var timer = setTimeout(function () { finish('不可', '開こうとして返ってこない'); }, 5000);
+      var req;
+      try { req = indexedDB.open(name, 1); } catch (e) { clearTimeout(timer); finish('不可', '開くと例外になる'); return; }
+      req.onupgradeneeded = function () { req.result.createObjectStore('s'); };
+      req.onerror = function () { clearTimeout(timer); finish('不可', '開けない'); };
+      req.onblocked = function () { clearTimeout(timer); finish('不可', '塞がれている'); };
+      req.onsuccess = function () {
+        var db = req.result;
+        try {
+          var tx = db.transaction('s', 'readwrite');
+          tx.objectStore('s').put({ a: 1 }, 'k');
+          tx.oncomplete = function () {
+            var tx2 = db.transaction('s', 'readonly');
+            var g = tx2.objectStore('s').get('k');
+            g.onsuccess = function () { clearTimeout(timer); db.close(); finish(g.result && g.result.a === 1 ? '可' : '不可', g.result ? '' : '書いた値が読めない'); };
+            g.onerror = function () { clearTimeout(timer); db.close(); finish('不可', '読めない'); };
+          };
+          tx.onerror = function () { clearTimeout(timer); db.close(); finish('不可', '書けない'); };
+        } catch (e) { clearTimeout(timer); db.close(); finish('不可', '書くと例外になる'); }
+      };
+    });
+  }
+
+  function checkClipboard() {
+    if (!(navigator.clipboard && typeof navigator.clipboard.writeText === 'function')) {
+      set('clipboard', '不可', '書き込みの口が無い');
+      return Promise.resolve();
+    }
+    return navigator.clipboard.writeText('環境を調べています').then(function () {
+      set('clipboard', '可', '');
+    }, function () {
+      set('clipboard', '不可', '書き込みが断られた');
+    });
+  }
+
+  // ---- API への到達 ----
+  // API 1 つにつき、送る要求（ブラウザの下見つき）を 1 回、その返事が読めず案内とも分からなければ見るだけの要求を 1 回。
+  // どれも request() を通す: 鍵・クッキー・ページの住所を付けない、案内（転送）を追わない（redirect: 'manual'）、
+  // 時間切れにしたら取り消す（AbortController）。行き先は、つなぎ先の決まり（上の meta）で 2 つの API の住所だけ。
+  // 1. 送る要求（鍵なし・中身の無い呼び出し）: 返事が読めて 401 で、本文がその API の断り方の形（apiShape）なら、
+  //    API が応答し、ページからの呼び出しも通る。401 でも形が違えば、中継が止めた可能性がある（中継が許可の見出しつきの
+  //    401 や 403 で止める場合がある）。読めても 401 でなければ、API か社内の中継かは区別できない
+  // 2. 見るだけの要求（中身も独自の見出しも無い GET。下見は出ない）: 読めれば何かが応答した（API か中継かは区別できない）。
+  //    案内が返ったと分かるのは、案内に許可の見出しが付いているときだけ。それ以外は「届かなかったか、ページから読めない」
+  //    （Anthropic の API の根元は許可の見出しを付けずに答えるので、届いていてもここになる）
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function originOf(u) { try { return new URL(u).origin; } catch (e) { return ''; } }
+
+  // 要求 1 本ごとの控え。つなぎ先の決まりに触れた知らせは、その要求の住所（送り先の元の住所が知らせに載る）と
+  // 時刻（要求を出してから、終わって少しあとまで）で、要求ごとに数え分ける。別の API の要求には数えない。
+  // 案内を追わないので、ふつうは知らせは来ない（来たら、その要求に「案内が返った」と書く）
+  var REQS = [];
+  var LATE_MS = 1000;   // 知らせは要求が終わった少しあとに届く
+  document.addEventListener('securitypolicyviolation', function (e) {
+    if (!/^connect-src/.test(e.effectiveDirective || e.violatedDirective || '')) return;
+    var o = originOf(e.blockedURI);
+    var ts = typeof e.timeStamp === 'number' && e.timeStamp > 0 ? e.timeStamp : performance.now();
+    for (var k = REQS.length - 1; k >= 0; k--) {
+      var q = REQS[k];
+      if (q.origin === o && q.t0 <= ts && (q.t1 == null || ts <= q.t1 + LATE_MS)) { q.blocked++; return; }
+    }
+  });
+
+  // 戻り値 {kind: 'read', status, body}（返事が読めた。body は本文の文字。読めなければ null）／{kind: 'redirected'}（案内が返った。追っていない）／
+  // {kind: 'unread'}（届かなかったか、ページから読めない）／{kind: 'timeout'}（返事が無いまま時間切れ。要求は取り消した）。
+  // つなぎ先の決まりに触れていれば、どれでも 'redirected' にする
+  function request(url, init, ms) {
+    var q = { origin: originOf(url), t0: performance.now(), t1: null, blocked: 0 };
+    REQS.push(q);
+    var ac = typeof AbortController === 'function' ? new AbortController() : null;
+    var opts = { method: init.method, mode: 'cors', redirect: 'manual', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' };
+    if (init.headers) opts.headers = init.headers;
+    if (init.body != null) opts.body = init.body;
+    if (ac) opts.signal = ac.signal;
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = null;
+      function finish(r) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        q.t1 = performance.now();
+        // 決まりに触れた知らせは少し遅れて届くので、待ってから数える
+        wait(300).then(function () { resolve(q.blocked > 0 ? { kind: 'redirected' } : r); });
+      }
+      timer = setTimeout(function () { if (ac) ac.abort(); finish({ kind: 'timeout' }); }, ms);
+      fetch(url, opts).then(function (res) {
+        if (res.type === 'opaqueredirect') { finish({ kind: 'redirected' }); return; }
+        // 本文も読む（返事の形を見るため）。読んでいる間に時間切れになれば、上の時計が取り消す
+        res.text().then(function (b) { finish({ kind: 'read', status: res.status, body: b }); },
+          function () { finish({ kind: 'read', status: res.status, body: null }); });
+      }, function () { finish({ kind: 'unread' }); });
+    });
+  }
+
+  var NOT_READ = '届かなかったか、ページから読めない（区別できない）';
+  var REDIRECTED = '案内（転送）が返った（社内の中継の可能性）。案内の先へは行っていない';
+  var TIMEOUT = '返事が無いまま時間切れになった（要求は取り消した）';
+  var UNSURE = 'API か社内の中継かは区別できない';
+  var NOT_API_401 = '401 が返ったが API の形ではない。中継の可能性';
+
+  // 401 の本文が、その API が鍵の無い呼び出しを断るときの形か。
+  //   Anthropic: JSON で、error.type が authentication_error（2026-10-08 にこの環境から鍵なしで呼んで確かめた形）
+  //   OpenAI:    JSON で、error が欄を持つ入れ物で、次のどちらか（語は大小文字を問わず、含むかだけを見る）。
+  //              error.code が文字列で api_key か apikey を含む（invalid_api_key など）。
+  //              error.type がちょうど invalid_request_error で、error.message が文字列で api key・api_key・apikey・
+  //              bearer・authenticat のどれかを含む。語を見るだけなので、鍵と関係のない認証の文（Proxy authentication
+  //              required など）でも、error.type が invalid_request_error なら OpenAI の形として数える。
+  //              Anthropic の実物の形（error.type が authentication_error で code が無い）は OpenAI の形として数えない
+  //              （この環境からは OpenAI につなげず、実物を確かめていない。results.md）
+  function apiShape(api, body) {
+    var j = null;
+    try { j = typeof body === 'string' ? JSON.parse(body) : null; } catch (e) { j = null; }
+    var err = j && typeof j === 'object' && !Array.isArray(j) ? j.error : null;
+    if (!err || typeof err !== 'object' || Array.isArray(err)) return false;
+    var str = function (v) { return typeof v === 'string' ? v : ''; };
+    if (api === 'anthropic') return err.type === 'authentication_error';
+    if (/api_?key/i.test(str(err.code))) return true;
+    return err.type === 'invalid_request_error' && /api[ _]?key|bearer|authenticat/i.test(str(err.message));
+  }
+
+  // r: 送る要求の結果。g: 見るだけの要求の結果（出さなかったときは null）
+  function judge(api, reachId, corsId, r, g) {
+    var is401 = r.kind === 'read' && r.status === 401;
+    var shaped = is401 && apiShape(api, r.body);
+    // 届くか（401 で、その API の断り方の形のときだけ可）
+    if (shaped) set(reachId, '可', 'API が応答した。鍵なしの呼び出しが 401 で断られた');
+    else if (is401) set(reachId, '不可', NOT_API_401);
+    else if (r.kind === 'read') set(reachId, '不可', '確かめられない。状態 ' + r.status + ' の返事が読めたが、API なら 401 のはず。' + UNSURE);
+    else if (r.kind === 'redirected' || (g && g.kind === 'redirected')) set(reachId, '不可', REDIRECTED);
+    else if (g && g.kind === 'read') set(reachId, '不可', '確かめられない。見るだけの要求に状態 ' + g.status + ' の返事が読めたが、' + UNSURE);
+    else if ((g && g.kind === 'timeout') || (!g && r.kind === 'timeout')) set(reachId, '不可', TIMEOUT);
+    else set(reachId, '不可', NOT_READ);
+    // ページから呼べるか（届くかと同じ形の 401 のときだけ可）
+    if (shaped) set(corsId, '可', '鍵なしの呼び出しが 401 で断られた。ページからの呼び出しは通る');
+    else if (is401) set(corsId, '不可', NOT_API_401);
+    else if (r.kind === 'read' && r.status >= 400) set(corsId, '不可', '断られた（状態 ' + r.status + '）。' + UNSURE);
+    else if (r.kind === 'read') set(corsId, '不可', '状態 ' + r.status + ' が返った。API なら 401 のはず。' + UNSURE);
+    else if (r.kind === 'redirected') set(corsId, '不可', REDIRECTED);
+    else if (r.kind === 'timeout') set(corsId, '不可', TIMEOUT);
+    else if (g && g.kind === 'redirected') set(corsId, '不可', 'ページからの呼び出しは通らない。' + REDIRECTED);
+    else set(corsId, '不可', 'ページからの呼び出しは通らない（返事が読めない）。API に届いたかは分からない');
+  }
+
+  function probe(api, reachId, corsId, sendUrl, headers, body, lookUrl) {
+    return request(sendUrl, { method: 'POST', headers: headers, body: JSON.stringify(body) }, 15000).then(function (r) {
+      // 返事が読めたとき、または案内が返ったと分かったときは、見るだけの要求を出さない
+      if (r.kind === 'read' || r.kind === 'redirected') { judge(api, reachId, corsId, r, null); return; }
+      return request(lookUrl, { method: 'GET' }, 10000).then(function (g) { judge(api, reachId, corsId, r, g); });
+    });
+  }
+
+  function checkAnthropic() {
+    return probe('anthropic', 'an_reach', 'an_cors', 'https://api.anthropic.com/v1/messages', {
+      'content-type': 'application/json',
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    }, { model: 'claude-opus-5-5', max_tokens: 1, messages: [] }, 'https://api.anthropic.com/');
+  }
+
+  function checkOpenAI() {
+    return probe('openai', 'oa_reach', 'oa_cors', 'https://api.openai.com/v1/chat/completions', { 'content-type': 'application/json' },
+      { model: 'none', messages: [] }, 'https://api.openai.com/');
+  }
+
+  // ---- 走らせる ----
+  function run() {
+    btnRun.disabled = true;
+    btnCopy.disabled = true;
+    msg.textContent = '調べています…';
+    results = {};
+    render();
+    var chain = Promise.resolve();
+    chain = chain.then(checkStatic);
+    chain = chain.then(function () { checkStorage('sessionStorage', 'session'); checkStorage('localStorage', 'local'); });
+    chain = chain.then(checkIdb);
+    chain = chain.then(checkClipboard);
+    chain = chain.then(checkAnthropic);
+    chain = chain.then(checkOpenAI);
+    chain.then(function () {
+      msg.textContent = '調べ終えました。「コピー」で下の文字を取れます。';
+      btnRun.disabled = false;
+      btnCopy.disabled = false;
+    }, function (e) {
+      msg.textContent = '途中で止まりました: ' + (e && e.message || e);
+      btnRun.disabled = false;
+      btnCopy.disabled = false;
+    });
+  }
+
+  function copy() {
+    var text = out.value;
+    var fallback = function () {
+      out.focus();
+      out.select();
+      msg.textContent = 'クリップボードに書けなかったので、下の文字を選択してあります。';
+    };
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).then(function () { msg.textContent = 'コピーしました（' + text.split('\n').length + ' 行）。'; }, fallback);
+    } else fallback();
+  }
+
+  btnRun.addEventListener('click', run);
+  btnCopy.addEventListener('click', copy);
+  // サーバから開いているときだけ、住所が API 側に伝わることを先に知らせる（ファイルとして開けば伝わらない）
+  if (location.protocol !== 'file:') document.getElementById('served').hidden = false;
+  render();
+})();
+</script>
+</body>
+</html>
