@@ -1,0 +1,20 @@
+{
+ "name": "拒否：素材の名前が素材ログの名前（.src.jsonl）",
+ "why": "別の記録の素材ログを素材として読めてしまう（P30）",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "2026-10-07T09:00:00Z",
+   "window": 30,
+   "known": "",
+   "mode": "live",
+   "src": "t.src.jsonl"
+  }
+ ],
+ "expect": "reject",
+ "clock": "2026-10-07T09:00:00Z",
+ "expect_rule": "P30"
+}

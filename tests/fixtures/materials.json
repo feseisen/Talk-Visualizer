@@ -1,0 +1,325 @@
+{
+ "about": "素材の読みの共通の試験。materials の素材ごとに、期待値（*.expect.json）と一字違わず同じ結果になることを、rt.py の試験とページの試験（run_node.js）の両方で確かめる。BOM を付けて CR LF にした写しと、最後の改行を落とした写しでも同じ結果になること。期待値の refuse は、発話が 1 つも無い素材を断る文の並び（発話があれば null）。rt.py の file の open と、ページのファイルの入口（intake.js の materialRefusal）が、記録を作らずにこの文を出すこと。k30_ で始まる素材は時刻らしい頭の行（K30）の書き方ごとの試験、v7_ で始まる素材は 7 回目の確かめ役（reading）が使った素材をそのまま写したもの。material_k30_*.txt・*.vtt の一部の行は、UTF-8 として読めないバイト（0xFF）をわざと含む（読むと U+FFFD になる）",
+ "notice_text": {
+  "about": "1 つの窓の知らせは、種類ごとに 1 文にまとめる（読めない行・読めないバイトを含む行・時刻が飛んでいる行・時刻で始まる本文の行の順。知らせの無い種類は出さない）。{lines} は行番号を小さい順に最初の 5 つまで「・」でつなぎ「 行目」を付けたもの。6 つ以上なら後ろに「ほか N 行」（N は残りの数）。rt.py もページも同じ文",
+  "unreadable": "読めない行があった（{lines}）。発話にしていない。時刻の書き方を確かめる",
+  "badbyte": "読めないバイトを含む行（{lines}）。発話にしていない。素材の文字コードが UTF-8 かを確かめる",
+  "jump": "時刻が飛んでいる行（{lines}）。前に戻った時刻は前の発話の時刻に揃え、10 分を超えて進んだ時刻はそのまま読んだ",
+  "timehead": "時刻で始まる行は本文として読んだ（{lines}）。時刻の行にするなら、時刻だけを1行に書く",
+  "rows": [
+   {
+    "notices": [
+     {
+      "kind": "unreadable",
+      "line": 3
+     }
+    ],
+    "text": [
+     "読めない行があった（3 行目）。発話にしていない。時刻の書き方を確かめる"
+    ]
+   },
+   {
+    "notices": [
+     {
+      "kind": "timehead",
+      "line": 9
+     },
+     {
+      "kind": "jump",
+      "line": 8
+     },
+     {
+      "kind": "unreadable",
+      "line": 7
+     },
+     {
+      "kind": "timehead",
+      "line": 4
+     }
+    ],
+    "text": [
+     "読めない行があった（7 行目）。発話にしていない。時刻の書き方を確かめる",
+     "時刻が飛んでいる行（8 行目）。前に戻った時刻は前の発話の時刻に揃え、10 分を超えて進んだ時刻はそのまま読んだ",
+     "時刻で始まる行は本文として読んだ（4・9 行目）。時刻の行にするなら、時刻だけを1行に書く"
+    ]
+   },
+   {
+    "notices": [
+     {
+      "kind": "timehead",
+      "line": 2
+     },
+     {
+      "kind": "timehead",
+      "line": 3
+     },
+     {
+      "kind": "timehead",
+      "line": 4
+     },
+     {
+      "kind": "timehead",
+      "line": 5
+     },
+     {
+      "kind": "timehead",
+      "line": 6
+     },
+     {
+      "kind": "timehead",
+      "line": 7
+     },
+     {
+      "kind": "timehead",
+      "line": 8
+     },
+     {
+      "kind": "timehead",
+      "line": 9
+     },
+     {
+      "kind": "timehead",
+      "line": 10
+     },
+     {
+      "kind": "timehead",
+      "line": 11
+     },
+     {
+      "kind": "timehead",
+      "line": 12
+     },
+     {
+      "kind": "timehead",
+      "line": 13
+     },
+     {
+      "kind": "timehead",
+      "line": 14
+     },
+     {
+      "kind": "timehead",
+      "line": 15
+     },
+     {
+      "kind": "timehead",
+      "line": 16
+     },
+     {
+      "kind": "timehead",
+      "line": 17
+     },
+     {
+      "kind": "timehead",
+      "line": 18
+     },
+     {
+      "kind": "timehead",
+      "line": 19
+     },
+     {
+      "kind": "timehead",
+      "line": 20
+     },
+     {
+      "kind": "timehead",
+      "line": 21
+     },
+     {
+      "kind": "timehead",
+      "line": 22
+     }
+    ],
+    "text": [
+     "時刻で始まる行は本文として読んだ（2・3・4・5・6 行目ほか 16 行）。時刻の行にするなら、時刻だけを1行に書く"
+    ]
+   },
+   {
+    "notices": [],
+    "text": []
+   },
+   {
+    "notices": [
+     {
+      "kind": "timehead",
+      "line": 17
+     },
+     {
+      "kind": "badbyte",
+      "line": 12
+     },
+     {
+      "kind": "unreadable",
+      "line": 14
+     },
+     {
+      "kind": "unreadable",
+      "line": 13
+     },
+     {
+      "kind": "badbyte",
+      "line": 12
+     }
+    ],
+    "text": [
+     "読めない行があった（13・14 行目）。発話にしていない。時刻の書き方を確かめる",
+     "読めないバイトを含む行（12 行目）。発話にしていない。素材の文字コードが UTF-8 かを確かめる",
+     "時刻で始まる行は本文として読んだ（17 行目）。時刻の行にするなら、時刻だけを1行に書く"
+    ]
+   }
+  ]
+ },
+ "vtt_decided_text": "{n} 行目を字幕の時刻の行（「-->」を含む行）とみなし、そこから後ろを字幕（WebVTT）として読みました。字幕でなければ、その行の「-->」を書き換えてください",
+ "materials": [
+  {
+   "name": "alone",
+   "file": "material_edge.txt",
+   "expect": "material_edge.expect.json"
+  },
+  {
+   "name": "tsv",
+   "file": "material_tsv.txt",
+   "expect": "material_tsv.expect.json"
+  },
+  {
+   "name": "inline",
+   "file": "material_inline.txt",
+   "expect": "material_inline.expect.json"
+  },
+  {
+   "name": "vtt",
+   "file": "material_vtt.vtt",
+   "expect": "material_vtt.expect.json"
+  },
+  {
+   "name": "mixed",
+   "file": "material_mixed.txt",
+   "expect": "material_mixed.expect.json"
+  },
+  {
+   "name": "mixed_alone",
+   "file": "material_mixed_alone.txt",
+   "expect": "material_mixed_alone.expect.json"
+  },
+  {
+   "name": "tail",
+   "file": "material_tail.txt",
+   "expect": "material_tail.expect.json"
+  },
+  {
+   "name": "none",
+   "file": "material_none.txt",
+   "expect": "material_none.expect.json"
+  },
+  {
+   "name": "vtt_bare",
+   "file": "material_vtt_bare.vtt",
+   "expect": "material_vtt_bare.expect.json"
+  },
+  {
+   "name": "srt",
+   "file": "material_srt.txt",
+   "expect": "material_srt.expect.json"
+  },
+  {
+   "name": "blank",
+   "file": "material_blank.txt",
+   "expect": "material_blank.expect.json"
+  },
+  {
+   "name": "tsv_who",
+   "file": "material_tsv_who.txt",
+   "expect": "material_tsv_who.expect.json"
+  },
+  {
+   "name": "k30_alone",
+   "file": "material_k30_alone.txt",
+   "expect": "material_k30_alone.expect.json"
+  },
+  {
+   "name": "k30_tsv",
+   "file": "material_k30_tsv.txt",
+   "expect": "material_k30_tsv.expect.json"
+  },
+  {
+   "name": "k30_inline",
+   "file": "material_k30_inline.txt",
+   "expect": "material_k30_inline.expect.json"
+  },
+  {
+   "name": "k30_undecided",
+   "file": "material_k30_undecided.txt",
+   "expect": "material_k30_undecided.expect.json"
+  },
+  {
+   "name": "k30_vtt",
+   "file": "material_k30_vtt.vtt",
+   "expect": "material_k30_vtt.expect.json"
+  },
+  {
+   "name": "k30_badbyte_head",
+   "file": "material_k30_badbyte_head.txt",
+   "expect": "material_k30_badbyte_head.expect.json"
+  },
+  {
+   "name": "k30_edges",
+   "file": "material_k30_edges.txt",
+   "expect": "material_k30_edges.expect.json"
+  },
+  {
+   "name": "v7_m57",
+   "file": "material_v7_m57.txt",
+   "expect": "material_v7_m57.expect.json"
+  },
+  {
+   "name": "v7_m58",
+   "file": "material_v7_m58.txt",
+   "expect": "material_v7_m58.expect.json"
+  },
+  {
+   "name": "v7_m59",
+   "file": "material_v7_m59.txt",
+   "expect": "material_v7_m59.expect.json"
+  },
+  {
+   "name": "v7_m60",
+   "file": "material_v7_m60.txt",
+   "expect": "material_v7_m60.expect.json"
+  },
+  {
+   "name": "v7_m51",
+   "file": "material_v7_m51.txt",
+   "expect": "material_v7_m51.expect.json"
+  },
+  {
+   "name": "v7_m45",
+   "file": "material_v7_m45.txt",
+   "expect": "material_v7_m45.expect.json"
+  },
+  {
+   "name": "v7_m48",
+   "file": "material_v7_m48.txt",
+   "expect": "material_v7_m48.expect.json"
+  },
+  {
+   "name": "v7_m02",
+   "file": "material_v7_m02.txt",
+   "expect": "material_v7_m02.expect.json"
+  },
+  {
+   "name": "v7_m15",
+   "file": "material_v7_m15.txt",
+   "expect": "material_v7_m15.expect.json"
+  },
+  {
+   "name": "v7_m55",
+   "file": "material_v7_m55.vtt",
+   "expect": "material_v7_m55.expect.json"
+  },
+  {
+   "name": "v7_m56",
+   "file": "material_v7_m56.vtt",
+   "expect": "material_v7_m56.expect.json"
+  }
+ ]
+}

@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kiku/format/schema.json",
+  "title": "分析役の返事（1ステップ分）",
+  "description": "形だけを縛る。字数・件数・時刻・id の正しさは検査器（rules.json と手続き的検査）が落とす。構造化出力の制約に合わせて additionalProperties:false、required に全欄、anyOf で e ごとに分ける。minLength/maxLength/minItems は使わない（対応していない実装があるため）。返事はこの形の JSON オブジェクト 1 つだけで、前置き・後書きは付けない（全体を ``` で 1 回囲んだものは、囲みを外して読む）。欄の値の入れ子は 32 段まで（超えたら F02）。返事の文字の全体で、文字列の外の [ と { の入れ子が 500 段を超えていれば、JSON として読む前に F02 で断る。前後の空白として除く字は FORMAT.md「返事の読み方」の一覧だけ（読み方の全体もそこ）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["step", "events", "note"],
+  "properties": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t"],
+      "properties": {
+        "t": {
+          "description": "窓 [始まり, 終わり]（秒）。道具が渡した窓と同じ値を返す",
+          "type": "array",
+          "items": {"type": "number"}
+        }
+      }
+    },
+    "events": {
+      "description": "この窓の判断の並び。書くことが無い窓は []（欄ごと無い返事も [] として読むが、null は読めない返事になる）。所感（note）はここに入れず、外の note に 1 つだけ書く",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {"$ref": "#/$defs/card"},
+          {"$ref": "#/$defs/hold"},
+          {"$ref": "#/$defs/close"},
+          {"$ref": "#/$defs/fix"},
+          {"$ref": "#/$defs/group"},
+          {"$ref": "#/$defs/rename"},
+          {"$ref": "#/$defs/top"},
+          {"$ref": "#/$defs/echo"},
+          {"$ref": "#/$defs/list"}
+        ]
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x"],
+      "properties": {
+        "x": {"description": "このステップの所感・予測。1〜400 字。毎ステップちょうど1件", "type": "string"}
+      }
+    }
+  },
+  "$defs": {
+    "t": {"description": "素材時間（秒）。step.t[1] 以下", "type": "number"},
+    "who": {
+      "description": "話者名か null",
+      "anyOf": [{"type": "string"}, {"type": "null"}]
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "d", "role", "who", "src", "li", "ti", "b"],
+      "properties": {
+        "e": {"const": "card"},
+        "id": {"description": "next_ids.card から順に", "type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "d": {"description": "深さ。0 以上の整数", "type": "integer"},
+        "role": {"type": "string", "enum": ["claim", "counter", "case", "land"]},
+        "who": {"$ref": "#/$defs/who"},
+        "src": {"description": "根拠の発話の i", "type": "array", "items": {"type": "integer"}},
+        "li": {
+          "description": "[数え上げの id, 何番目か（1 から）] か null",
+          "anyOf": [
+            {"type": "array", "items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}},
+            {"type": "null"}
+          ]
+        },
+        "ti": {"description": "見出し。1〜50 字", "type": "string"},
+        "b": {"description": "詳細。0〜120 字", "type": "string"}
+      }
+    },
+    "hold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "who", "q"],
+      "properties": {
+        "e": {"const": "hold"},
+        "id": {"description": "next_ids.hold から順に", "type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "who": {"$ref": "#/$defs/who"},
+        "q": {"description": "問い。1〜120 字", "type": "string"}
+      }
+    },
+    "close": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "as", "by"],
+      "properties": {
+        "e": {"const": "close"},
+        "id": {"description": "開いている保留の id", "type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "as": {"description": "答え。1〜120 字", "type": "string"},
+        "by": {"description": "答えを出したカードの id。無ければ []", "type": "array", "items": {"type": "string"}}
+      }
+    },
+    "fix": {
+      "description": "訂正。was は道具が現状から埋めるので返事には書かない。now の型は field で決まる",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["e", "id", "t", "field", "now", "why"],
+          "properties": {
+            "e": {"const": "fix"},
+            "id": {"type": "string"},
+            "t": {"$ref": "#/$defs/t"},
+            "field": {"const": "d"},
+            "now": {"type": "integer"},
+            "why": {"type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["e", "id", "t", "field", "now", "why"],
+          "properties": {
+            "e": {"const": "fix"},
+            "id": {"type": "string"},
+            "t": {"$ref": "#/$defs/t"},
+            "field": {"type": "string", "enum": ["ti", "b"]},
+            "now": {"type": "string"},
+            "why": {"type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["e", "id", "t", "field", "now", "why"],
+          "properties": {
+            "e": {"const": "fix"},
+            "id": {"type": "string"},
+            "t": {"$ref": "#/$defs/t"},
+            "field": {"const": "role"},
+            "now": {"type": "string", "enum": ["claim", "counter", "case", "land"]},
+            "why": {"type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["e", "id", "t", "field", "now", "why"],
+          "properties": {
+            "e": {"const": "fix"},
+            "id": {"type": "string"},
+            "t": {"$ref": "#/$defs/t"},
+            "field": {"const": "span"},
+            "now": {"type": "array", "items": {"anyOf": [{"type": "number"}, {"type": "null"}]}},
+            "why": {"type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["e", "id", "t", "field", "now", "why"],
+          "properties": {
+            "e": {"const": "fix"},
+            "id": {"type": "string"},
+            "t": {"$ref": "#/$defs/t"},
+            "field": {"const": "items"},
+            "now": {"type": "array", "items": {"type": "string"}},
+            "why": {"type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["e", "id", "t", "field", "now", "why"],
+          "properties": {
+            "e": {"const": "fix"},
+            "id": {"type": "string"},
+            "t": {"$ref": "#/$defs/t"},
+            "field": {"const": "n"},
+            "now": {"type": "integer"},
+            "why": {"type": "string"}
+          }
+        }
+      ]
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "span", "lb", "kind"],
+      "properties": {
+        "e": {"const": "group"},
+        "id": {"description": "next_ids.group（A, B, …）", "type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "span": {"description": "[始まり, 終わりまたは null]", "type": "array", "items": {"anyOf": [{"type": "number"}, {"type": "null"}]}},
+        "lb": {"description": "名前。1〜50 字", "type": "string"},
+        "kind": {"type": "string", "enum": ["start", "retro"]}
+      }
+    },
+    "rename": {
+      "description": "括りの名前を変える。was は道具が埋める",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "now"],
+      "properties": {
+        "e": {"const": "rename"},
+        "id": {"type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "now": {"type": "string"}
+      }
+    },
+    "top": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "prev", "why"],
+      "properties": {
+        "e": {"const": "top"},
+        "id": {"type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "prev": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "why": {"type": "string"}
+      }
+    },
+    "echo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "why"],
+      "properties": {
+        "e": {"const": "echo"},
+        "id": {"type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "why": {"type": "string"}
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["e", "id", "t", "who", "n", "items"],
+      "properties": {
+        "e": {"const": "list"},
+        "id": {"description": "next_ids.list から順に", "type": "string"},
+        "t": {"$ref": "#/$defs/t"},
+        "who": {"$ref": "#/$defs/who"},
+        "n": {"description": "宣言された数。2 以上", "type": "integer"},
+        "items": {"description": "分かっている項目。0〜n 件", "type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

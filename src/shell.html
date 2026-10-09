@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>話の構造（聞きながら組み上げる）</title>
+<!--
+  kiku.html の骨。build_html.py が @@ の印を src/ と format/ の中身で置き換え、1 枚の HTML にする。
+  外部参照は無い（CDN・Web フォントを使わない）。鍵はこのファイルに入らない（画面で貼る）。
+  見た目は試験用の素のもの。設計工程は後。
+-->
+<!--@@css base.css-->
+</head>
+<body>
+<div class="page">
+
+<header class="status" id="status" aria-label="運転状態">
+  <span><span class="k">聞く：</span><span class="v" id="st-listen">止まっている</span></span>
+  <span><span class="k">いま：</span><span class="v" id="st-clock">0:00</span></span>
+  <span><span class="k">最後の判断から：</span><span class="v" id="st-since">—</span></span>
+  <span><span class="k">窓幅：</span><span class="v" id="st-win">30 秒</span></span>
+  <span><span class="k">経路：</span><span class="v" id="st-route">未選択</span></span>
+  <span><span class="k">入口：</span><span class="v" id="st-intake">未選択</span></span>
+  <span><span class="k">未確定の窓：</span><span class="v" id="st-gaps">0 件</span></span>
+</header>
+
+<h1>話の構造（聞きながら組み上げる）</h1>
+<p class="soft">話の構造を、聞いているそばから組み上げて見せる。判断は窓ごとに記録され、記録がそのまま画面になる。先は読まない。並び順は時刻のまま動かさない。</p>
+<div class="halt" id="halt" role="alert" hidden></div>
+
+<section class="box setup" id="setup">
+  <div class="row">
+    <label>会議の名前 <input type="text" id="name" placeholder="例：備品の見直し" size="24"></label>
+    <label>入口
+      <select id="intake">
+        <option value="text">打つ／貼る（OS の音声入力もここ）</option>
+        <option value="speech">ブラウザ音声認識</option>
+        <option value="file">ファイル（試験・作り直し用）</option>
+      </select>
+    </label>
+    <label>分析役
+      <select id="route">
+        <option value="none">未選択</option>
+        <option value="anthropic">API（Anthropic）</option>
+        <option value="openai">API（OpenAI 互換）</option>
+        <option value="manual">手動の輪（遅い）</option>
+        <option value="human">人が書く</option>
+        <option value="mock">内蔵の模擬（試験用）</option>
+      </select>
+    </label>
+    <label>窓幅 <input type="number" id="win" value="30" min="5" max="180" step="1" size="4"> 秒（5〜180 の整数）</label>
+    <label>聞き始める前に知っていたこと <input type="text" id="known" placeholder="前回の引き継ぎなど（無ければ空）" size="28" maxlength="2000"></label>
+  </div>
+  <div class="row">
+    <button class="primary" id="start">聞き始める</button>
+    <button id="pause" disabled>中断する</button>
+    <button id="resume" disabled hidden>再開する</button>
+    <button id="end" disabled>聞き終える</button>
+    <span id="setupmsg" class="soft"></span>
+  </div>
+  <div class="row">
+    <button id="export">書き出す（判断ログと素材ログ）</button>
+    <button id="bindlog">判断ログをファイルに結び付ける</button>
+    <button id="bindsrc">素材ログをファイルに結び付ける</button>
+    <button class="danger" id="clear">記録を消す</button>
+    <span id="recmsg" class="soft"></span>
+  </div>
+  <details id="apibox">
+    <summary>API の設定（鍵はこの画面で貼る。ページには入っていない）</summary>
+    <p class="warn">API を選ぶと、窓が閉じるたびに、指示文（約 1.3 万字）と次のものを API の提供元へ送る：「聞き始める前に知っていたこと」、その窓の発言（話者名つき）、未確定の窓の発言（話者名つき。その窓が片付くまで毎回）、答えを待っている問いと尋ねた人の名前、最上位の候補の見出し、章の名前、宣言された数え上げの項目、最近のカード 8 枚までの見出しと話者名、最近の所感 3 つまで、いまの日時。呼び出しに失敗したときや、返事が決まりに合わないときは、その理由を添えて同じ窓をもう一度送る（1 つの窓で 3 回まで）。送ってよい会議かは、使う場所の決まりに従う。</p>
+    <div class="row">
+      <label>送り先の住所 <input type="text" id="api-url" size="40" placeholder="OpenAI 互換だけ。空なら api.openai.com"></label>
+      <label>モデル <input type="text" id="api-model" size="24" placeholder="OpenAI 互換は必ず打つ"></label>
+    </div>
+    <p class="soft">API（Anthropic）は、いつも api.anthropic.com に送る（住所の欄は空にする。モデルは空なら既定のもの）。API（OpenAI 互換）は、住所の後ろに /chat/completions を付けて送る。鍵の見出しが違う送り先（Azure など）や、住所に ?api-version= を付ける送り先は、いまは設定できない。</p>
+    <div class="row">
+      <label>鍵 <input type="password" id="api-key" size="40" autocomplete="off"></label>
+      <label><input type="checkbox" id="api-remember"> この PC に覚える（既定はこのタブを閉じるまで）</label>
+      <span class="soft">覚えると、鍵はこの PC の中に平文で残り、ファイルとして開いた他のページからも読める場所に置かれる。共有の PC では選ばない。</span>
+      <button id="api-forget">鍵を消す</button>
+      <button id="api-test">接続を試す</button>
+      <span id="api-msg" class="soft"></span>
+    </div>
+  </details>
+</section>
+
+<section class="box intake" id="intakebox">
+  <div id="in-text">
+    <h2>打つ／貼る</h2>
+    <p class="soft">Enter か、入力が 2 秒止まったら確定して 1 発話になる。行の先頭に「名前: 本文」（半角の「:」のあとに空白）か「名前：本文」（全角の「：」）と書くと、名前が話者になる。名前は 20 字まで、空白を含まず、数字で始まらないものだけ。「15:00までに」「9:00 から」「https://…」のような行は、行の全体が本文になる（話者は無し）。表から貼った「時刻<TAB>話者<TAB>本文」の行は、時刻の列を使わず、届いた時刻で記録する。中断の間に打った行も捨てず、再開した後の最初の窓に入る。OS の音声入力（Windows は Win+H）もこの欄に打てる。</p>
+    <textarea id="ta" rows="3" disabled placeholder="ここに打つ／貼る"></textarea>
+  </div>
+  <div id="in-speech" hidden>
+    <h2>ブラウザ音声認識</h2>
+    <p class="soft">このブラウザが持つ音声認識で聞く。聞くのはこの PC のマイクだけ（オンライン会議の相手の声をヘッドホンで聞いているときは入らない）。この PC の中だけで文字にできるかをブラウザに尋ね、その答えに従う。できると答えたら、この PC の中で文字にする（音声は外へ出ない）。できないと答えたとき（尋ねる口がブラウザに無いときも）は、音声を提供元のサーバーへ送ることになるので、下の印を付けないと聞き始めない。この印は覚えないので、ページを開き直したら付け直す。この PC の中で文字にすると決めて始めた後に失敗しても、黙ってサーバーへ切り替えることはしない。途中結果は右の逐語の末尾にだけ出て、確定した分が記録になる。切れたら始め直す。何も聞き取れないまま続けて 5 回失敗したときや、マイクの許可が無いときは止めて、入口の欄にそう出す（入口を選び直して「聞き始める」を押せば、同じ記録の続きを聞ける）。「聞き終える」を押すと、止めた認識（中断の前に止めたものも）の終わりの知らせを合わせて 3 秒まで待ち、その間に届いた言葉も最後の窓に入れてから閉じる。それより後に届いた言葉は記録に入れず、素材ログに残して下の知らせの欄にそう出す。</p>
+    <p id="speechwhere" class="soft"></p>
+    <div class="row" id="speech-installrow" hidden>
+      <button id="speech-install">日本語の部品を入れる</button>
+      <span class="soft">入れるときに音声は送らない。部品の取得が止められている PC では入らないことがある。</span>
+    </div>
+    <div class="row" id="speech-cloudrow" hidden>
+      <label><input type="checkbox" id="speech-cloud" autocomplete="off"> 音声をブラウザの提供元（Chrome なら Google、Edge なら Microsoft）のサーバーへ送って文字にすることを承知した</label>
+    </div>
+    <p id="speechmsg" class="soft"></p>
+  </div>
+  <div id="in-file" hidden>
+    <h2>ファイル</h2>
+    <p class="soft">書き方は 4 つ: 時刻・話者・本文をタブで区切った表／時刻だけの行と本文の行／「0:05 甲: 始めます」のように時刻のあとに空白と本文を続けた行／WebVTT の字幕（会議の道具が書き出す .vtt）。どれになるかはファイルの中身の頭で決まる。1 発話ずつ読み、残りの長さは数えない。時刻として読めない行は発話にせず、下に行の番号を出す。時刻だけの行と本文の行で書いたファイルでは、「9:00 から」のように時刻で始まる本文の行を前の発話の続きとして読み、これも行の番号を出す。同じ名前の記録の続きから聞くときは、前と同じファイルを読み込んでから聞き始める（前に聞いた分は読み飛ばす）。</p>
+    <div class="row">
+      <input type="file" id="file" accept=".txt,.tsv,.vtt" hidden>
+      <button id="file-pick">ファイルを選ぶ</button><span id="file-name" class="soft">（まだ選んでいない）</span>
+      <button id="file-load" disabled>読み込む</button>
+      <button id="file-next" disabled>次の窓を流す</button>
+      <button id="file-play" disabled>等倍再生</button>
+      <button id="file-stop" disabled hidden>等倍再生を止める</button>
+    </div>
+    <textarea id="file-paste" rows="3" placeholder="ファイルの代わりにここに貼ってもよい"></textarea>
+  </div>
+  <p id="intakemsg" class="soft"></p>
+  <p id="intakenotice" class="warn" role="status" hidden></p>
+</section>
+
+<section class="box analyst" id="analystbox" hidden>
+  <div id="an-manual" hidden>
+    <h2>手動の輪（遅い）</h2>
+    <p class="soft">窓が閉じるたびに下にプロンプトが出る。コピーしてチャットに貼り、返事（機械向けの形式）を下の欄に貼って「取り込む」。</p>
+    <p class="warn">プロンプトには、指示文（約 1.3 万字）と次のものが入る：「聞き始める前に知っていたこと」、その窓の発言（話者名つき）、未確定の窓の発言（話者名つき。その窓が片付くまで毎回）、答えを待っている問いと尋ねた人の名前、最上位の候補の見出し、章の名前、宣言された数え上げの項目、最近のカード 8 枚までの見出しと話者名、最近の所感 3 つまで、いまの日時。返事が決まりに合わないときは、合わなかった理由を添えた同じ窓のプロンプトがもう一度出る（1 つの窓で 3 回まで）。貼ったものは全部、貼った先のチャットの提供元に渡る。</p>
+    <div class="row"><button id="man-copy">プロンプトをコピー</button><span id="man-msg" class="soft"></span></div>
+    <textarea id="man-prompt" rows="6" readonly placeholder="窓が閉じるとここに出る"></textarea>
+    <div class="row"><button id="man-apply">返事を貼ったら取り込む</button></div>
+    <textarea id="man-reply" rows="5" placeholder="返事（機械向けの形式）をここに貼る"></textarea>
+  </div>
+  <div id="an-human" hidden>
+    <h2>人が書く</h2>
+    <p class="soft">窓が閉じたら、この窓の判断を自分で書く。番号は自動で振られる。所感は必ず 1 件（書くまで送れない）。</p>
+    <div class="l0form">
+      <div class="row"><b>窓：</b><span id="h-win">（まだ無い）</span></div>
+      <div class="row">カード
+        <label>時刻（秒）<input type="number" id="h-ct" min="0" step="1"></label>
+        <label>深さ<input type="number" id="h-cd" min="0" value="0" step="1" size="2"></label>
+        <label>役割<select id="h-crole"><option value="claim">主張</option><option value="counter">揺り戻し</option><option value="case">実例</option><option value="land">着地</option></select></label>
+        <label>話者<input type="text" id="h-cwho" size="8" placeholder="無ければ空"></label>
+      </div>
+      <div class="row"><input type="text" id="h-cti" placeholder="見出し（1〜50 字）"><input type="text" id="h-cb" placeholder="詳細（120 字まで）"><button id="h-cadd">カードを足す</button></div>
+      <div class="row">保留 <input type="text" id="h-hq" placeholder="問い（1〜120 字）"><label>話者<input type="text" id="h-hwho" size="8"></label><button id="h-hadd">保留を足す</button></div>
+      <div class="row">決着 <select id="h-xid"></select><input type="text" id="h-xas" placeholder="答え（1〜120 字）"><button id="h-xadd">決着を足す</button></div>
+      <div class="row">所感 <input type="text" id="h-note" placeholder="この窓で考えたこと（1〜400 字）"></div>
+      <div class="row"><span id="h-list" class="soft">（まだ何も足していない）</span></div>
+      <div class="row"><button class="primary" id="h-write">この窓を書く</button><button id="h-reset">足したものを消す</button></div>
+    </div>
+  </div>
+  <div class="msgs" id="an-msgs"></div>
+</section>
+
+<section class="box transport" id="transportbox">
+  <span class="seg" id="views"><button data-v="live" class="on">ライブ</button><button data-v="replay">追体験</button></span>
+  <span class="clock" id="clock">0:00</span>
+  <span id="replayctl" hidden>
+    <button id="play">再生</button>
+    <button id="restart">頭から</button>
+    <span class="seg" id="speeds"><button data-s="1">等倍</button><button data-s="5">5倍</button><button data-s="20" class="on">20倍</button><button data-s="60">60倍</button></span>
+  </span>
+  <span class="seg" id="modes"><button data-m="key" class="on">要点のみ</button><button data-m="all">すべてのカード</button></span>
+  <span id="edge" class="soft"></span>
+  <input type="range" class="scrub" id="scrub" min="0" max="0" value="0" step="1" aria-label="追体験の位置" hidden>
+</section>
+
+<div class="layout">
+  <aside class="col">
+    <div class="panel"><h3>宣言された数え上げ（全部で何点、いま何点目）</h3><div id="lists"></div></div>
+    <div class="panel"><h3 id="holdhead">答えを待っている問い</h3><div id="holds"></div></div>
+    <div class="panel"><h3 id="gaphead">未確定の窓</h3><div id="gaps"></div></div>
+    <div class="panel"><h3>最上位の候補</h3><div id="topbox"></div></div>
+    <div class="panel"><h3>章</h3><div id="chaps"></div></div>
+    <div class="panel"><h3>答えが出た問い</h3><div id="closed"></div></div>
+  </aside>
+  <main>
+    <div class="itl" id="itl">
+      <div class="itl-spine"></div>
+      <div id="rows"></div>
+    </div>
+  </main>
+  <aside class="col">
+    <div class="panel"><h3>この窓で考えたこと</h3><span class="soft" id="notesub"></span><div class="notex" id="notex">まだ無い</div></div>
+    <div class="panel"><h3>窓に入れた分の逐語（全文）</h3><div class="feed" id="feed"></div></div>
+  </aside>
+</div>
+
+<button class="tonow primary" id="tonow" hidden>いまへ</button>
+
+</div>
+
+<!--@@data TSV_RULES format/rules.json-->
+<!--@@data TSV_SCHEMA format/schema.json-->
+<!--@@text TSV_PROMPT prompts/analyst.md-->
+<!--@@js verify.js-->
+<!--@@js fold.js-->
+<!--@@js? analyst.js-->
+<!--@@js intake.js-->
+<!--@@js cut.js-->
+<!--@@js record.js-->
+<!--@@js timeline.js-->
+<!--@@js panels.js-->
+<!--@@js app.js-->
+</body>
+</html>

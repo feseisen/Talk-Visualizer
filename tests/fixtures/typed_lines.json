@@ -1,0 +1,251 @@
+{
+ "about": "打つ入口とメモ帳の 1 行の読み方の期待値（format/FORMAT.md「live のメモ帳」）。rt.py の memo_kind とページの readTypedLine の両方がこの表を通す。kind は timecol（1 列目の時刻らしい列を落とした行）か plain。1 列目は時刻として読めなくても、数字で始まり 0〜9・:・. だけで : を含めば落とす。落とした残りが 1 列なら話者の切り出しを当てる。「話者<TAB>本文」の話者の列は、終わりの「:」「：」の並びを落とす",
+ "rows": [
+  {
+   "line": "司会: 始めます",
+   "kind": "plain",
+   "who": "司会",
+   "text": "始めます"
+  },
+  {
+   "line": "司会：始めます",
+   "kind": "plain",
+   "who": "司会",
+   "text": "始めます"
+  },
+  {
+   "line": "　司会: 前後の空白は除く　",
+   "kind": "plain",
+   "who": "司会",
+   "text": "前後の空白は除く"
+  },
+  {
+   "line": "司会：",
+   "kind": "plain",
+   "who": null,
+   "text": "司会："
+  },
+  {
+   "line": "結論：A案にします",
+   "kind": "plain",
+   "who": "結論",
+   "text": "A案にします"
+  },
+  {
+   "line": "0:45 甲 反対です",
+   "kind": "plain",
+   "who": null,
+   "text": "0:45 甲 反対です"
+  },
+  {
+   "line": "9:00 から始めます",
+   "kind": "plain",
+   "who": null,
+   "text": "9:00 から始めます"
+  },
+  {
+   "line": "15:00までに送る",
+   "kind": "plain",
+   "who": null,
+   "text": "15:00までに送る"
+  },
+  {
+   "line": "16:9 の画面",
+   "kind": "plain",
+   "who": null,
+   "text": "16:9 の画面"
+  },
+  {
+   "line": "https://example.com を見る",
+   "kind": "plain",
+   "who": null,
+   "text": "https://example.com を見る"
+  },
+  {
+   "line": "12:00",
+   "kind": "plain",
+   "who": null,
+   "text": "12:00"
+  },
+  {
+   "line": "0:20\t甲\t1 列目の時刻は落とす",
+   "kind": "timecol",
+   "who": "甲",
+   "text": "1 列目の時刻は落とす"
+  },
+  {
+   "line": "０：２０\t乙\t全角の時刻も落とす",
+   "kind": "timecol",
+   "who": "乙",
+   "text": "全角の時刻も落とす"
+  },
+  {
+   "line": "1:02:03\t甲\t時:分:秒も落とす",
+   "kind": "timecol",
+   "who": "甲",
+   "text": "時:分:秒も落とす"
+  },
+  {
+   "line": "0:20\t話者の列が無い本文",
+   "kind": "timecol",
+   "who": null,
+   "text": "話者の列が無い本文"
+  },
+  {
+   "line": "0:20\t\t話者の欄が空",
+   "kind": "timecol",
+   "who": null,
+   "text": "話者の欄が空"
+  },
+  {
+   "line": "0:20\t甲\t",
+   "kind": "timecol",
+   "who": null,
+   "text": "0:20 甲"
+  },
+  {
+   "line": "0:20\t",
+   "kind": "timecol",
+   "who": null,
+   "text": "0:20"
+  },
+  {
+   "line": "0:20\t甲\t本文\tタブの後ろも本文",
+   "kind": "timecol",
+   "who": "甲",
+   "text": "本文\tタブの後ろも本文"
+  },
+  {
+   "line": "甲\t時刻の無い表の行",
+   "kind": "plain",
+   "who": "甲",
+   "text": "時刻の無い表の行"
+  },
+  {
+   "line": "\t話者の欄が空の表の行",
+   "kind": "plain",
+   "who": null,
+   "text": "話者の欄が空の表の行"
+  },
+  {
+   "line": "1:2:3\t甲\t1 列目が時刻の書き方に合わない",
+   "kind": "timecol",
+   "who": "甲",
+   "text": "1 列目が時刻の書き方に合わない"
+  },
+  {
+   "line": "0:5\t乙\t秒が 1 桁",
+   "kind": "timecol",
+   "who": "乙",
+   "text": "秒が 1 桁"
+  },
+  {
+   "line": "甲\t司会: 列の話者には話者の切り出しを当てない",
+   "kind": "plain",
+   "who": "甲",
+   "text": "司会: 列の話者には話者の切り出しを当てない"
+  },
+  {
+   "line": "0:60\t乙\t秒が 60 の時刻らしい列も落とす",
+   "kind": "timecol",
+   "who": "乙",
+   "text": "秒が 60 の時刻らしい列も落とす"
+  },
+  {
+   "line": "12.5:00\t甲\t数字・コロン・ピリオドだけの列も落とす",
+   "kind": "timecol",
+   "who": "甲",
+   "text": "数字・コロン・ピリオドだけの列も落とす"
+  },
+  {
+   "line": "０：５\t乙\t全角を直してから時刻らしいかを見る",
+   "kind": "timecol",
+   "who": "乙",
+   "text": "全角を直してから時刻らしいかを見る"
+  },
+  {
+   "line": "0:2O\t乙\t英字の O を含む列は時刻らしくない",
+   "kind": "plain",
+   "who": "0:2O",
+   "text": "乙\t英字の O を含む列は時刻らしくない"
+  },
+  {
+   "line": "9:00 から\t甲\t空白と字を含む列は時刻らしくない",
+   "kind": "plain",
+   "who": "9:00 から",
+   "text": "甲\t空白と字を含む列は時刻らしくない"
+  },
+  {
+   "line": "0:20\t司会: 残りに話者の切り出しを当てる",
+   "kind": "timecol",
+   "who": "司会",
+   "text": "残りに話者の切り出しを当てる"
+  },
+  {
+   "line": "0:20\t司会：全角のコロンでも",
+   "kind": "timecol",
+   "who": "司会",
+   "text": "全角のコロンでも"
+  },
+  {
+   "line": "0:20\t9:00 から始めます",
+   "kind": "timecol",
+   "who": null,
+   "text": "9:00 から始めます"
+  },
+  {
+   "line": "0:20\t司会:",
+   "kind": "timecol",
+   "who": null,
+   "text": "司会:"
+  },
+  {
+   "line": "0:20\t司会：",
+   "kind": "timecol",
+   "who": null,
+   "text": "0:20 司会："
+  },
+  {
+   "line": "司会:\t話者の列の終わりのコロンは落とす",
+   "kind": "plain",
+   "who": "司会",
+   "text": "話者の列の終わりのコロンは落とす"
+  },
+  {
+   "line": "司会：\t全角のコロンも落とす",
+   "kind": "plain",
+   "who": "司会",
+   "text": "全角のコロンも落とす"
+  },
+  {
+   "line": "司会 ：\tコロンを落としてから空白も除く",
+   "kind": "plain",
+   "who": "司会",
+   "text": "コロンを落としてから空白も除く"
+  },
+  {
+   "line": "司会::\t続くコロンはまとめて落とす",
+   "kind": "plain",
+   "who": "司会",
+   "text": "続くコロンはまとめて落とす"
+  },
+  {
+   "line": ":\tコロンだけの話者の列は話者無し",
+   "kind": "plain",
+   "who": null,
+   "text": "コロンだけの話者の列は話者無し"
+  },
+  {
+   "line": "0:20\t司会:\t時刻の列を落とした後の話者の列も",
+   "kind": "timecol",
+   "who": "司会",
+   "text": "時刻の列を落とした後の話者の列も"
+  },
+  {
+   "line": "司会:\t",
+   "kind": "plain",
+   "who": null,
+   "text": "司会:"
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "name": "拒否：open.window が 3600 秒",
+ "why": "窓の幅は 5〜180 秒（events.open.fields.window）。1 時間の窓を許すと、最初の窓で素材の全部を読める",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "2026-10-07T09:00:00Z",
+   "mode": "live",
+   "window": 3600,
+   "known": ""
+  }
+ ],
+ "expect": "reject",
+ "clock": "2026-10-07T09:00:00Z",
+ "expect_rule": "F04"
+}

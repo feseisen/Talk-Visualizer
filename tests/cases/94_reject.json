@@ -1,0 +1,19 @@
+{
+ "name": "拒否：open.window が整数でない（7.5 秒）",
+ "why": "窓の長さは 5〜180 の整数の秒。小数は型の違い",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "2026-10-07T09:00:00Z",
+   "mode": "file",
+   "window": 7.5,
+   "known": ""
+  }
+ ],
+ "expect": "reject",
+ "expect_rule": "F02",
+ "clock": "2026-10-07T09:01:04Z"
+}

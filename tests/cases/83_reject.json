@@ -1,0 +1,19 @@
+{
+ "name": "拒否：壁時計が 0 年",
+ "why": "年は 0001 から",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "0000-01-01T00:00:00Z",
+   "mode": "file",
+   "window": 30,
+   "known": ""
+  }
+ ],
+ "expect": "reject",
+ "expect_rule": "F02",
+ "clock": "2026-10-07T09:01:04Z"
+}

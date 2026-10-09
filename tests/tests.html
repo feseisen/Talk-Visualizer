@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>検査器と畳み込みの試験</title>
+<!--
+  開くだけで走る試験ページ（file:// のまま、外部参照なし、node 不要）。
+  試験用の素の見た目で、色や書体は凝らない。
+  読むもの: ../src/verify.js、../src/fold.js、_runner.js、_data.js（tools/make_test_data.py が作る）
+-->
+<style>
+  body { margin: 0; padding: 16px; font-family: system-ui, "Yu Gothic UI", Meiryo, sans-serif; font-size: 14px; line-height: 1.5; color: #222; background: #fff; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; table-layout: fixed; }
+  th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; word-break: break-all; }
+  th { background: #f3f3f3; }
+  col.c1 { width: 4em; } col.c2 { width: 6em; }
+  tr.ng td { background: #fde8e8; }
+  tr.ok td:first-child { color: #060; }
+  td.detail { color: #555; font-size: 12px; }
+  #total { font-weight: bold; }
+  #total.bad { color: #a00; }
+  label { margin-right: 12px; }
+</style>
+</head>
+<body>
+<h1>検査器（verify.js）と畳み込み（fold.js）の試験</h1>
+<p id="total">走らせています…</p>
+<p>
+  <label><input type="checkbox" id="onlyNg"> 不合格だけ見る</label>
+  <span id="src"></span>
+</p>
+<table>
+  <colgroup><col class="c1"><col class="c2"><col><col></colgroup>
+  <thead><tr><th>結果</th><th>群</th><th>試験</th><th>中身</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<script src="../src/verify.js"></script>
+<script src="../src/fold.js"></script>
+<script src="_runner.js"></script>
+<script src="_data.js"></script>
+<script>
+(function () {
+  'use strict';
+  const total = document.getElementById('total');
+  const rows = document.getElementById('rows');
+  const onlyNg = document.getElementById('onlyNg');
+  if (!globalThis.TSV_TEST_DATA) {
+    total.textContent = '_data.js がありません。この道具の根（kiku.html のあるフォルダ）で python3 tools/make_test_data.py（Windows ではたいてい py -3 tools/make_test_data.py）を走らせてから開いてください。';
+    total.className = 'bad';
+    return;
+  }
+  const data = globalThis.TSV_TEST_DATA;
+  // 組み立てた画面と同じ名前で規則表を置く（fold.js は版の判定を verify.js に任せ、verify.js は規則表をここからも探す）
+  globalThis.TSV_RULES = data.rules;
+  document.getElementById('src').textContent = '規則表 ' + data.generated_from.rules + '、ケース ' + data.cases.length + ' 件、fixture ' + data.fixture.length + ' 行';
+  let results;
+  try {
+    results = globalThis.TSV_TESTS.runAll({ makeVerifier: globalThis.makeVerifier, verifyApi: globalThis.TSV_VERIFY, fold: globalThis.TSV_FOLD }, data);
+  } catch (err) {
+    total.textContent = '試験そのものが例外で止まりました: ' + (err && err.stack || err);
+    total.className = 'bad';
+    return;
+  }
+  const groups = {};
+  results.forEach(function (r) {
+    groups[r.group] = groups[r.group] || { ok: 0, ng: 0 };
+    groups[r.group][r.ok ? 'ok' : 'ng']++;
+    const tr = document.createElement('tr');
+    tr.className = r.ok ? 'ok' : 'ng';
+    [r.ok ? '合格' : '不合格', r.group, r.name, r.detail || ''].forEach(function (txt, i) {
+      const td = document.createElement('td');
+      if (i === 3) td.className = 'detail';
+      td.textContent = txt;
+      tr.appendChild(td);
+    });
+    rows.appendChild(tr);
+  });
+  const ng = results.filter(function (r) { return !r.ok; }).length;
+  total.textContent = '合計 ' + results.length + ' 件、不合格 ' + ng + ' 件 ／ ' +
+    Object.keys(groups).map(function (g) { return g + ' ' + groups[g].ok + '/' + (groups[g].ok + groups[g].ng); }).join('、');
+  total.className = ng ? 'bad' : '';
+  document.title = (ng ? '不合格 ' + ng + ' 件 — ' : '全部合格 — ') + '検査器と畳み込みの試験';
+  onlyNg.addEventListener('change', function () {
+    Array.prototype.forEach.call(rows.children, function (tr) { tr.hidden = onlyNg.checked && tr.className === 'ok'; });
+  });
+})();
+</script>
+</body>
+</html>

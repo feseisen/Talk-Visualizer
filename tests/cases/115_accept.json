@@ -1,0 +1,19 @@
+{
+ "name": "受理：素材の名前が .Vtt（大小が混ざる）",
+ "why": "字幕の形の名前も受ける。大小文字は問わない（P30）",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "2026-10-07T09:00:00Z",
+   "window": 30,
+   "known": "",
+   "mode": "live",
+   "src": "live-memo.Vtt"
+  }
+ ],
+ "expect": "accept",
+ "clock": "2026-10-07T09:00:00Z"
+}

@@ -1,0 +1,25 @@
+{
+ "name": "拒否：中断の時刻が負",
+ "why": "pause.t も 0 以上",
+ "log_prefix": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "2026-10-07T09:00:00Z",
+   "mode": "file",
+   "window": 30,
+   "known": ""
+  }
+ ],
+ "batch": [
+  {
+   "e": "pause",
+   "t": -5,
+   "why": "休憩"
+  }
+ ],
+ "expect": "reject",
+ "expect_rule": "P29",
+ "clock": "2026-10-07T09:01:04Z"
+}

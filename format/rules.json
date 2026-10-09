@@ -1,0 +1,265 @@
+{
+  "title": "判断ログの規則表（v1・v2 共通）。説明は format/FORMAT.md",
+  "frozen": "2026-10-07",
+  "kinds": ["open", "step", "card", "hold", "close", "fix", "group", "rename", "top", "echo", "note", "list", "end", "pause"],
+  "id_patterns": {
+    "card": "^C[1-9][0-9]*$",
+    "hold": "^H[1-9][0-9]*$",
+    "list": "^L[1-9][0-9]*$",
+    "group": "^[A-Z]+$"
+  },
+  "id_sequence": {
+    "card": "C1, C2, … （C + 連番）",
+    "hold": "H1, H2, … （H + 連番。kind:gap も番号を使う）",
+    "list": "L1, L2, … （L + 連番）",
+    "group": "A, B, …, Z, AA, AB, …, AZ, BA, … （表計算の列名と同じ）"
+  },
+  "enums": {
+    "role": ["claim", "counter", "case", "land"],
+    "fix.field": ["d", "ti", "b", "role", "span", "items", "n"],
+    "group.kind": ["start", "retro"],
+    "hold.kind": ["gap"],
+    "open.mode": ["live", "file"]
+  },
+  "fix.target": {
+    "d": "card", "ti": "card", "b": "card", "role": "card",
+    "span": "group",
+    "items": "list", "n": "list"
+  },
+  "limits": {
+    "card.ti": {"min": 1, "max": 50},
+    "card.b": {"min": 0, "max": 120},
+    "hold.q": {"min": 1, "max": 120},
+    "close.as": {"min": 1, "max": 120},
+    "group.lb": {"min": 1, "max": 50},
+    "rename.now": {"min": 1, "max": 50},
+    "list.items[]": {"min": 1, "max": 50},
+    "note.x": {"min": 1, "max": 400},
+    "fix.why": {"min": 0, "max": 200},
+    "top.why": {"min": 0, "max": 200},
+    "echo.why": {"min": 0, "max": 200},
+    "pause.why": {"min": 0, "max": 200},
+    "step.think": {"min": 0, "max": 2000},
+    "open.known": {"min": 0, "max": 2000},
+    "open.src_ext": [".txt", ".tsv", ".vtt"],
+    "batch.card": {"min": 0, "max": 5},
+    "batch.hold": {"min": 0, "max": 3},
+    "batch.close": {"min": 0, "max": 3},
+    "batch.note": {"min": 1, "max": 1},
+    "step.width_factor": 3,
+    "step.max_lines": 40,
+    "value.max_depth": 32,
+    "warn.common_substring": 4,
+    "warn.known_overlap": 30,
+    "warn.hedge_words": ["だろう", "かもしれない", "おそらく"]
+  },
+  "events": {
+    "open": {
+      "fields": {
+        "v": {"type": "int", "req": "v2"},
+        "name": {"type": "str", "req": "all"},
+        "t0": {"type": "iso", "req": "v2"},
+        "mode": {"type": "str", "req": "v2", "enum": "open.mode"},
+        "window": {"type": "int", "req": "v2", "min": 5, "max": 180},
+        "known": {"type": "str", "req": "v2"},
+        "src": {"type": "str", "req": "opt"},
+        "chunk": {"type": "int", "req": "opt", "min": 1}
+      },
+      "note": "v1 は chunk で刻み、v2 は window（5〜180 の整数の秒）で刻む。v の値は versions.<版>.open_v だけが決める（型も比べる。true は 1 ではない。どの版にも無い v は F07。欄の min/max では縛らない）"
+    },
+    "step": {
+      "fields": {
+        "n": {"type": "int", "req": "all", "min": 1},
+        "lines": {"type": "arr:int", "req": "all", "min": 2, "max": 2},
+        "t": {"type": "arr:num", "req": "all", "min": 2, "max": 2},
+        "at": {"type": "iso", "req": "v2", "tool_writes": true},
+        "think": {"type": "str", "req": "opt", "tool_writes": true}
+      }
+    },
+    "card": {
+      "fields": {
+        "id": {"type": "id:card", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "d": {"type": "int", "req": "all", "min": 0},
+        "role": {"type": "str", "req": "all", "enum": "role"},
+        "who": {"type": "str", "req": "v2", "null": true},
+        "src": {"type": "arr:int", "req": "v2"},
+        "li": {"type": "li", "req": "opt", "null": true},
+        "ti": {"type": "str", "req": "all"},
+        "b": {"type": "str", "req": "all"}
+      }
+    },
+    "hold": {
+      "fields": {
+        "id": {"type": "id:hold", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "who": {"type": "str", "req": "v2", "null": true},
+        "q": {"type": "str", "req": "all"},
+        "kind": {"type": "str", "req": "opt", "enum": "hold.kind", "tool_writes": true}
+      }
+    },
+    "close": {
+      "fields": {
+        "id": {"type": "id:hold", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "as": {"type": "str", "req": "all"},
+        "by": {"type": "arr:id:card", "req": "v2"}
+      }
+    },
+    "fix": {
+      "fields": {
+        "id": {"type": "str", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "field": {"type": "str", "req": "all", "enum": "fix.field"},
+        "was": {"type": "any", "req": "all", "tool_fills": true},
+        "now": {"type": "any", "req": "all"},
+        "why": {"type": "str", "req": "opt"}
+      },
+      "note": "was は v2（fill_was が true の版）では道具が現状から埋める（無ければ now の手前に足す、あって現状と違えば拒む）。fill_was が false の版（v1）では分析役が書くので必須（F01）。now の型と値の範囲は field の欄と同じ（d は 0 以上など。版に依らない）"
+    },
+    "group": {
+      "fields": {
+        "id": {"type": "id:group", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "span": {"type": "span", "req": "all"},
+        "lb": {"type": "str", "req": "all"},
+        "kind": {"type": "str", "req": "all", "enum": "group.kind"}
+      }
+    },
+    "rename": {
+      "fields": {
+        "id": {"type": "id:group", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "was": {"type": "str", "req": "all", "tool_fills": true},
+        "now": {"type": "str", "req": "all"}
+      },
+      "note": "was は fix と同じ扱い（道具が埋める）"
+    },
+    "top": {
+      "fields": {
+        "id": {"type": "id:card", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "prev": {"type": "id:card", "req": "all", "null": true},
+        "why": {"type": "str", "req": "opt"}
+      }
+    },
+    "echo": {
+      "fields": {
+        "id": {"type": "id:group", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "why": {"type": "str", "req": "opt"}
+      }
+    },
+    "note": {
+      "fields": {
+        "t": {"type": "t", "req": "all"},
+        "x": {"type": "str", "req": "all"}
+      }
+    },
+    "list": {
+      "fields": {
+        "id": {"type": "id:list", "req": "all"},
+        "t": {"type": "t", "req": "all"},
+        "who": {"type": "str", "req": "all", "null": true},
+        "n": {"type": "int", "req": "all", "min": 2},
+        "items": {"type": "arr:str", "req": "all"}
+      }
+    },
+    "end": {
+      "fields": {
+        "t": {"type": "t", "req": "all"},
+        "at": {"type": "iso", "req": "all", "tool_writes": true}
+      },
+      "standalone": true
+    },
+    "pause": {
+      "fields": {
+        "t": {"type": "t", "req": "all"},
+        "why": {"type": "str", "req": "all"},
+        "at": {"type": "iso", "req": "all", "tool_writes": true}
+      },
+      "standalone": true
+    }
+  },
+  "versions": {
+    "1": {
+      "open_v": [null, 1],
+      "kinds": ["open", "step", "card", "hold", "close", "fix", "group", "rename", "top", "note", "echo"],
+      "required_levels": ["all"],
+      "enum_overrides": {
+        "role": ["claim", "counter", "case", "land", "top"],
+        "fix.field": ["d", "ti", "b", "role", "span"]
+      },
+      "cut": "chunk",
+      "sequential_ids": false,
+      "id_patterns": false,
+      "limits": false,
+      "note_per_step": [0, null],
+      "fill_was": false,
+      "strict_keys": false,
+      "step_at": false,
+      "live_at_after_heard": false,
+      "card_src_min": 0,
+      "note": "v1 の実走記録。open.v が無いか 1。欄の欠けと id の欠番を許し、role:top を受け、list/end/pause を拒む。fix/rename の was は分析役が書く（必須）"
+    },
+    "2": {
+      "open_v": [2],
+      "kinds": ["open", "step", "card", "hold", "close", "fix", "group", "rename", "top", "echo", "note", "list", "end", "pause"],
+      "required_levels": ["all", "v2"],
+      "enum_overrides": {},
+      "cut": "window",
+      "sequential_ids": true,
+      "id_patterns": true,
+      "limits": true,
+      "note_per_step": [1, 1],
+      "fill_was": true,
+      "strict_keys": true,
+      "step_at": true,
+      "live_at_after_heard": true,
+      "card_src_min": 1,
+      "note": "この版。at/who/src/by を要り（card.src は 1 つ以上）、id の形と連番を縛り、上限を当て、知らない欄を拒む（分析役が step・end・pause に書いた at は検査の前に捨てる）。live の記録では聞き終える前に判断を押せない（P27）"
+    }
+  },
+  "procedural": [
+    {"id": "P01", "text": "open を置けるのは空のログの 1 行目だけで、空のログの 1 行目は必ず open。新しい記録を始める入口は rt.py open（とページの新しい記録）だけで、open は v2 だけを書く。rt.py append は open を受けない（v1 の記録は、既にあるものの続きにだけ追記できる）。検査器そのもの（ページと rt.py の両方）は、空のログへの open だけの追記を受ける"},
+    {"id": "P02", "text": "open・end・pause はそれぞれ1件だけの追記（他のイベントと混ぜない）。それ以外の追記は先頭が step で、1回の追記に step は1つ。step より前に他のイベントを置かない"},
+    {"id": "P03", "text": "step.n は直前の step の n + 1（最初は 1）。欄の形の検査（F01・F02・F03・F05・F06）に落ちた step には P03〜P08・P27 を当てず、同じ追記の後ろのイベントには step の lines を使う検査（P19 の範囲・P20・P29 のカードの位置）を当てない（窓の終わりの P09 は、t が [数, 数] なら当てる）。違反は欄の検査が出し、検査器は落ちない"},
+    {"id": "P04", "text": "step.lines は直前の続き（lines[0] = 直前の lines[1] + 1、最初は 1）で、lines[1] >= lines[0]"},
+    {"id": "P05", "text": "窓の幅。v1: 1 ステップの行数は chunk 以下で、chunk より短いステップは最後の 1 つだけ。v2: t[1] >= t[0] かつ t[1] - t[0] <= window * step.width_factor。limits の版（v2）では、1つの窓の発話の数 lines[1] - lines[0] + 1 は limits.step.max_lines 以下。上限に当たった窓は、終わりを渡さなかった最初の発話（上限 + 1 件目）の時刻 T まで縮め、窓の中に T と同じ時刻の発話があればその同じ時刻の塊の手前で切る（窓は上限より少なくなる。渡した発話はどれも t[1] より前）。t[1] = t[0]（幅 0）を受けるのは、発話がちょうど limits.step.max_lines 件の窓だけ。塊が窓の最初の発話から始まる（窓の上限 + 1 件以上がすべて同じ時刻 T）ときの [T, T] と、T が窓の始まり以下（live で遅れて届いた発話）のときの [始まり, 始まり]（始まりより前には縮めず、塊の手前でも切らない）"},
+    {"id": "P06", "text": "step.t[0] は直前の step の t[0]（v1）／ t[1]（v2）以上。pause の直後なら pause.t 以上"},
+    {"id": "P07", "text": "道具が渡した窓を知っているとき、step.t と step.lines はその窓と一致。素材のある記録（open.src か、open で名指しした素材。live と file のどちらでも）では、道具は渡した窓を信じきらず素材から計算し直して照らす。素材は読むときに時刻を単調にする（前の発話より前の時刻は、前の発話の時刻に揃える）。t[0] は直前の step の t[1]（無ければ 0。発話の無い窓を丸ごと飛ばしたときだけ、窓の幅の刻みで先へ進む）、t[1] - t[0] は window * step.width_factor 以下、lines は、まだ読んでいない発話のうち t < t[1] のものを先頭から順に limits.step.max_lines 件まで（超えた分は次の窓）。上限で切った窓は、t[1] を渡さなかった最初の発話の時刻 T まで縮め、窓の中に T と同じ時刻の発話があればその塊の手前で切る（聞いたのはそこまで。P09・P15 や監査が見る t[1] と渡した発話を合わせ、t[0] <= 発話.t < t[1] を道具が自分で破らない）。塊が窓の最初の発話から始まるときだけ、幅 0 の窓 [T, T]（始まりも T まで進む）に上限ちょうどの件数を入れ、次の窓は T から始まる。T が窓の始まり以下（遅れて届いた発話）なら、幅 0 の窓 [始まり, 始まり] に上限ちょうどの件数。ページの検査器は素材の全文を持たないので計算し直さないが、素材ログ（src）を渡されたときは、窓の発話と渡さなかった次の発話（lines[1] + 1）の時刻を照らす。幅のある窓: 窓の発話は t[1] より前、次の発話は t[1] 以上。始まりが直前の step の t[1]（無ければ 0）より先へ進んだ幅 0 の窓: 窓の発話は t[1] ちょうど、次の発話は t[1] 以上。進んでいない幅 0 の窓: 窓の発話も次の発話も t[1] 以下。open で素材を名指しした記録は、素材が見つからなくても免除しない（拒む）。1つの素材ファイルに開けるログは1つ（rt.py open が素材の隣の <素材>.owner にログのパスを書く。別のログで同じ素材を open・next すると拒む）。file の記録で next・append に渡す素材は、open.src と同じファイル（解決したパスで比べる）でなければ拒む"},
+    {"id": "P08", "text": "step.at は道具が押す（分析役が step・end・pause に書いた at は、値の検査（F02）も含めてどの検査よりも前に捨てる）。直前の step の at 以上"},
+    {"id": "P09", "text": "すべてのイベントの t は step.t[1] 以下（窓の終わりより先の、聞く前の所には書けない）。上限で切った窓では縮めた t[1] で比べる（縮めた窓の発話はどれも t[1] より前。幅 0 の窓だけは、渡した発話も t[1] ちょうどか、遅れて届いてそれより前）"},
+    {"id": "P10", "text": "指す相手がある: close/fix/top/echo/rename の id、close.by、card.li の数え上げは、既存かこのバッチで先に出たもの"},
+    {"id": "P11", "text": "採番（v2）: 新しい card/hold/list/group の id は next_ids と一致"},
+    {"id": "P12", "text": "同じ id の card/hold/group/list を二度出さない"},
+    {"id": "P13", "text": "close は開かれた保留だけ。同じ id への2つ目以降は追加の答えとして受ける"},
+    {"id": "P14", "text": "fix: field と対象の種類が合う。now はその欄の制約を満たす（d は 0 以上（版に依らず）、span の始まりは括りの t 以下で終わりは未聴でない、items は n 以下で各項目は字数の上限内（limits の版のみ）、n は分かっている項目数以上、など）。was は現状と一致（fill_was の版。JSON の文字列にして比べる。false と 0 は別。無ければ道具が now の手前に埋める）。rename の was も同じ"},
+    {"id": "P15", "text": "group.span は [始まり, 終わりまたは null]。始まりは t 以下、終わりは step.t[1] 以下"},
+    {"id": "P16", "text": "警告: top.prev が現状の最上位と違う"},
+    {"id": "P17", "text": "note の件数（版の列 note_per_step）"},
+    {"id": "P18", "text": "list.n >= 2、items は n 件以下。card.li は存在する数え上げで、1 <= 番目 <= n"},
+    {"id": "P19", "text": "card.src の各 i は 1 〜 step.lines[1]。空の src は、版の列 card_src_min が 0 の版（v1）では警告。1 の版（v2）では P29 で拒むので警告は出さない"},
+    {"id": "P20", "text": "who は、素材ログがあるとき、聞いた範囲に出てきた話者か null。素材ログが無ければ検査しない"},
+    {"id": "P21", "text": "end の後には何も追記できない。end.t は直前の step の t[1] 以上"},
+    {"id": "P22", "text": "pause.t は直前の step の t[1] 以上で、t[1] 以下（つまり t[1] ちょうど。step がまだ無ければ 0 以下）。中断は読み終えた所に置く（先に置くと、再開した窓がその間の発話をまとめて渡すことになる）"},
+    {"id": "P23", "text": "1バッチの件数（limits.batch.*）"},
+    {"id": "P24", "text": "警告: card.ti・card.b に推量語（limits.warn.hedge_words）がある"},
+    {"id": "P25", "text": "警告: このバッチより前から開いている保留の q と、このバッチのカードの ti に limits.warn.common_substring 文字以上の共通部分がある。同じバッチで開いた保留は見ない"},
+    {"id": "P26", "text": "全か無か: 違反がどれか 1 つでもあれば、その追記は 1 行も書かない。警告だけなら書く"},
+    {"id": "P27", "text": "live の記録（open.mode が live で、版の列 live_at_after_heard が true の版）では、step.at - open.t0 >= step.t[1]（秒。小数部まで読む）。聞き終える前に判断を押せない。file の記録には当てない"},
+    {"id": "P28", "text": "警告: file の記録で、open.known と素材の本文に limits.warn.known_overlap 字以上の共通部分がある（素材の先の中身を known に入れていないか）。比べる前に、両方から空白と句読点・記号（Unicode の分類が Z・P・S で始まる文字と、空白文字）を除く。拒まない。素材の全文を持つ rt.py が見る（ページの検査器は素材の全文を受け取らないので見ない）"},
+    {"id": "P29", "text": "並びの位置（R1）: 位置は後から動かせないので、置ける範囲を縛る。すべてのイベントの t（step は t[0]）は 0 以上。card.src は、版の列 card_src_min の数以上（v2 は 1。空の配列は拒む。根拠の無いカードは位置を確かめられず、先頭などへ置けてしまう）。card.t は、src の発話の時刻（読むときに単調にした時刻）の最小以上・最大以下（その発話の時刻が分かるとき）。close.t は閉じる保留の hold.t 以上（2つ目以降の答えも）。group.t が span の始まり以上であることは P15 が見る"},
+    {"id": "P30", "text": "素材の名前: 上限を当てる版（版の列 limits が true の版。v2）では、open.src は limits.open.src_ext のどれか（.txt・.tsv・.vtt）で終わる。大小文字は問わない（.TXT も受ける）。拡張子の無い名前・.json・.jsonl（判断ログ・素材ログ）・印や覚え書きの名前は拒む。別の記録を素材として読めてしまわないように。空のログに open を書くときに見る"}
+  ],
+  "field_checks": [
+    {"id": "F01", "text": "必須の欄が無い（版の required_levels に含まれる req の欄）。道具が押す欄（tool_writes）と、fill_was が true の版での道具が埋める欄（tool_fills）は欠けとしない"},
+    {"id": "F02", "text": "型が違う（配列の長さを含む。id は空でない文字列）。数は有限のものだけ（NaN・Infinity・-Infinity と、読むと無限になる 1e999 のような値は F02）で、絶対値が 2^53 - 1（9007199254740991）以下のものだけ（超える整数・小数は、何桁でも落ちずに F02）。整数の欄は 2.0 のような小数点つきの整数も整数として受ける（JS では 2 と区別できないため。道具は書くときに整数に直す）。文字列に対になっていないサロゲート（JSON の \\ud800 のような片割れ）があれば F02（欄の値でも、配列やオブジェクトの中でも、鍵でも）。iso の形は文字列の頭から末尾まで当て（末尾の改行も違反）、数字は半角の 0〜9 だけ。形が合っても暦に無い日時（24 時、60 分、60 秒、2 月 30 日、4 月 31 日、0 年）は F02。欄の値の入れ子の深さ（数・文字列・真偽・null は 0、配列とオブジェクトは 1 + 中身のいちばん深いもの）が limits.value.max_depth を超えれば、何段でも落ちずに F02"},
+    {"id": "F03", "text": "enum に無い値（版の enum_overrides を優先）"},
+    {"id": "F04", "text": "上限・下限を超える。欄の定義にある値の範囲（events.*.fields の min/max）は、その版に在る欄（req が opt か、版の required_levels に入る欄）なら版に依らず見る。その版に無い欄（v1 の open.window など）は見ない。字数・件数の上限（limits）は版の limits が true のときだけ"},
+    {"id": "F05", "text": "知らない欄がある（版の strict_keys が true のときだけ。分析役が step・end・pause に書いた at は、どの検査よりも前に捨てるので、どんな値でも F05 にも F02 にもしない）"},
+    {"id": "F06", "text": "id の形が違う（版の id_patterns が true のときだけ）。形は文字列の頭から末尾まで当てる（末尾の改行も違反）"},
+    {"id": "F07", "text": "この版に無い種類のイベント（versions.<版>.kinds）。イベントとして読めない行（オブジェクトでない行: 文字列・数・配列・null。e が文字列でない行: e が配列・オブジェクト・数・null）も F07（落ちずに拒む）。open.v がどの版の open_v にも無い（知らない版。型も比べる: true は 1 ではない。黙って v1 にしない）"}
+  ],
+  "message_prefix": "違反文・警告文は規則の id で始める（例 \"P09: 時刻 1:15 は、この窓の終わり 1:00 より後です\"）。id の後ろの文は道具ごとに違ってよい（試験は id で照らす）"
+}

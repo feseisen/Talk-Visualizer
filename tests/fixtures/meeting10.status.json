@@ -1,0 +1,1156 @@
+{
+ "_what": "fixtures/meeting10.jsonl を fold で畳んだときの、各ステップ直後の要約の期待値（fold.js の summary(state) の形）。tests.html / run_node.js が全量・増分の両方と照合する",
+ "_how": "2026-10-07 に fixture の判断ログから手で導いた（開いている保留＝hold から close を引いたもの、top＝最後の top、括り＝group に fix(span) を当てたもの、at_item＝その数え上げを li で指した最後のカードの番目、settled＝kind:gap を除く1つ目の答えまでの秒数で、中央値は下側）。fold.js を流した結果と突き合わせて一致した",
+ "_checks": {
+  "C10": "位置 t:169（窓 6 の中）だが出現はステップ 7（at 09:03:00Z）",
+  "H3": "5:38 と 8:39 の2回閉じる。1つ目で閉じ、2つ目は答えとして足す。settled は1つ目（240 秒）で数える",
+  "H4": "kind:gap。ステップ 7 で close.by により閉じる。settled に入れない",
+  "H7": "開いたまま終わる",
+  "E": "retro。7:08 に置かれ、範囲 6:31〜7:14",
+  "top": "C4（S3）→ C15（S9）→ C34（S19）",
+  "C15": "S19 の fix(d) で深さ 0 → 1",
+  "B": "S7 の rename で仮名が確定。echo 1 回。A は echo 2 回"
+ },
+ "steps": [
+  {
+   "n": 1,
+   "at": "2026-10-07T09:00:00Z",
+   "open_holds": [
+    "H1"
+   ],
+   "gaps": [],
+   "top": null,
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 2,
+   "settled": {
+    "count": 0,
+    "median": null,
+    "longest": null
+   },
+   "ended": false
+  },
+  {
+   "n": 2,
+   "at": "2026-10-07T09:00:30Z",
+   "open_holds": [
+    "H2"
+   ],
+   "gaps": [],
+   "top": null,
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 3,
+   "settled": {
+    "count": 1,
+    "median": 23,
+    "longest": 23
+   },
+   "ended": false
+  },
+  {
+   "n": 3,
+   "at": "2026-10-07T09:01:00Z",
+   "open_holds": [
+    "H2"
+   ],
+   "gaps": [],
+   "top": "C4",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 5,
+   "settled": {
+    "count": 1,
+    "median": 23,
+    "longest": 23
+   },
+   "ended": false
+  },
+  {
+   "n": 4,
+   "at": "2026-10-07T09:01:30Z",
+   "open_holds": [
+    "H2",
+    "H3"
+   ],
+   "gaps": [],
+   "top": "C4",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 7,
+   "settled": {
+    "count": 1,
+    "median": 23,
+    "longest": 23
+   },
+   "ended": false
+  },
+  {
+   "n": 5,
+   "at": "2026-10-07T09:02:00Z",
+   "open_holds": [
+    "H2",
+    "H3"
+   ],
+   "gaps": [],
+   "top": "C4",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "（仮）値段の話の向きが変わる",
+     "span": [
+      128,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 9,
+   "settled": {
+    "count": 1,
+    "median": 23,
+    "longest": 23
+   },
+   "ended": false
+  },
+  {
+   "n": 6,
+   "at": "2026-10-07T09:02:55Z",
+   "open_holds": [
+    "H2",
+    "H3",
+    "H4"
+   ],
+   "gaps": [
+    "H4"
+   ],
+   "top": "C4",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "（仮）値段の話の向きが変わる",
+     "span": [
+      128,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 9,
+   "settled": {
+    "count": 1,
+    "median": 23,
+    "longest": 23
+   },
+   "ended": false
+  },
+  {
+   "n": 7,
+   "at": "2026-10-07T09:03:00Z",
+   "open_holds": [
+    "H3",
+    "H5"
+   ],
+   "gaps": [],
+   "top": "C4",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 11,
+   "settled": {
+    "count": 2,
+    "median": 23,
+    "longest": 140
+   },
+   "ended": false
+  },
+  {
+   "n": 8,
+   "at": "2026-10-07T09:03:30Z",
+   "open_holds": [
+    "H3",
+    "H5"
+   ],
+   "gaps": [],
+   "top": "C4",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 13,
+   "settled": {
+    "count": 2,
+    "median": 23,
+    "longest": 140
+   },
+   "ended": false
+  },
+  {
+   "n": 9,
+   "at": "2026-10-07T09:04:00Z",
+   "open_holds": [
+    "H3"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 15,
+   "settled": {
+    "count": 3,
+    "median": 48,
+    "longest": 140
+   },
+   "ended": false
+  },
+  {
+   "n": 10,
+   "at": "2026-10-07T09:04:30Z",
+   "open_holds": [
+    "H3",
+    "H6"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 2
+    }
+   },
+   "cards": 17,
+   "settled": {
+    "count": 3,
+    "median": 48,
+    "longest": 140
+   },
+   "ended": false
+  },
+  {
+   "n": 11,
+   "at": "2026-10-07T09:05:00Z",
+   "open_holds": [
+    "H3",
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 2
+    }
+   },
+   "cards": 19,
+   "settled": {
+    "count": 4,
+    "median": 23,
+    "longest": 140
+   },
+   "ended": false
+  },
+  {
+   "n": 12,
+   "at": "2026-10-07T09:05:30Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 21,
+   "settled": {
+    "count": 5,
+    "median": 48,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 13,
+   "at": "2026-10-07T09:06:00Z",
+   "open_holds": [
+    "H7",
+    "H8"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 3
+    }
+   },
+   "cards": 23,
+   "settled": {
+    "count": 5,
+    "median": 48,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 14,
+   "at": "2026-10-07T09:06:30Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 3
+    }
+   },
+   "cards": 25,
+   "settled": {
+    "count": 6,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 15,
+   "at": "2026-10-07T09:07:00Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "E": {
+     "lb": "光の強さが在庫・新色・値段をつなぐ",
+     "span": [
+      391,
+      434
+     ],
+     "kind": "retro",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 26,
+   "settled": {
+    "count": 6,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 16,
+   "at": "2026-10-07T09:07:30Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      null
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "E": {
+     "lb": "光の強さが在庫・新色・値段をつなぐ",
+     "span": [
+      391,
+      434
+     ],
+     "kind": "retro",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 3
+    }
+   },
+   "cards": 28,
+   "settled": {
+    "count": 7,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 17,
+   "at": "2026-10-07T09:08:00Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      487
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "E": {
+     "lb": "光の強さが在庫・新色・値段をつなぐ",
+     "span": [
+      391,
+      434
+     ],
+     "kind": "retro",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 30,
+   "settled": {
+    "count": 7,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 18,
+   "at": "2026-10-07T09:08:30Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C15",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 2
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      487
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "E": {
+     "lb": "光の強さが在庫・新色・値段をつなぐ",
+     "span": [
+      391,
+      434
+     ],
+     "kind": "retro",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 32,
+   "settled": {
+    "count": 7,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 19,
+   "at": "2026-10-07T09:09:00Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C34",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 2
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      487
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "E": {
+     "lb": "光の強さが在庫・新色・値段をつなぐ",
+     "span": [
+      391,
+      434
+     ],
+     "kind": "retro",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 34,
+   "settled": {
+    "count": 7,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  },
+  {
+   "n": 20,
+   "at": "2026-10-07T09:09:30Z",
+   "open_holds": [
+    "H7"
+   ],
+   "gaps": [],
+   "top": "C34",
+   "groups": {
+    "A": {
+     "lb": "一点目：値上げ",
+     "span": [
+      13,
+      268
+     ],
+     "kind": "start",
+     "echoes": 2
+    },
+    "B": {
+     "lb": "価値をどう説明するか",
+     "span": [
+      128,
+      253
+     ],
+     "kind": "start",
+     "echoes": 1
+    },
+    "C": {
+     "lb": "二点目：新色",
+     "span": [
+      271,
+      322
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "D": {
+     "lb": "三点目：店舗の在庫",
+     "span": [
+      361,
+      487
+     ],
+     "kind": "start",
+     "echoes": 0
+    },
+    "E": {
+     "lb": "光の強さが在庫・新色・値段をつなぐ",
+     "span": [
+      391,
+      434
+     ],
+     "kind": "retro",
+     "echoes": 0
+    }
+   },
+   "lists": {
+    "L1": {
+     "n": 3,
+     "items": [
+      "値上げをするかどうか",
+      "新色",
+      "店舗の在庫"
+     ],
+     "at_item": 1
+    }
+   },
+   "cards": 35,
+   "settled": {
+    "count": 7,
+    "median": 23,
+    "longest": 240
+   },
+   "ended": false
+  }
+ ]
+}

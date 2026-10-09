@@ -1,0 +1,19 @@
+{
+ "name": "拒否：壁時計が 60 秒",
+ "why": "秒は 00〜59",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "2026-10-07T09:00:60Z",
+   "mode": "file",
+   "window": 30,
+   "known": ""
+  }
+ ],
+ "expect": "reject",
+ "expect_rule": "F02",
+ "clock": "2026-10-07T09:01:04Z"
+}

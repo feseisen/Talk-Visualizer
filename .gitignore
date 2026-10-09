@@ -1,0 +1,34 @@
+# 会議の中身（判断ログ・素材ログ・文字起こし・メモ帳・バッチ）。どこに置いても入れない
+records/
+live/
+*.jsonl
+*.txt
+*.tsv
+*.vtt
+
+# 試験用の架空の会議と、記録の形の例だけは入れる（tests/ と format/ の下に限る）
+!/tests/**/*.jsonl
+!/tests/**/*.txt
+!/tests/**/*.tsv
+!/tests/**/*.vtt
+!/format/**/*.jsonl
+
+# 道具が作る一時ファイルと、会議の素材の写し。tests/ と format/ の下でも入れない
+# （rt.py next が窓を閉じたときに残す覚え書き・素材ログ・返事のバッチと、rt.py open が素材の隣に書く持ち主の印、
+#  rt.py watch が回っている間に置く印と、その印を書き換えるときの一時ファイル。印には判断ログの名前＝会議の名前が入る）
+*.next.json
+*.src.jsonl
+*.batch.jsonl
+*.owner
+*.watch.json
+*.watch.json.*.tmp
+
+# 鍵・秘密
+.env
+.env.*
+*.key
+*.pem
+
+# Python の生成物
+__pycache__/
+*.pyc

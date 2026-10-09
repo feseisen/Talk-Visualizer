@@ -1,0 +1,16 @@
+{
+ "name": "受理：v1 の記録の素材の名前には P30 を当てない",
+ "why": "素材の名前の規則は上限を当てる版（v2）だけ。v1 の実走記録の open はそのまま読む",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "name": "机と照明の相談",
+   "src": "v1_small.jsonl",
+   "known": "",
+   "chunk": 4
+  }
+ ],
+ "expect": "accept",
+ "clock": "2026-10-07T09:00:00Z"
+}

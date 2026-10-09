@@ -1,0 +1,19 @@
+{
+ "name": "拒否：壁時計の数字が全角",
+ "why": "壁時計の数字は半角の 0〜9 だけ",
+ "log_prefix": [],
+ "batch": [
+  {
+   "e": "open",
+   "v": 2,
+   "name": "備品の見直し",
+   "t0": "２０２６-１０-０７T０９:００:００Z",
+   "mode": "file",
+   "window": 30,
+   "known": ""
+  }
+ ],
+ "expect": "reject",
+ "expect_rule": "F02",
+ "clock": "2026-10-07T09:01:04Z"
+}

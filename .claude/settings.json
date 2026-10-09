@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./live/*.txt)",
+      "Read(./live/**/*.txt)",
+      "Read(./live/*.tsv)",
+      "Read(./live/**/*.tsv)",
+      "Read(./live/*.vtt)",
+      "Read(./live/**/*.vtt)",
+      "Read(./live/*.src.jsonl)",
+      "Read(**/*.src.jsonl)",
+      "Write(**/*.src.jsonl)",
+      "Edit(**/*.src.jsonl)",
+      "Write(**/*.next.json)",
+      "Edit(**/*.next.json)",
+      "Write(**/*.owner)",
+      "Edit(**/*.owner)",
+      "Write(**/*.watch.json)",
+      "Edit(**/*.watch.json)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(less:*)",
+      "Bash(more:*)",
+      "Bash(type:*)",
+      "Bash(Get-Content:*)",
+      "Bash(python -c:*)",
+      "Bash(python3 -c:*)",
+      "Bash(py -c:*)",
+      "Bash(py -3 -c:*)"
+    ],
+    "allow": [
+      "Bash(python tools/rt.py:*)",
+      "Bash(python3 tools/rt.py:*)",
+      "Bash(py -3 tools/rt.py:*)",
+      "Bash(python tools/audit_r2b.py:*)",
+      "Bash(python3 tools/audit_r2b.py:*)",
+      "Bash(py -3 tools/audit_r2b.py:*)",
+      "Edit(./live/*.batch.jsonl)"
+    ]
+  }
+}
