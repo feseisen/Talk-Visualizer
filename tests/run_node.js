@@ -23,7 +23,11 @@
  *               終わりを待ち（上限 3 秒）、止めた後に届いた確定の結果も渡すか。何も聞き取れないまま失敗する認識が続くと、
  *               始め直しの待ちを 0.3・1・2・4 秒と延ばし、5 回で止めるか（聞き取れたら数え直す。黙っている間の「声が聞こえない」は
  *               数えない）。再開しない誤りのあと終わりの知らせが来なくても、500 ミリ秒で終わったものとし、聞き終えるときに
- *               3 秒待たないか（作り物の認識と作り物の時計で確かめる）
+ *               3 秒待たないか（作り物の認識と作り物の時計で確かめる）。
+ *               画面共有の音（opts.track）: 認識を start(track) で始め、素材ログの asr_start に source を書くか。トラックが live で
+ *               なければ始めないか。共有を止めたら（ended）再開せずに止まり、知らせが 1 回か。start(track) が投げたら止まるか。
+ *               captureDisplayAudio が、音の無い共有を映像を止めて断るか、口が無い・許されていないときの文（作り物の
+ *               navigator.mediaDevices を globalThis に置き、終わったら戻す。Promise なので、この節だけ待ってから結果に足す）
  *   違反文      P30 の長い素材の名前を、終わりを残して短くするか
  */
 'use strict';
@@ -37,13 +41,14 @@ const tests = require(path.join(__dirname, '_runner.js'));
 const intake = require(path.join(KIT, 'src', 'intake.js'));
 const CUT = require(path.join(KIT, 'src', 'cut.js'));
 
-// _data.js の元になるファイル。どれか1つでも _data.js より新しければ生成物は古い
+// _data.js の元になるファイル（tools/make_test_data.py が読むものと同じ）。どれか1つでも _data.js より新しければ生成物は古い。
+// fixtures はその中の meeting10 の 3 つだけ（ほかの fixtures は _data.js に入らないので、新しくても生成物は古くならない）
 function sourceFiles() {
   const casesDir = path.join(__dirname, 'cases');
   const fixDir = path.join(__dirname, 'fixtures');
   return [path.join(KIT, 'format', 'rules.json')]
     .concat(fs.readdirSync(casesDir).filter(function (f) { return f.endsWith('.json'); }).map(function (f) { return path.join(casesDir, f); }))
-    .concat(fs.readdirSync(fixDir).map(function (f) { return path.join(fixDir, f); }));
+    .concat(['meeting10.jsonl', 'meeting10.txt', 'meeting10.status.json'].map(function (f) { return path.join(fixDir, f); }));
 }
 
 function loadData() {
@@ -337,7 +342,7 @@ function runMaterial() {
   const ti2 = intake.makeTextIntake(ta, { line: function (l) { lines2.push(l); }, event: function () {}, interim: function () {}, status: function () {} }, function () { return 10; });
   ti2.start(); ti2.setFloor(600); ta.value = '続きの発話'; ti2.flush();
   out.push({ group: G, name: '打つ入口: setFloor(600) のあとの発話は 600 以上', ok: lines2.length === 1 && lines2[0].t === 600, detail: JSON.stringify(lines2) });
-  return out.concat(runWho(), runSpeech(), runSpeechLocal(), runSpeechRetry());
+  return out.concat(runWho(), runSpeech(), runSpeechLocal(), runSpeechRetry(), runSpeechDisplay());
 }
 
 // ---- 音声認識の入口: この PC の中で文字にする（opts.local）と、再開しない誤り ----
@@ -793,6 +798,265 @@ function runSpeech() {
   return out;
 }
 
+// ---- 音声認識の入口: 画面共有の音（opts.track で start(track)。Teams・Zoom の相手の声は PC で鳴っている音） ----
+// 作り物の認識（start に渡されたものを覚える。印を立てると、引数があるときだけ投げる＝Chrome 135 より前のつもり）と、
+// 作り物のトラック（readyState と ended の出来事）、預かった待ち（setTimeout）で確かめる。
+// 画面共有を取る口（captureDisplayAudio）は Promise なので、runSpeechDisplayAsync で
+function runSpeechDisplay() {
+  const out = [];
+  const G = '音声認識の入口';
+  const same = sameJson;
+  const saved = { sr: globalThis.SpeechRecognition, to: globalThis.setTimeout };
+  const made = [];
+  let timers = [];
+  function FakeSR() { made.push(this); this.startArgs = null; this.stopped = 0; this.aborted = 0; }
+  FakeSR.throwOnTrack = false;
+  FakeSR.prototype.start = function () {
+    this.startArgs = Array.prototype.slice.call(arguments);
+    if (FakeSR.throwOnTrack && arguments.length) throw new TypeError('start に引数は渡せない');
+    if (this.onstart) this.onstart();
+  };
+  FakeSR.prototype.stop = function () { this.stopped++; };     // 終わりの知らせは出さない（試験が呼ぶ）
+  FakeSR.prototype.abort = function () { this.aborted++; };
+  function FakeTrack(state) { this.readyState = state || 'live'; this.label = '画面の音'; this.handlers = []; }
+  FakeTrack.prototype.addEventListener = function (k, f) { if (k === 'ended') this.handlers.push(f); };
+  FakeTrack.prototype.end = function () { this.readyState = 'ended'; this.handlers.slice().forEach(function (f) { f(); }); };
+  const result = function (said) { const r = [{ transcript: said }]; r.isFinal = true; return { resultIndex: 0, results: [r] }; };
+  // 預かった待ちを置いた順に回す。回した待ちの長さ（ミリ秒）の並びを返す
+  const runOne = function () { const x = timers.shift(); if (x) x.f(); return x ? x.ms : null; };
+  const runAll = function () { const ms = []; while (timers.length) ms.push(runOne()); return ms; };
+  const make = function (opts) {
+    made.length = 0; timers = [];
+    const box = { events: [], status: [], stopped: [], got: [], now: 2 };
+    const emit = { line: function (l) { box.got.push(l.text); }, event: function (e) { box.events.push(e); }, interim: function () {},
+      status: function (x) { box.status.push(x); }, notice: function () {}, stopped: function (why) { box.stopped.push(why); } };
+    box.si = intake.makeSpeechIntake(emit, function () { return box.now; }, opts);
+    box.ev = function (k) { return box.events.filter(function (e) { return e.ev === k; }).length; };
+    box.st = function () { return box.status.join('|'); };
+    return box;
+  };
+  try {
+    globalThis.SpeechRecognition = FakeSR;
+    globalThis.setTimeout = function (f, ms) { timers.push({ f: f, ms: ms }); return timers.length; };
+
+    // (a) track を渡すと start(track)。始まりの出来事に source:'display'、札に「画面共有の音」、返すものの source
+    const ta = new FakeTrack('live');
+    const a = make({ track: ta });
+    const beganA = a.si.start();
+    const startA = a.events.filter(function (e) { return e.ev === 'asr_start'; });
+    out.push({ group: G, name: '画面共有の音: opts.track を渡すと認識を start(track) で始め、素材ログの asr_start に source:"display"（local:false）、札は「聞いている（画面共有の音。音声は提供元のサーバーへ送られている）」、返すものは kind:"speech"・source:"display"',
+      ok: beganA === true && made.length === 1 && made[0].startArgs.length === 1 && made[0].startArgs[0] === ta && startA.length === 1 && startA[0].source === 'display' && startA[0].local === false &&
+        a.status.indexOf('聞いている（画面共有の音。音声は提供元のサーバーへ送られている）') >= 0 && a.si.kind === 'speech' && a.si.source === 'display' && a.stopped.length === 0 && timers.length === 0,
+      detail: JSON.stringify({ args: made[0].startArgs.length, ev: startA, st: a.status }) });
+    made[0].onresult(result('相手の声'));
+    out.push({ group: G, name: '画面共有の音: 確定した結果はマイクと同じに渡る', ok: same(a.got, ['相手の声']), detail: JSON.stringify(a.got) });
+    // マイク（track 無し）はこれまでどおり start() に引数なし、source:'mic'、札の文も前のまま
+    const m = make(undefined);
+    m.si.start();
+    const startM = m.events.filter(function (e) { return e.ev === 'asr_start'; });
+    out.push({ group: G, name: 'マイク（opts.track 無し）: start() に引数を渡さず、asr_start に source:"mic"、札は前のまま「聞いている（音声は提供元のサーバーへ送られている）」、返すものの source は "mic"',
+      ok: made[0].startArgs.length === 0 && startM.length === 1 && startM[0].source === 'mic' && m.status.indexOf('聞いている（音声は提供元のサーバーへ送られている）') >= 0 && m.si.source === 'mic',
+      detail: JSON.stringify({ ev: startM, st: m.status }) });
+    // track と local を両方: processLocally も立ち、札に両方
+    const tl = new FakeTrack('live');
+    const l = make({ track: tl, local: true });
+    l.si.start();
+    out.push({ group: G, name: '画面共有の音とこの PC の中で文字にする（opts.local）を両方: processLocally を立てて start(track)、asr_start は local:true・source:"display"、札は「聞いている（画面共有の音。この PC の中で文字にしている）」',
+      ok: made[0].processLocally === true && made[0].startArgs[0] === tl && l.events.some(function (e) { return e.ev === 'asr_start' && e.local === true && e.source === 'display'; }) && l.status.indexOf('聞いている（画面共有の音。この PC の中で文字にしている）') >= 0,
+      detail: JSON.stringify({ st: l.status }) });
+
+    // (b) track が live でない: 認識を作らず、札に「画面共有が止まっている」、止まった知らせは start() が返った後に 1 回
+    const tb = new FakeTrack('ended');
+    const b = make({ track: tb });
+    const beganB = b.si.start();
+    const toldInStartB = b.stopped.length;
+    const msB = runAll();
+    out.push({ group: G, name: '画面共有の音: トラックが live でなければ認識を作らず、札に「音声認識が使えない（画面共有が止まっている）。再開しない」、emit.stopped は start() が返った後に 1 回（asr_start は書かない）',
+      ok: beganB === true && made.length === 0 && b.status.indexOf('音声認識が使えない（画面共有が止まっている）。再開しない') >= 0 && toldInStartB === 0 && same(msB, [0]) && same(b.stopped, ['画面共有が止まっている']) && b.ev('asr_start') === 0 && b.si.pending() === 0,
+      detail: JSON.stringify({ made: made.length, st: b.status, stopped: b.stopped, ms: msB }) });
+
+    // (c) 聞いている最中に共有を止めた（track の ended）: 認識を止め、再開しない。終わりの知らせで emit.stopped を 1 回
+    const tc = new FakeTrack('live');
+    const c = make({ track: tc });
+    c.si.start();
+    made[0].onresult(result('止める前'));
+    tc.end();
+    const stoppedAtEnd = made[0].stopped;
+    const toldBeforeEnd = c.stopped.length;
+    const waitC = timers.length ? timers[0].ms : null;   // 終わりの知らせが来なかったときの待ち（500 ミリ秒）
+    made[0].onend();                                     // 終わりの知らせが来た
+    const toldAfterEnd = c.stopped.slice();
+    runAll();                                            // 500 ミリ秒の待ちを回しても、二度目の知らせは出ない
+    out.push({ group: G, name: '画面共有の音: 聞いている最中に共有を止めた（トラックの ended）ら、認識を止めて再開しない。札に「画面共有が止められた」、終わりの知らせで emit.stopped を 1 回（asr_restart は書かない。新しい認識も作らない）',
+      ok: stoppedAtEnd === 1 && toldBeforeEnd === 0 && waitC === intake.FATAL_END_WAIT_MS && same(toldAfterEnd, ['画面共有が止められた']) && same(c.stopped, ['画面共有が止められた']) &&
+        c.status.indexOf('音声認識が使えない（画面共有が止められた）。再開しない') >= 0 && c.status.indexOf('音声認識は止まったまま（画面共有が止められた）') >= 0 && c.ev('asr_restart') === 0 && made.length === 1 && same(c.got, ['止める前']) && c.si.pending() === 0,
+      detail: JSON.stringify({ stopped: stoppedAtEnd, told: c.stopped, st: c.status, made: made.length, wait: waitC }) });
+    // 終わりの知らせが来なくても 500 ミリ秒で終わったものとし、emit.stopped を 1 回。その後に届いた誤り・終わりで理由を書き換えない
+    const tc2 = new FakeTrack('live');
+    const c2 = make({ track: tc2 });
+    c2.si.start();
+    tc2.end();
+    const msC2 = runAll();
+    const stC2 = c2.status.length;
+    made[0].onerror({ error: 'audio-capture' });
+    made[0].onend();
+    out.push({ group: G, name: '画面共有の音: 共有を止めた後に終わりの知らせが来なくても 500 ミリ秒で終わったものとして（abort を呼び）emit.stopped を 1 回。遅れて来た誤り・終わりでは札も理由も変えず、二度目の知らせも出さない',
+      ok: same(msC2, [intake.FATAL_END_WAIT_MS]) && made[0].aborted === 1 && same(c2.stopped, ['画面共有が止められた']) && c2.status.length === stC2 && c2.si.pending() === 0,
+      detail: JSON.stringify({ ms: msC2, told: c2.stopped, aborted: made[0].aborted }) });
+    // 始め直しの待ちの間に共有を止めた: 待ちが明けても新しい認識を作らず、emit.stopped を 1 回
+    const tc3 = new FakeTrack('live');
+    const c3 = make({ track: tc3 });
+    c3.si.start();
+    made[0].onend();                                     // ふだんの切断 → 300 ミリ秒後に始め直す待ち
+    const restartWait = timers.length ? timers[0].ms : null;
+    tc3.end();
+    runAll();
+    out.push({ group: G, name: '画面共有の音: 始め直しの待ちの間に共有を止めたら、待ちが明けても新しい認識を作らず、emit.stopped を 1 回',
+      ok: restartWait === 300 && made.length === 1 && same(c3.stopped, ['画面共有が止められた']) && c3.ev('asr_restart') === 1,
+      detail: JSON.stringify({ made: made.length, told: c3.stopped, wait: restartWait }) });
+    // 中断（stop）の後に共有を止め、再開（start）したとき: 認識を作らず「画面共有が止まっている」で止まる
+    const tc4 = new FakeTrack('live');
+    const c4 = make({ track: tc4 });
+    c4.si.start();
+    c4.si.stop(); made[0].onend();                       // 中断して、その認識は終わった
+    tc4.end();
+    runAll();
+    const toldPaused = c4.stopped.slice();
+    c4.si.start();
+    runAll();
+    out.push({ group: G, name: '画面共有の音: 中断の間に共有を止め、再開したら、認識を作らずに「画面共有が止まっている」で止まる（中断の間の知らせは 1 回、再開で 1 回）',
+      ok: made.length === 1 && same(toldPaused, ['画面共有が止められた']) && same(c4.stopped, ['画面共有が止められた', '画面共有が止まっている']),
+      detail: JSON.stringify({ made: made.length, told: c4.stopped }) });
+    // 聞き終えた（stopWait が待ち終えた）後に共有を止めても、何も知らせない
+    const tc5 = new FakeTrack('live');
+    const c5 = make({ track: tc5 });
+    c5.si.start();
+    const doneC5 = [];
+    c5.si.stopWait(function (r) { doneC5.push(r); });
+    made[0].onend();
+    const stC5 = c5.status.length;
+    tc5.end();
+    runAll();
+    out.push({ group: G, name: '画面共有の音: 聞き終えた後に共有を止めても、札も emit.stopped も変えない',
+      ok: doneC5.length === 1 && doneC5[0].timedOut === false && c5.stopped.length === 0 && c5.status.length === stC5, detail: JSON.stringify({ told: c5.stopped, st: c5.status.slice(stC5) }) });
+
+    // (d) start(track) が例外を投げる（Chrome 135 より前）: 止めて、札に「Chrome 135 以降が要る」、emit.stopped は start() が返った後に 1 回
+    FakeSR.throwOnTrack = true;
+    const td = new FakeTrack('live');
+    const d = make({ track: td });
+    d.si.start();
+    const toldInStartD = d.stopped.length;
+    runAll();
+    out.push({ group: G, name: '画面共有の音: start(track) が例外を投げたら（引数を渡せないブラウザ）、札に「このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）」と出して止め、emit.stopped は start() が返った後に 1 回（asr_start は書かない。始め直さない）',
+      ok: made.length === 1 && d.status.indexOf('音声認識を始められない: このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）') >= 0 && toldInStartD === 0 && same(d.stopped, ['このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）']) && d.ev('asr_start') === 0 && d.si.pending() === 0 && timers.length === 0,
+      detail: JSON.stringify({ st: d.status, told: d.stopped }) });
+    FakeSR.throwOnTrack = false;
+    // マイクの start() が投げたときは、これまでどおり札だけ（止めない・知らせない）
+    FakeSR.prototype.start = function () { throw new Error('始められない'); };
+    const dm = make(undefined);
+    dm.si.start();
+    runAll();
+    out.push({ group: G, name: 'マイク: start() が例外を投げたときは、これまでどおり札に出すだけ（emit.stopped は呼ばない）',
+      ok: dm.status.indexOf('音声認識を始められない: 始められない') >= 0 && dm.stopped.length === 0, detail: JSON.stringify({ st: dm.status, told: dm.stopped }) });
+    FakeSR.prototype.start = function () { this.startArgs = Array.prototype.slice.call(arguments); if (this.onstart) this.onstart(); };
+
+    // audio-capture の文: 画面共有のときは「音の取り込みが無い」、マイクのときは「マイクが無い」のまま
+    const te = new FakeTrack('live');
+    const e = make({ track: te });
+    e.si.start();
+    made[0].onerror({ error: 'audio-capture' });
+    made[0].onend();
+    runAll();
+    const em = make(undefined);
+    em.si.start();
+    made[0].onerror({ error: 'audio-capture' });
+    made[0].onend();
+    runAll();
+    out.push({ group: G, name: '誤り audio-capture の文: 画面共有の音では「画面共有の音の取り込みが無い」（再開しない）、マイクでは「マイクが無い」のまま。asrErrorText(code, source) も同じ読み替え（ほかの符号は変えない）',
+      ok: same(e.stopped, ['画面共有の音の取り込みが無い']) && e.status.indexOf('音声認識が使えない（画面共有の音の取り込みが無い）。再開しない') >= 0 && same(em.stopped, ['マイクが無い']) &&
+        intake.asrErrorText('audio-capture', 'display') === '画面共有の音の取り込みが無い（audio-capture）' && intake.asrErrorText('audio-capture') === 'マイクが無い（audio-capture）' && intake.asrErrorText('audio-capture', 'mic') === 'マイクが無い（audio-capture）' &&
+        intake.asrErrorText('network', 'display') === '認識の通信が切れた（network）' && intake.fatalAsrText('not-allowed', 'display') === 'マイクの許可が無い',
+      detail: JSON.stringify({ display: e.stopped, mic: em.stopped }) });
+  } finally {
+    if (saved.sr === undefined) delete globalThis.SpeechRecognition; else globalThis.SpeechRecognition = saved.sr;
+    globalThis.setTimeout = saved.to;
+  }
+  return out;
+}
+
+// ---- 画面共有の音を取る口（captureDisplayAudio。Promise なので、ここだけ待ってから結果に足す） ----
+// 作り物の navigator.mediaDevices を globalThis に置き、終わったら元の navigator（node にもある）に戻す
+function runSpeechDisplayAsync() {
+  const out = [];
+  const G = '音声認識の入口';
+  const T = intake.DISPLAY_TEXT;
+  const savedNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  function setNav(v) {
+    if (v === undefined) delete globalThis.navigator;
+    else Object.defineProperty(globalThis, 'navigator', { value: v, configurable: true, writable: true, enumerable: true });
+  }
+  function restoreNav() { if (savedNav) Object.defineProperty(globalThis, 'navigator', savedNav); else delete globalThis.navigator; }
+  function fakeTrack(label) { return { label: label, readyState: 'live', stopped: 0, stop: function () { this.stopped++; this.readyState = 'ended'; } }; }
+  function fakeStream(audio, video) { return { getAudioTracks: function () { return audio.slice(); }, getVideoTracks: function () { return video.slice(); } }; }
+  function withMedia(getDisplayMedia) { setNav({ mediaDevices: getDisplayMedia ? { getDisplayMedia: getDisplayMedia } : {} }); }
+  function domErr(name) { const e = new Error(name); e.name = name; return e; }
+  const steps = [
+    // (e) 音のトラックが無い共有: 映像のトラックを止めて断る。頼んだ条件は取り決めどおり
+    function () {
+      const v = fakeTrack('画面全体'); let asked = null;
+      withMedia(function (c) { asked = c; return Promise.resolve(fakeStream([], [v])); });
+      return intake.captureDisplayAudio().then(function () { return { ok: false, detail: '断らなかった' }; }, function (e) {
+        return { ok: e instanceof Error && e.message === T.no_audio && e.reason === 'no_audio' && v.stopped === 1 && !!asked && asked.video === true && asked.systemAudio === 'include' && asked.selfBrowserSurface === 'exclude' &&
+          asked.audio.echoCancellation === false && asked.audio.noiseSuppression === false && asked.audio.autoGainControl === false, detail: JSON.stringify({ msg: e.message, reason: e.reason, vstopped: v.stopped, asked: asked }) };
+      }).then(function (r) {
+        out.push({ group: G, name: '画面共有の音: 音のトラックが無い共有（「システム音声も共有」「タブの音声も共有」に印が無い）は、取った映像のトラックを止めて DISPLAY_TEXT.no_audio（Windows は「画面全体」＋「システム音声も共有」、タブなら「タブの音声も共有」）の文で断る。頼む条件は映像あり・音あり（加工なし）・システム音声を含む・自分のタブは除く', ok: r.ok, detail: r.detail });
+      });
+    },
+    // 音のトラックがある共有: {stream, track, label} で解決し、どのトラックも止めない
+    function () {
+      const a = fakeTrack('システム音声'), v = fakeTrack('画面全体'); const s = fakeStream([a], [v]);
+      withMedia(function () { return Promise.resolve(s); });
+      return intake.captureDisplayAudio().then(function (r) {
+        out.push({ group: G, name: '画面共有の音: 音のトラックがあれば {stream, track（音のトラック）, label} で解決し、映像も音も止めない', ok: r.stream === s && r.track === a && r.label === 'システム音声' && a.stopped === 0 && v.stopped === 0, detail: JSON.stringify({ label: r.label, a: a.stopped, v: v.stopped }) });
+      }, function (e) { out.push({ group: G, name: '画面共有の音: 音のトラックがあれば解決する', ok: false, detail: String(e && e.message || e) }); });
+    },
+    // (f) 口が無い: getDisplayMedia が無い／mediaDevices が無い／navigator が無い
+    function () {
+      const tries = [function () { withMedia(null); }, function () { setNav({}); }, function () { setNav(undefined); }];
+      return tries.reduce(function (p, prep) {
+        return p.then(function (acc) { prep(); return intake.captureDisplayAudio().then(function () { return acc.concat(['断らなかった']); }, function (e) { return acc.concat([e.message + '|' + e.reason]); }); });
+      }, Promise.resolve([])).then(function (got) {
+        out.push({ group: G, name: '画面共有の音: getDisplayMedia が無い（口が無い・mediaDevices が無い・navigator が無い）ときは「このブラウザでは画面共有の音を取り込めない」と断る', ok: sameJson(got, [T.none + '|none', T.none + '|none', T.none + '|none']), detail: JSON.stringify(got) });
+      });
+    },
+    // (f) NotAllowedError（取りやめた・決まりで止められている）
+    function () {
+      withMedia(function () { return Promise.reject(domErr('NotAllowedError')); });
+      return intake.captureDisplayAudio().then(function () { out.push({ group: G, name: '画面共有の音: NotAllowedError で断る', ok: false, detail: '断らなかった' }); }, function (e) {
+        out.push({ group: G, name: '画面共有の音: getDisplayMedia が NotAllowedError で断ったら「画面共有が許されていない（取りやめたか、使う場所の決まりで止められている）」（reason は not_allowed、元の誤りは cause）', ok: e.message === T.not_allowed && e.reason === 'not_allowed' && !!e.cause && e.cause.name === 'NotAllowedError', detail: JSON.stringify({ msg: e.message, reason: e.reason }) });
+      });
+    },
+    // そのほかの誤り: 名前を日本語に（表に無い名前はかっこの中に）。同期の例外（古い実装）も同じ道
+    function () {
+      const names = ['InvalidStateError', 'AbortError', 'NotFoundError', 'NotReadableError', 'SomethingElse'];
+      return names.reduce(function (p, name) {
+        return p.then(function (acc) { withMedia(function () { return Promise.reject(domErr(name)); }); return intake.captureDisplayAudio().then(function () { return acc.concat(['断らなかった']); }, function (e) { return acc.concat([e.reason + ':' + e.message]); }); });
+      }, Promise.resolve([])).then(function (got) {
+        withMedia(function () { throw domErr('TypeError'); });
+        return intake.captureDisplayAudio().then(function () { return got.concat(['断らなかった']); }, function (e) { return got.concat([e.reason + ':' + e.message]); });
+      }).then(function (got) {
+        out.push({ group: G, name: '画面共有の音: そのほかの誤りは日本語の文で断る（ボタンを押した直後でない・途中で終わった・共有できる画面が無い・読めない。表に無い名前はかっこの中に添える。同期の例外も同じ道）',
+          ok: sameJson(got, ['other:ボタンを押した直後にしか画面共有を始められない', 'other:画面共有が途中で終わった', 'other:共有できる画面が無い', 'other:画面の音を読めない', 'other:画面共有を始められない（SomethingElse）', 'other:画面共有を始められない（TypeError）']), detail: JSON.stringify(got) });
+      });
+    }
+  ];
+  return steps.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () { restoreNav(); return out; }, function (e) {
+    restoreNav();
+    out.push({ group: G, name: '画面共有の音: 試験の途中で例外', ok: false, detail: String(e && e.stack || e) });
+    return out;
+  });
+}
+
 // ---- 違反文の字面（K17: P30 の長い素材の名前は、終わり＝拡張子を残して短くする。rt.py と同じ） ----
 function runMessages(data) {
   const out = [];
@@ -809,18 +1073,25 @@ function runMessages(data) {
 
 const verbose = process.argv.indexOf('--verbose') >= 0;
 const data = loadData();
-const results = tests.runAll({ makeVerifier: verifyApi.makeVerifier, verifyApi: verifyApi, fold: fold }, data).concat(runMaterial(), runMessages(data));
+const syncResults = tests.runAll({ makeVerifier: verifyApi.makeVerifier, verifyApi: verifyApi, fold: fold }, data).concat(runMaterial(), runMessages(data));
 
-const groups = {};
-results.forEach(function (r) {
-  groups[r.group] = groups[r.group] || { ok: 0, ng: 0 };
-  groups[r.group][r.ok ? 'ok' : 'ng']++;
-  if (!r.ok || verbose) console.log((r.ok ? '合格 ' : '不合格 ') + '[' + r.group + '] ' + r.name + (r.detail ? '\n        ' + r.detail : ''));
+function report(results) {
+  const groups = {};
+  results.forEach(function (r) {
+    groups[r.group] = groups[r.group] || { ok: 0, ng: 0 };
+    groups[r.group][r.ok ? 'ok' : 'ng']++;
+    if (!r.ok || verbose) console.log((r.ok ? '合格 ' : '不合格 ') + '[' + r.group + '] ' + r.name + (r.detail ? '\n        ' + r.detail : ''));
+  });
+  console.log('');
+  Object.keys(groups).forEach(function (g) {
+    console.log(g + ': 合格 ' + groups[g].ok + ' / 不合格 ' + groups[g].ng);
+  });
+  const ng = results.filter(function (r) { return !r.ok; }).length;
+  console.log('合計 ' + results.length + ' 件、不合格 ' + ng + ' 件');
+  process.exit(ng ? 1 : 0);
+}
+// 画面共有の音を取る口の試験だけ Promise なので、待ってから一緒に出す
+runSpeechDisplayAsync().then(function (more) { report(syncResults.concat(more)); }).catch(function (e) {
+  console.log('試験の結果を出せなかった: ' + (e && e.stack || e));
+  process.exit(1);
 });
-console.log('');
-Object.keys(groups).forEach(function (g) {
-  console.log(g + ': 合格 ' + groups[g].ok + ' / 不合格 ' + groups[g].ng);
-});
-const ng = results.filter(function (r) { return !r.ok; }).length;
-console.log('合計 ' + results.length + ' 件、不合格 ' + ng + ' 件');
-process.exit(ng ? 1 : 0);

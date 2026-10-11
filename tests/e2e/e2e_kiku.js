@@ -8,7 +8,7 @@
  *
  * 1. tests/tests.html を開き、結果の表（#total）を読む
  * 2. kiku.html の縦の一筋: 経路=内蔵の模擬、入口=ファイル（tests/fixtures/meeting10.txt）、
- *    「聞き始める」→「次の窓を流す」×5。窓ごとに中央の行・左の保留と最上位・右の逐語を読む
+ *    「聞き取りを開始」→「次の窓を流す」×5。窓ごとに中央の行・左の保留と最上位・右の逐語を読む
  *    DOM の行の t が上から単調非減少、未来の行が無い、を確かめる。
  *    内蔵の模擬の台本に数え上げ（窓 1）・括り（窓 2）・括りの範囲の訂正（窓 4）があり、左の欄と中央の札に出る。
  *    分析役の欄の見えている文に英字の項目名が無く、検査器の文（規則の id つき）は畳んだ欄の中にだけある
@@ -59,7 +59,9 @@ async function readPanels(page) {
       feedCount: feed.length,
       feedTimes: feed.map(function (n) { const ft = n.querySelector('.ft'); return ft ? ft.textContent : ''; }),
       feedJumps: Array.from(document.querySelectorAll('#feed .fc button')).map(function (b) { return b.textContent; }),
-      stListen: g('st-listen'), stSince: g('st-since'), stGaps: g('st-gaps'), stRoute: g('st-route'), stIntake: g('st-intake'), clock: g('clock'), anmsgs: g('an-msgs'),
+      stListen: g('st-listen'), stSince: g('st-since'), stGaps: g('st-gaps'), stRoute: g('st-route'), stIntake: g('st-intake'), clock: g('clock'),
+      // 分析役の欄の見えている文（畳んだ欄は除く）。うまくいった区切りでは欄が閉じている（隠れていても中身は読む）
+      anmsgs: Array.from(document.querySelectorAll('#an-msgs > div')).map(function (d) { return d.textContent; }).join('\n'),
       // 畳んだ欄（検査器・分析役の機械向けの文）の中身。閉じていると innerText に出ないので textContent で読む
       anraw: Array.from(document.querySelectorAll('#an-msgs details')).map(function (d) { return d.textContent; }).join(' | ')
     };
@@ -75,6 +77,8 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
 (async function main() {
   const browser = await chromium.launch(LAUNCH);
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  // 設定は「設定と記録」の引き出しの中（2026-10-10 の作り直し）。試験は欄を直に操作するので、引き出しを開いておく
+  await ctx.addInitScript(function () { document.addEventListener('DOMContentLoaded', function () { const d = document.getElementById('settings'); if (d) d.open = true; }); });
 
   // ---------- 1. tests.html ----------
   {

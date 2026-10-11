@@ -20,6 +20,10 @@
  *                  （塊が窓の最初の発話から始まるときだけ幅 0 の窓に 40 件）。窓の幅は整数の秒。
  *                  受け取った時刻が前に戻っていれば、直前の時刻に揃えた写しで渡す。ライブで遅れて閉じる窓の終わりは、
  *                  刻みの位置（始まり + 窓幅の 1〜3 倍）のうち時計が過ぎた最も後ろ（rt.py と同じ。中断のあとも）
+ *   7. 枠の中       kind 'claude'（この画面を開いている Claude に問う）。偽の claude オブジェクトで、口の決め方（use→sample／
+ *                  古い complete／どちらも無い）、問いが手動の輪と同じ 1 本の文字列で渡ること、囲み付きの返事、truncated、
+ *                  {code} ごとの誤りの扱い（not_granted は fatal・rate_limited は「少し待つ」）、timeoutMs の打ち切り（指定したときだけ。
+ *                  sample には既定の打ち切りを置かない——仕組みの側が終える。古い complete だけ既定 120 秒）、接続テスト
  *   どの群も、画面に出す文（msg）に英字の項目名が無く、分析役に返す文（error）は項目名を使うことも見る
  */
 'use strict';
@@ -594,6 +598,222 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     cm.push({ i: 1, t: 20 }); cm.push(orig);
     w = cm.tick(30);
     t('刻み', '揃えるのは写しで、渡された発話そのものは書き換えない', orig.t === 10 && w && w.items[1].t === 20 && w.items[1] !== orig, show(w));
+  })();
+
+  // ---- 7. 枠の中（kind 'claude'） ----
+  await (async function () {
+    const G = '枠の中';
+    const GOOD = '{"step":{"t":[0,30]},"events":[],"note":{"x":"枠"}}';
+    const pack = { now: { n: 1, t: 30 }, new: { t: [0, 30], lines: [{ i: 1, t: 1, who: '話者A', text: 'こんにちは。' }] } };
+    const noEn = function (s) { return typeof s === 'string' && s.length > 0 && !/[A-Za-z]{2,}/.test(s); };
+    // 偽の claude: use('sample') が sample を返す。sample は呼ばれたものを記録して、与えた答えを返す（答えが関数なら呼ぶ）
+    const fake = function (answer, o) {
+      o = o || {};
+      const calls = { use: [], sample: [] };
+      const sample = function (prompt, opts) {
+        calls.sample.push({ prompt: prompt, opts: opts });
+        return new Promise(function (resolve, reject) {
+          if (opts && opts.signal && o.honorSignal !== false) {
+            opts.signal.addEventListener('abort', function () { reject({ code: 'cancelled', message: 'aborted' }); });
+          }
+          if (o.never) return;
+          const a = typeof answer === 'function' ? answer(prompt, opts) : answer;
+          if (a && a.reject) reject(a.reject); else resolve(a);
+        });
+      };
+      const c = { use: function (name) { calls.use.push(name); return Promise.resolve(name === 'sample' && !o.noSample ? sample : null); } };
+      return { claude: c, calls: calls };
+    };
+    const fail = async function (an, p) { try { await an.analyze(p || pack, '# 指示\n\n本文'); return null; } catch (e) { return e; } };
+
+    // (1) use→sample が決まった JSON を返す
+    let f = fake({ text: GOOD, truncated: false, modelTierApplied: 'default' });
+    let an = A.makeAnalyst({ kind: 'claude', claude: f.claude });
+    t(G, 'makeAnalyst の label が「この画面の Claude（枠の中）」', an.label === 'この画面の Claude（枠の中）' && an.kind === 'claude', an.label);
+    let r = await an.analyze(pack, '# 指示\n\n本文');
+    t(G, 'use→sample: 返事の JSON を読み、raw は返事そのもの、usage・think は null、tier は答えた段', r.note.x === '枠' && r.step.t[1] === 30 && r.raw === GOOD && r.usage === null && r.think === null && r.tier === 'default', JSON.stringify(r));
+    const s0 = f.calls.sample[0];
+    t(G, '問いは makePrompt と同じ 1 本の文字列（指示＋状態の最小表現。pack がそのまま入る）', s0 && s0.prompt === A.makePrompt('# 指示\n\n本文', pack) && s0.prompt.indexOf(JSON.stringify(pack)) > 0, s0 && s0.prompt.slice(0, 60));
+    t(G, 'sample の選択肢は modelTier default・cache false・signal は AbortSignal（effort は渡さない）', s0 && s0.opts.modelTier === 'default' && s0.opts.cache === false && s0.opts.signal && typeof s0.opts.signal.aborted === 'boolean' && !('effort' in s0.opts), JSON.stringify(Object.keys(s0 ? s0.opts : {})));
+    await an.analyze(pack, '# 指示\n\n本文');
+    t(G, '口は最初の analyze で 1 回だけ決める（2 回目は use を呼ばない）', f.calls.use.length === 1 && f.calls.use[0] === 'sample' && f.calls.sample.length === 2, f.calls.use.join(','));
+    // tier と effort の指定
+    f = fake({ text: GOOD, truncated: false });
+    an = A.makeAnalyst({ kind: 'claude', claude: f.claude, tier: 'complex', effort: 'high' });
+    r = await an.analyze(pack, 'P');
+    const f2 = fake({ text: GOOD, truncated: false });
+    await A.makeAnalyst({ kind: 'claude', claude: f2.claude, tier: 'nope', effort: 'xhigh' }).analyze(pack, 'P');
+    t(G, 'cfg.tier が modelTier に、effort は low/medium/high のときだけ渡る。知らない段は default、xhigh は渡さない（modelTierApplied が無ければ tier は null）',
+      f.calls.sample[0].opts.modelTier === 'complex' && f.calls.sample[0].opts.effort === 'high' && f2.calls.sample[0].opts.modelTier === 'default' && !('effort' in f2.calls.sample[0].opts) && r.tier === null,
+      JSON.stringify([f.calls.sample[0].opts.modelTier, f2.calls.sample[0].opts.modelTier]));
+
+    // (2) コードの囲み付き
+    f = fake({ text: '```json\n' + GOOD + '\n```', truncated: false });
+    r = await A.makeAnalyst({ kind: 'claude', claude: f.claude }).analyze(pack, 'P');
+    t(G, '返事を 1 回だけ囲んだコードの囲みは外して読む（既存の parseReply がそのまま効く）', r.note.x === '枠' && r.raw.indexOf('```') === 0, r.raw.slice(0, 20));
+    f = fake({ text: 'はい。\n```json\n' + GOOD + '\n```\n以上。', truncated: false });
+    let e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    t(G, '前置き・後書きの付いた返事は読まない（再試行できる誤り。raw に返事が残る）', e && !e.fatal && /JSON/.test(e.message) && noEn(e.screen) && e.raw && e.raw.indexOf('はい。') === 0, e && e.message);
+
+    // (3) truncated
+    f = fake({ text: '{"step":{"t":[0,30]},"events":[', truncated: true });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    t(G, 'truncated が true なら「返事が途中で切れた」の再試行できる誤り（fatal ではない。raw に途中までの返事）', e && !e.fatal && /途中で切れ/.test(e.message) && /truncated/.test(e.message) && noEn(e.screen) && /途中で切れ/.test(e.screen) && e.raw === '{"step":{"t":[0,30]},"events":[', e && e.message);
+
+    // (4) not_granted → fatal
+    f = fake({ reject: { code: 'not_granted', message: 'The viewer declined' } });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    t(G, '{code:not_granted} は fatal:true（再試行しない）。message に code、screen は日本語だけ', e && e.fatal === true && e.code === 'not_granted' && /not_granted/.test(e.message) && noEn(e.screen), e && e.message + ' / ' + e.screen);
+    const perm = ['sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'];
+    const permOk = [];
+    for (const code of perm) {
+      const ff = fake({ reject: { code: code, message: 'x' } });
+      const ee = await fail(A.makeAnalyst({ kind: 'claude', claude: ff.claude }));
+      permOk.push(!!(ee && ee.fatal === true && ee.code === code && noEn(ee.screen)));
+    }
+    t(G, '型定義が「永久に隠す」群に置く 4 つ（sampling_disabled ほか）も fatal', permOk.every(Boolean), JSON.stringify(permOk));
+
+    // (5) rate_limited → 再試行できる。「少し待つ」と書く
+    f = fake({ reject: { code: 'rate_limited', message: 'Too many calls' } });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    t(G, '{code:rate_limited} は再試行できる誤りで、message と screen に「少し待」と書く', e && !e.fatal && e.code === 'rate_limited' && /少し待/.test(e.message) && /少し待/.test(e.screen) && /Too many calls/.test(e.message) && noEn(e.screen), e && e.message);
+    f = fake({ reject: { code: 'upstream_error', message: 'boom', text: '途中まで' } });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    const f3 = fake({ reject: { code: 'zzz_unknown', message: 'm' } });
+    const e3 = await fail(A.makeAnalyst({ kind: 'claude', claude: f3.claude }));
+    const f4 = fake({ reject: new Error('ほんものの例外') });
+    const e4 = await fail(A.makeAnalyst({ kind: 'claude', claude: f4.claude }));
+    t(G, 'それ以外の code（upstream_error・知らない code）と Error は再試行できる誤り。e.text は raw に残り、code は err.code に',
+      e && !e.fatal && e.code === 'upstream_error' && e.raw === '途中まで' && /upstream_error/.test(e.message) && noEn(e.screen) &&
+      e3 && !e3.fatal && e3.code === 'zzz_unknown' && /zzz_unknown/.test(e3.message) && noEn(e3.screen) &&
+      e4 && !e4.fatal && e4.code === null && /ほんものの例外/.test(e4.message) && noEn(e4.screen), [e, e3, e4].map(function (x) { return x && x.message; }).join(' / '));
+    f = fake({ reject: { code: 'refused', message: 'declined' } });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    t(G, '{code:refused} は「分析役が返事を断った」（API の refusal と同じ文）', e && !e.fatal && /返事を断り/.test(e.message) && e.screen === '分析役が返事を断った', e && e.message);
+    f = fake({ text: '', truncated: false });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    const f5 = fake('文字列だけ');
+    const e5 = await fail(A.makeAnalyst({ kind: 'claude', claude: f5.claude }));
+    t(G, '空の text は「返事が空」で拒み、{text} の形でない返事は「決まった形で来なかった」', e && !e.fatal && /空/.test(e.message) && e5 && !e5.fatal && /\{text, truncated\}/.test(e5.message) && noEn(e5.screen), (e && e.message) + ' / ' + (e5 && e5.message));
+
+    // (6) use が null を返す → fatal。2 回目も use を呼び直さず同じ誤り
+    f = fake(null, { noSample: true });
+    an = A.makeAnalyst({ kind: 'claude', claude: f.claude });
+    e = await fail(an);
+    const eAgain = await fail(an);
+    t(G, 'use(\'sample\') が null なら「この画面では Claude に問えない（sample の能力が無い）」の fatal。2 回目も use を呼び直さない',
+      e && e.fatal === true && /Claude に問えない/.test(e.message) && /sample の能力が無い/.test(e.message) && noEn(e.screen) && eAgain === e && f.calls.use.length === 1 && f.calls.sample.length === 0, e && e.message);
+    const throwing = { use: function () { return Promise.reject(new Error('use が落ちた')); } };
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: throwing }));
+    const throwingSync = { use: function () { throw new Error('同期で落ちた'); } };
+    const eSync = await fail(A.makeAnalyst({ kind: 'claude', claude: throwingSync }));
+    t(G, 'use が例外を投げても（約束にはないが）null と同じ fatal にする（非同期・同期とも）', e && e.fatal === true && /sample の能力が無い/.test(e.message) && /use が落ちた/.test(e.message) && eSync && eSync.fatal === true && /同期で落ちた/.test(eSync.message), (e && e.message) + ' / ' + (eSync && eSync.message));
+
+    // (7) use が無く complete がある（古い形）
+    const old = { prompts: [], complete: function (p) { old.prompts.push(p); return Promise.resolve('```json\n' + GOOD + '\n```'); } };
+    an = A.makeAnalyst({ kind: 'claude', claude: old });
+    r = await an.analyze(pack, '# 指示\n\n本文');
+    t(G, '古い形（complete）: 同じ 1 本の文字列を渡し、返事の文字列を読む（囲みも外す）。tier は null', r.note.x === '枠' && old.prompts.length === 1 && old.prompts[0] === A.makePrompt('# 指示\n\n本文', pack) && r.tier === null && r.usage === null, JSON.stringify(r));
+    const oldBad = { complete: function () { return Promise.resolve({ text: GOOD }); } };
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: oldBad }));
+    t(G, '古い形で文字列でない返事は「返事が文字になっていない」（再試行できる）', e && !e.fatal && /文字列ではありません/.test(e.message) && noEn(e.screen), e && e.message);
+    const oldThrows = { complete: function () { return Promise.reject(new Error('古い口が落ちた')); } };
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: oldThrows }));
+    t(G, '古い形の例外は再試行できる誤りで、message に例外の文が入る', e && !e.fatal && /古い口が落ちた/.test(e.message) && noEn(e.screen), e && e.message);
+    const both = fake({ text: GOOD, truncated: false });
+    both.claude.complete = function () { throw new Error('呼ばれてはいけない'); };
+    r = await A.makeAnalyst({ kind: 'claude', claude: both.claude }).analyze(pack, 'P');
+    t(G, 'use と complete の両方があれば use を使う', r.note.x === '枠' && both.calls.sample.length === 1);
+
+    // (8) どちらも無い → fatal
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: {} }));
+    t(G, 'use も complete も無ければ「この画面には Claude の口が無い（アーティファクトの枠の外）」の fatal', e && e.fatal === true && /Claude の口が無い/.test(e.message) && /枠の外/.test(e.message) && noEn(e.screen) && /枠の外/.test(e.screen), e && e.message);
+    {
+      // cfg.claude が無ければ globalThis.claude を見る。無ければ同じ fatal
+      const had = Object.prototype.hasOwnProperty.call(globalThis, 'claude');
+      const saved = globalThis.claude;
+      delete globalThis.claude;
+      const eNone = await fail(A.makeAnalyst({ kind: 'claude' }));
+      const g = fake({ text: GOOD, truncated: false });
+      globalThis.claude = g.claude;
+      let rG;
+      try { rG = await A.makeAnalyst({ kind: 'claude' }).analyze(pack, 'P'); } finally { if (had) globalThis.claude = saved; else delete globalThis.claude; }
+      t(G, 'cfg.claude が無ければ globalThis.claude を使う（無ければ口が無い fatal）', eNone && eNone.fatal === true && /口が無い/.test(eNone.message) && rG && rG.note.x === '枠' && g.calls.use.length === 1, eNone && eNone.message);
+    }
+
+    // (9) timeoutMs で切れる
+    f = fake(null, { never: true });
+    an = A.makeAnalyst({ kind: 'claude', claude: f.claude, timeoutMs: 30 });
+    let t0 = Date.now();
+    e = await fail(an);
+    const took = Date.now() - t0;
+    t(G, 'timeoutMs で signal を切り、sample が cancelled で返したら「時間切れ」の再試行できる誤り', e && !e.fatal && e.code === 'cancelled' && /時間切れ/.test(e.message) && /時間切れ/.test(e.screen) && noEn(e.screen) && f.calls.sample[0].opts.signal.aborted === true && took < 2000, (e && e.message) + ' ' + took + 'ms');
+    f = fake(null, { never: true, honorSignal: false });
+    t0 = Date.now();
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude, timeoutMs: 30 }));
+    t(G, 'signal を見ない sample でも、時間切れで返る（待ち続けない）', e && !e.fatal && /時間切れ/.test(e.message) && Date.now() - t0 < 2000, e && e.message);
+    const oldNever = { complete: function () { return new Promise(function () {}); } };
+    t0 = Date.now();
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: oldNever, timeoutMs: 30 }));
+    t(G, '古い形（complete）も timeoutMs で待つのをやめる', e && !e.fatal && /時間切れ/.test(e.message) && Date.now() - t0 < 2000, e && e.message);
+    f = fake({ reject: { code: 'cancelled', message: 'stop' } });
+    e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
+    t(G, 'こちらの打ち切りでない cancelled は「中止された」（時間切れとは言わない）', e && !e.fatal && e.code === 'cancelled' && /中止/.test(e.message) && !/時間切れ/.test(e.message) && noEn(e.screen), e && e.message);
+    f = fake({ text: GOOD, truncated: false });
+    r = await A.makeAnalyst({ kind: 'claude', claude: f.claude, timeoutMs: 30 }).analyze(pack, 'P');
+    await new Promise(function (res) { setTimeout(res, 60); });
+    t(G, '時間内に返れば signal は切られない（返事の後に時間が過ぎても切らない）', r.note.x === '枠' && f.calls.sample[0].opts.signal.aborted === false);
+    // (9b) timeoutMs を指定しなければ、sample にこちらの打ち切りを置かない（型定義「時間切れを自分で作るな」。
+    //      同意の画面を読む間も待つし、既定の段では書き始めるまで 2 分近くかかる）。古い complete だけ既定の 120 秒で待つのをやめる
+    {
+      const TM = A._internal.claudeTimeoutMs;
+      const sm = { sample: function () {} }, cm = { complete: function () {} };
+      t(G, 'claudeTimeoutMs: sample は指定が無ければ null（打ち切らない）、指定があればその数', TM({}, sm) === null && TM({ timeoutMs: 30 }, sm) === 30 && TM({ timeoutMs: 0 }, sm) === null && TM({ timeoutMs: -1 }, sm) === null && TM({ timeoutMs: '5' }, sm) === null && TM({ timeoutMs: Infinity }, sm) === null && TM(null, sm) === null);
+      t(G, 'claudeTimeoutMs: 古い complete は指定が無ければ 120000、指定があればその数', TM({}, cm) === 120000 && TM({ timeoutMs: 5000 }, cm) === 5000 && TM({ timeoutMs: 0 }, cm) === 120000);
+      // 時計を見張る: analyze の間に analyst.js が setTimeout を仕掛けないこと（偽の sample は時計を使わない）
+      const realST = globalThis.setTimeout;
+      const armed = [];
+      globalThis.setTimeout = function (fn, ms) { armed.push(ms); return realST.apply(this, arguments); };
+      let rNo, slowOk = null;
+      try {
+        f = fake({ text: GOOD, truncated: false, modelTierApplied: 'default' });
+        rNo = await A.makeAnalyst({ kind: 'claude', claude: f.claude }).analyze(pack, 'P');
+        // 返事が 130 ms 遅れても切られない（切る時計そのものを仕掛けていない）
+        const slow = fake(function () { return new Promise(function (res) { realST(function () { res({ text: GOOD, truncated: false }); }, 130); }); });
+        slowOk = await A.makeAnalyst({ kind: 'claude', claude: slow.claude }).analyze(pack, 'P');
+      } finally { globalThis.setTimeout = realST; }
+      t(G, 'timeoutMs を指定しなければ、sample の呼び出しに時計（setTimeout）を 1 つも仕掛けず、signal は切られないまま', rNo && rNo.note.x === '枠' && armed.length === 0 && f.calls.sample[0].opts.signal && f.calls.sample[0].opts.signal.aborted === false, '仕掛けた時計 ' + JSON.stringify(armed));
+      t(G, 'timeoutMs を指定しなければ、遅い返事も切らずに受け取る', slowOk && slowOk.note.x === '枠');
+      // 古い complete は既定で待つのをやめる（120 秒。ここでは時計が仕掛かることだけ見る）
+      const armed2 = [];
+      globalThis.setTimeout = function (fn, ms) { armed2.push(ms); return realST.apply(this, arguments); };
+      let rOld;
+      try { rOld = await A.makeAnalyst({ kind: 'claude', claude: { complete: function () { return Promise.resolve(GOOD); } } }).analyze(pack, 'P'); }
+      finally { globalThis.setTimeout = realST; }
+      t(G, '古い complete は指定が無くても 120 秒の時計を仕掛ける（signal が無いので、待つのをやめるため）', rOld && rOld.note.x === '枠' && armed2.length === 1 && armed2[0] === 120000, JSON.stringify(armed2));
+    }
+
+    // 接続テスト
+    f = fake(function (prompt) { return /了解/.test(prompt) ? { text: '了解', truncated: false, modelTierApplied: 'quick' } : { text: 'ng', truncated: false }; });
+    let tc = await A.testConnection({ kind: 'claude', claude: f.claude }, 'PREFIX');
+    t(G, '接続テスト（sample）: 「了解」とだけ答えさせる短い問いを tier quick・cache false で 1 回投げ、返事が来れば ok。指示文は送らない',
+      tc.ok && tc.reached && tc.authed && tc.model === 'quick' && tc.error === null && f.calls.sample.length === 1 && f.calls.sample[0].opts.modelTier === 'quick' && f.calls.sample[0].opts.cache === false && f.calls.sample[0].prompt.indexOf('PREFIX') < 0, JSON.stringify(tc));
+    const oldOk = { n: 0, complete: function (p) { oldOk.n++; return Promise.resolve(/了解/.test(p) ? '了解' : 'ng'); } };
+    tc = await A.testConnection({ kind: 'claude', claude: oldOk });
+    t(G, '接続テスト（古い形）: complete に投げ、返事が来れば ok', tc.ok && tc.reached && tc.authed && oldOk.n === 1 && tc.model === null, JSON.stringify(tc));
+    tc = await A.testConnection({ kind: 'claude', claude: {} });
+    const tcNo = await A.testConnection({ kind: 'claude', claude: fake(null, { noSample: true }).claude });
+    const tcDecl = await A.testConnection({ kind: 'claude', claude: fake({ reject: { code: 'not_granted', message: 'no' } }).claude });
+    t(G, '接続テスト: 口が無ければ reached:false、閲覧者が断れば reached:true・authed:false。誤りは画面向けの文（英字なし）',
+      !tc.ok && !tc.reached && noEn(tc.error) && !tcNo.ok && !tcNo.reached && noEn(tcNo.error) && !tcDecl.ok && tcDecl.reached && !tcDecl.authed && noEn(tcDecl.error), [tc.error, tcNo.error, tcDecl.error].join(' / '));
+    // 設定の書き出し
+    const exp = JSON.parse(A.exportSettings({ kind: 'claude', claude: f.claude, tier: 'quick', timeoutMs: 5000 }));
+    t(G, '設定の書き出しに口のオブジェクト（claude）は入らず、tier と timeoutMs は入る', !('claude' in exp) && exp.kind === 'claude' && exp.tier === 'quick' && exp.timeoutMs === 5000, JSON.stringify(exp));
+    // 誤りの文の作りを直に
+    const I2 = A._internal;
+    const allScreens = ['invalid_request', 'prompt_too_large', 'session_expired', 'empty_completion', 'image_rejected', 'queue_overflow', 'transform_error', 'invalid_json', 'not_granted', 'rate_limited', 'cancelled', 'refused'].map(function (c) { return I2.claudeError({ code: c, message: 'M' }, false); });
+    t(G, 'どの code でも screen は日本語だけで、message に code が入る（cancelled は除く）', allScreens.every(function (x) { return noEn(x.screen) && (x.code === 'cancelled' || x.message.indexOf(x.code) >= 0); }), allScreens.map(function (x) { return x.screen; }).join(' / '));
+    t(G, 'fatal が付くのは永久の群だけ', allScreens.filter(function (x) { return x.fatal; }).map(function (x) { return x.code; }).join(',') === 'not_granted');
   })();
 
   report();

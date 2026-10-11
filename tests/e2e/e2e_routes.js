@@ -10,7 +10,7 @@
  * B. 人が書く（L0）: 入口=ファイル。「次の窓を流す」→ フォームでカードを足して「この窓を書く」→ S1 が書かれる。
  *    所感が空のままでは送れない
  * C. 打つ／貼る（T0）＋ 内蔵の模擬: 窓幅 5 秒。textarea に打って Enter → 5 秒で窓が閉じ、模擬が S1 を書く
- * D. 聞き終える: C の続きで「聞き終える」→ end が書かれ、札が「聞き終えた」
+ * D. 聞き終える: C の続きで「停止」→ end が書かれ、札が「聞き終えた」
  * E. ファイル入口の穴: 貼った全文が聞き始めた後の DOM に残らない。窓幅より長い沈黙でも「次の窓を流す」が
  *    発話の入る次の窓まで進む。gap の最小バッチすら書けない窓（壁時計の巻き戻しで P08）は捨てず次の窓に
  *    合流させ、3 窓続けば聞き取りを止めて大きく知らせる
@@ -20,7 +20,7 @@
  *    画面の文は日本語で、分析役に返した文は畳んだ欄に。追体験で T を戻すと、運転状態の札「未確定の窓」は T で畳んだ状態から
  *    数え（左の欄と食い違わない）、手動の輪のプロンプト欄と分析役の欄に T より先の窓が出ない（DOM にも無い）。
  *    ライブに戻すと、預けたプロンプトがそのまま戻り、返事を取り込める
- * H. 打つ／貼る（ライブ）の終わりと中断: 打ってすぐ「聞き終える」→ 最後の窓は聞き終えた秒までで閉じ、聞き終える前に
+ * H. 打つ／貼る（ライブ）の終わりと中断: 打ってすぐ「停止」→ 最後の窓は聞き終えた秒までで閉じ、聞き終える前に
  *    判断を押した違反（P27）に落ちずに書かれる。窓を書いたあと時間をおいて「中断する」→ 中断は読み終えた所に置かれ（P22）、
  *    再開して続きが書ける。最初の窓より前の中断は 0 に置かれる
  * I. ファイルの終わりちょうどの発話: 0:05・0:20・0:30 で終わる素材の最初の窓は 0:00〜0:30 で発話 1〜2 だけ
@@ -35,7 +35,7 @@
  * M. 窓幅は 5〜180 の整数の秒。小数・範囲の外は聞き始めずに断る
  * N. 中断の間に打った行（打つ／貼る、窓幅 5）: 中断の前・中断の間・再開の後の 3 行がすべて素材ログに残り、中断の間の行は
  *    再開した後の最初の窓に入る。中断の間も欄は打てて、入口の札が「打った行は捨てない」と言う。
- *    中断の間に打ったまま「聞き終える」を押しても、その行は最後の窓に入る
+ *    中断の間に打ったまま「停止」を押しても、その行は最後の窓に入る
  * O. 話者の切り出し（打つ／貼る）: 「司会: 始めます」「司会：始めます」は話者「司会」。「15:00までに…」「9:00 から…」
  *    「16:9 の…」「https://…」「0:05 司会: …」は行の全体が話者無しの本文。「結論：A案」は話者「結論」（形からは区別できない）。
  *    画面の説明も、半角の「:」のあとの空白と、時刻・住所で始まる行のことを言う
@@ -44,7 +44,7 @@
  * R. ライブで遅れて閉じる窓の終わりは窓幅の目盛り。中断中の札を知らせで上書きしない。end の t は rt.py と同じ
  * S. 音声の入口で中断と再開を素早く繰り返しても、動く認識は 1 つで、同じ発話が二重にならない
  * T. 40 件の上限で切れる窓: 後ろの窓に回った発話の知らせを、前の窓の入口の欄に出さない
- * U. 音声の入口の「聞き終える」: 認識の終わりの知らせを 3 秒まで待ち、その間に届いた確定の結果も最後の窓に入れる。
+ * U. 音声の入口の「停止」: 認識の終わりの知らせを 3 秒まで待ち、その間に届いた確定の結果も最後の窓に入れる。
  *    3 秒で来なければ、知らせの欄と素材ログにそう残して閉じる
  * V. 中断のあと再開せずに聞き終える（打つ／貼る、窓幅 5）: 最後の窓の終わりは聞き終えた時計の秒（幅は窓幅の 3 倍まで）。
  *    同じ並びと時計を rt.py（open --live・watch --once・next・append・pause・next --last）に渡した窓と同じ
@@ -58,9 +58,9 @@
  * Z. 音声をどこで文字にするか（模擬の認識器）: この PC の中で文字にできるなら承知の印なしで始まり processLocally を立てる。
  *    できない（調べる口が無い）なら承知の印が無いと聞き始めず記録も作らない。日本語の部品はボタンで入れられ、入ったら端末内で
  *    始まる。端末内で始めた後に「言語が使えない」と言われたら再開せず、提供元のサーバーへ切り替えず、「止まっている」と出す。
- *    終わりの知らせが来ない形（Chromium の実物）でも同じに止まり、「聞き終える」は 3 秒待たずに進む（Z2b）。
+ *    終わりの知らせが来ない形（Chromium の実物）でも同じに止まり、「停止」は 3 秒待たずに進む（Z2b）。
  *    認識の通信が止められている形では、始め直しの待ちを延ばして 5 回で止め、素材ログの行は限られ、入口を「打つ／貼る」に
- *    して「聞き始める」を押すと同じ記録の続きを書ける（Z5）。「聞き始める」を押してから記録を開き終えるまでは入口と音声の
+ *    して「聞き取りを開始」を押すと同じ記録の続きを書ける（Z5）。「聞き取りを開始」を押してから記録を開き終えるまでは入口と音声の
  *    行き先の欄を変えられず、その間に入口が音声に変わっても承知の印が無ければ認識を作らない（Z4。保存を遅らせて確かめる）
  * AA. API の設定の断り: 鍵が空・OpenAI 互換のモデルが空・Anthropic で住所の欄に何かある、は聞き始めず（「接続を試す」も送らず）、
  *    外へ要求を出さない。分析役を変えると「接続を試す」の結果の文を消す。API の設定の欄と手動の輪の欄が、外へ何を渡すかを言う。
@@ -83,7 +83,13 @@ function check(group, name, ok, detail) {
   results.push({ group: group, name: name, ok: !!ok, detail: detail == null ? '' : String(detail) });
   console.error((ok ? '合格 ' : '不合格 ') + '[' + group + '] ' + name + (detail != null ? '  — ' + String(detail).slice(0, 300) : ''));
 }
-const txt = function (page, id) { return page.evaluate(function (id) { const e = document.getElementById(id); return e ? e.innerText : ''; }, id); };
+// 分析役の欄（an-msgs）は見えている文だけ（畳んだ欄は除く）。うまくいった区切りでは欄が閉じている（隠れていても中身は読む）
+const txt = function (page, id) {
+  return page.evaluate(function (id) {
+    if (id === 'an-msgs') return Array.from(document.querySelectorAll('#an-msgs > div')).map(function (d) { return d.textContent; }).join('\n');
+    const e = document.getElementById(id); return e ? e.innerText : '';
+  }, id);
+};
 // 分析役の欄の畳んだ欄（機械向けの文）の中身。閉じていると innerText に出ないので textContent で読む
 const rawTxt = function (page) { return page.evaluate(function () { return Array.from(document.querySelectorAll('#an-msgs details')).map(function (d) { return d.textContent; }).join(' | '); }); };
 const rowCount = function (page) { return page.evaluate(function () { return document.getElementById('rows').children.length; }); };
@@ -107,6 +113,8 @@ async function loadFixture(page) {
 (async function main() {
   const browser = await chromium.launch(LAUNCH);
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // 設定は「設定と記録」の引き出しの中（2026-10-10 の作り直し）。試験は欄を直に操作するので、引き出しを開いておく
+  await ctx.addInitScript(function () { document.addEventListener('DOMContentLoaded', function () { const d = document.getElementById('settings'); if (d) d.open = true; }); });
 
   // ---------- A. 手動の輪 ----------
   {
@@ -132,7 +140,7 @@ async function loadFixture(page) {
     await page.waitForTimeout(200);
     const an1 = await txt(page, 'an-msgs');
     const raw1 = await rawTxt(page);
-    check('L3', '未来の時刻のカードは P09 で落ち、出し直し 2 回目（違反文は畳んだ欄「分析役に返した文（そのまま）」に）', /出し直し 2 回目/.test(an1) && /分析役に返した文（そのまま）/.test(an1) && /P09/.test(raw1) && !/P07/.test(raw1), an1.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + raw1.slice(0, 120));
+    check('L3', '未来の時刻のカードは P09 で落ち、出し直し 2 回目（違反文は畳んだ欄「分析役に返した文（そのまま）」に）', /出し直し 2 回目/.test(an1) && /分析役に返した文（そのまま）/.test(raw1) && /P09/.test(raw1) && !/P07/.test(raw1), an1.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + raw1.slice(0, 120));
     check('画面の言葉', '手動の輪: 見えている文に規則の id も英字の項目名も無い', !/[A-Za-z]{2,}|P\d\d/.test(an1), an1.replace(/\n/g, ' ').slice(0, 200));
     const prompt2 = await page.evaluate(function () { return document.getElementById('man-prompt').value; });
     check('L3', '出し直しのプロンプトに違反文が載る', /"attempt":\s*2/.test(prompt2) && /P09/.test(prompt2), '');
@@ -210,7 +218,7 @@ async function loadFixture(page) {
     const feedOf = function () { return page.evaluate(function () { return Array.from(document.querySelectorAll('#feed .fl')).filter(function (n) { return !n.hidden && !n.classList.contains('interim'); }).map(function (n) { return n.innerText; }); }); };
     const feed1 = await feedOf();
     const wait1 = await page.evaluate(function () { const n = document.querySelector('#feed .fl.interim'); return n && !n.hidden ? n.innerText : ''; });
-    check('T0', 'Enter で確定しても、窓として渡すまでは右の逐語に出ない（窓を待っている数だけ出る）', feed1.length === 0 && /窓を待っている発話 1 件/.test(wait1), JSON.stringify(feed1) + ' / ' + wait1);
+    check('T0', 'Enter で確定しても、窓として渡すまでは右の逐語に出ない（窓を待っている数だけ出る）', feed1.length === 0 && /区切りを待っている発話 1 件/.test(wait1), JSON.stringify(feed1) + ' / ' + wait1);
     await page.keyboard.type('二つ目の発話。');
     await page.keyboard.press('Enter');
     // 5 秒窓が閉じて mock が書くまで待つ
@@ -223,14 +231,14 @@ async function loadFixture(page) {
     // 聞き終える
     await page.click('#end');
     await page.waitForFunction(function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 15000 });
-    check('D', '「聞き終える」で end が書かれ、札が「聞き終えた」', true, await txt(page, 'setupmsg'));
+    check('D', '「停止」で end が書かれ、札が「聞き終えた」', true, await txt(page, 'setupmsg'));
     const holdhead = await txt(page, 'holdhead');
     check('D', '左の見出しが「答えが出ないまま終わった問い」', /答えが出ないまま終わった問い/.test(holdhead), holdhead);
     // 再読込して同じ名前で始めると「もう聞き終えている」
     await page.reload();
     await page.waitForTimeout(500);
-    const rec = await txt(page, 'recmsg');
-    check('D', '再読込後、このブラウザに残っている記録の名前が出る', /打つ入口の試験/.test(rec), rec);
+    const rec = await page.evaluate(function () { return Array.from(document.querySelectorAll('#past option')).map(function (o) { return o.value; }).join('、'); });
+    check('D', '再読込後、このブラウザに残っている記録の名前が「前の記録」の一覧に出る', /打つ入口の試験/.test(rec), rec);
     await page.fill('#name', '打つ入口の試験');
     await page.selectOption('#route', 'mock');
     await page.click('#start');
@@ -539,13 +547,13 @@ async function loadFixture(page) {
     await page.waitForTimeout(1500);
     await page.click('#end');
     const ended = await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
-    check('終わり', '打ってすぐ「聞き終える」→ 聞き終えた', ended, await txt(page, 'an-msgs'));
+    check('終わり', '打ってすぐ「停止」→ 聞き終えた', ended, await txt(page, 'an-msgs'));
     const log = await readLog(page, '打ってすぐ終える');
     const open = log[0], steps = log.filter(function (e) { return e.e === 'step'; }), end = log[log.length - 1];
     const gaps = log.filter(function (e) { return e.e === 'hold' && e.kind === 'gap'; });
     const s1 = steps[0];
     const heard = s1 ? isoSec(s1.at) - isoSec(open.t0) : -1;
-    check('終わり', '打ってすぐ「聞き終える」: 最後の窓は聞き終えた秒までで閉じ、未確定の窓にならずに S1 と end が書かれる', steps.length === 1 && gaps.length === 0 && end.e === 'end' && s1.t[0] === 0 && s1.t[1] >= 1 && s1.t[1] < 30, JSON.stringify(steps.map(function (s) { return s.t; })) + ' gaps=' + gaps.length + ' 最後=' + end.e);
+    check('終わり', '打ってすぐ「停止」: 最後の窓は聞き終えた秒までで閉じ、未確定の窓にならずに S1 と end が書かれる', steps.length === 1 && gaps.length === 0 && end.e === 'end' && s1.t[0] === 0 && s1.t[1] >= 1 && s1.t[1] < 30, JSON.stringify(steps.map(function (s) { return s.t; })) + ' gaps=' + gaps.length + ' 最後=' + end.e);
     check('終わり', '最後の窓の終わりは、壁時計 − 聞き始め 以下（聞き終える前に判断を押していない）', s1 && heard >= s1.t[1], 'step.t[1]=' + (s1 && s1.t[1]) + ' 経った秒=' + heard);
     check('終わり', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
@@ -717,7 +725,7 @@ async function loadFixture(page) {
     const nUtt = k2.lines.filter(function (x) { return /番目の発話/.test(x); }).length;
     check('逐語は渡した窓まで', '窓 2（打ち間違いの窓。40 発話で切れる）: ライブの逐語は渡した 43 発話まで。44 番目以降と結論の発話は DOM に無い', nUtt === 43 && k2.html.indexOf('44番目の発話') < 0 && k2.html.indexOf('結論は案B') < 0, nUtt + ' 発話 / ' + k2.lines.slice(-2).join(' | '));
     check('逐語は渡した窓まで', '人が書く欄の窓も 40 発話（4〜43 番目）で、結論の発話は無い', /四番目の発話/.test(hwin) && /43番目の発話/.test(hwin) && !/44番目の発話|結論は案B/.test(hwin), hwin.slice(0, 60) + '…' + hwin.slice(-40));
-    check('逐語は渡した窓まで', '窓を待っている発話の数だけを知らせる（17 件）', /窓を待っている発話 17 件/.test(k2.waiting), k2.waiting);
+    check('逐語は渡した窓まで', '区切りを待っている発話の数だけを知らせる（17 件）', /区切りを待っている発話 17 件/.test(k2.waiting), k2.waiting);
     // 入口の欄は、いまの窓の知らせを rt.py と同じ文で出し、前の窓の知らせは種類と行番号だけを 1 行に残す（説明の文は繰り返さない）
     check('時刻の飛び', '入口の欄に、この窓の「時刻が飛んでいる行（5・6 行目）」が出て、窓 1 の読めない行は「前の窓までの知らせ」の 1 行に残る（説明の文は繰り返さない）', /時刻が飛んでいる行（5・6 行目）/.test(notice2) && /前の窓までの知らせ：読めない行（3 行目）/.test(notice2) && !/読めない行があった/.test(notice2), notice2.replace(/\n/g, ' | '));
     const srcK = await readSrc(page, '人が書く打ち間違い');
@@ -882,7 +890,7 @@ async function loadFixture(page) {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(6500);   // 中断の間は、窓の幅より長く待っても窓を閉じない
     const mid = await page.evaluate(function () { return { ta: document.getElementById('ta').value, edge: document.getElementById('edge').textContent, feed: document.getElementById('feed').innerText }; });
-    check('中断の間の行', '中断の間は、窓の幅より長く待っても次の窓を出さず、行は窓を待つ発話として数える', /（S1）/.test(mid.edge) && /窓を待っている発話 1 件/.test(mid.feed) && mid.ta === '', JSON.stringify(mid).slice(0, 200));
+    check('中断の間の行', '中断の間は、窓の幅より長く待っても次の窓を出さず、行は窓を待つ発話として数える', /（S1）/.test(mid.edge) && /区切りを待っている発話 1 件/.test(mid.feed) && mid.ta === '', JSON.stringify(mid).slice(0, 200));
     await page.$eval('#resume', function (b) { b.click(); });
     await page.waitForTimeout(200);
     const msgR = await txt(page, 'intakemsg');
@@ -909,7 +917,7 @@ async function loadFixture(page) {
     await page.close();
   }
   {
-    // 中断の間に打ったまま「聞き終える」: その行は最後の窓に入る（捨てない）
+    // 中断の間に打ったまま「停止」: その行は最後の窓に入る（捨てない）
     const NAME = '中断のまま終える';
     const f = await fresh(ctx, NAME); const page = f.page;
     await page.selectOption('#route', 'mock');
@@ -925,14 +933,14 @@ async function loadFixture(page) {
     await page.click('#pause');
     await page.waitForTimeout(300);
     await page.click('#ta');
-    await page.keyboard.type('月見: 中断の間の結論。');   // Enter を押さないまま「聞き終える」
+    await page.keyboard.type('月見: 中断の間の結論。');   // Enter を押さないまま「停止」
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
     const log = await readLogEnded(page, NAME);
     const src = (await readSrc(page, NAME)).filter(function (l) { return l.i != null; });
     const steps = log.filter(function (e) { return e.e === 'step'; });
     const lastI = src.length ? src[src.length - 1].i : 0;
-    check('中断の間の行', '中断の間に打ったまま「聞き終える」: その行も素材ログに残り、最後の窓に入って end で閉じる', src.length === 2 && src[1].text === '中断の間の結論。' && steps.length && steps[steps.length - 1].lines[1] === lastI && log[log.length - 1].e === 'end', JSON.stringify({ src: src.map(function (l) { return [l.i, l.t, l.text]; }), steps: steps.map(function (x) { return [x.t, x.lines]; }), last: log[log.length - 1].e }));
+    check('中断の間の行', '中断の間に打ったまま「停止」: その行も素材ログに残り、最後の窓に入って end で閉じる', src.length === 2 && src[1].text === '中断の間の結論。' && steps.length && steps[steps.length - 1].lines[1] === lastI && log[log.length - 1].e === 'end', JSON.stringify({ src: src.map(function (l) { return [l.i, l.t, l.text]; }), steps: steps.map(function (x) { return [x.t, x.lines]; }), last: log[log.length - 1].e }));
     check('中断の間の行', 'ページ内エラー無し（中断のまま終える）', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
   }
@@ -1235,7 +1243,7 @@ async function loadFixture(page) {
   }
 
   // ---------- U. 音声の入口の聞き終え（K19。模擬の認識器: stop の後に確定の結果を返し、そのあとに終わりの知らせ） ----------
-  // 「聞き終える」を押したら、いま動いている認識の終わりの知らせを待ってから最後の窓 → end。止めた後に届いた確定の結果も
+  // 「停止」を押したら、いま動いている認識の終わりの知らせを待ってから最後の窓 → end。止めた後に届いた確定の結果も
   // 素材ログに残り、最後の窓に入る（中断の道と同じ）。終わりの知らせが 3 秒待っても来なければ、知らせの欄にそう出して進む
   const speechPage = async function (name, cfg) {
     const page = await ctx.newPage();
@@ -1286,7 +1294,7 @@ async function loadFixture(page) {
     await page.click('#end');
     await page.waitForTimeout(100);
     const during = await page.evaluate(function () { return { end: document.getElementById('end').disabled, pause: document.getElementById('pause').disabled, msg: document.getElementById('intakemsg').textContent }; });
-    check('音声の聞き終え', '待つ間は「聞き終える」「中断する」を押せず、入口の札が終わりの知らせを待っていると言う', during.end && during.pause && /終わりの知らせを待っている/.test(during.msg), JSON.stringify(during));
+    check('音声の聞き終え', '待つ間は「停止」「中断する」を押せず、入口の札が終わりの知らせを待っていると言う', during.end && during.pause && /終わりの知らせを待っている/.test(during.msg), JSON.stringify(during));
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
     const log = await readLogEnded(page, NAME);
     const src = await readSrc(page, NAME);
@@ -1624,7 +1632,7 @@ async function loadFixture(page) {
 
   // ---------- Y. 音声の入口: 中断して古い認識が終わる前に再開し、そのまま聞き終える（K29。模擬の認識器） ----------
   // 認識は作った順に gens の設定を使う（止めてから確定の結果を返すまでと、終わりの知らせまでのミリ秒）。中断で止めた古い
-  // 認識の終わりの知らせが来る前に再開し、すぐ「聞き終える」を押す。聞き終えるときは、古い認識もいまの認識も合わせて 3 秒まで
+  // 認識の終わりの知らせが来る前に再開し、すぐ「停止」を押す。聞き終えるときは、古い認識もいまの認識も合わせて 3 秒まで
   // 待つ。その間に古い認識が返した結果は最後の窓に入り、3 秒より後に返した結果は記録に入れずに素材ログの出来事 late として
   // 残り、知らせの欄にそう出る。聞き終えた後は late のほかの出来事を素材ログに足さない
   const speechGensPage = async function (name, gens, win) {
@@ -1865,7 +1873,7 @@ async function loadFixture(page) {
     const after = await page.evaluate(function () { return { n: globalThis.__srs.length, local: globalThis.__srs.map(function (x) { return x.processLocally; }), msg: document.getElementById('intakemsg').textContent }; });
     check('音声の行き先', '端末内: 言語が使えないと言われたら再開せず、サーバーへ切り替えない', after.n === 1 && after.local.every(function (x) { return x === true; }) && /提供元のサーバーへは切り替えない/.test(after.msg), JSON.stringify(after));
     const st2 = await page.evaluate(function () { return { listen: document.getElementById('st-listen').textContent, start: document.getElementById('start').disabled, end: document.getElementById('end').disabled, intake: document.getElementById('intake').disabled }; });
-    check('音声の行き先', '端末内: 止まった後は「聞いている」と言わず（止まっている）、入口を選び直して「聞き始める」を押せる。「聞き終える」も押せる', st2.listen === '止まっている' && !st2.start && !st2.end && !st2.intake && /「聞き始める」を押す/.test(after.msg), JSON.stringify(st2));
+    check('音声の行き先', '端末内: 止まった後は「聞いている」と言わず（止まっている）、入口を選び直して「もう一度聞く」を押せる。「停止」も押せる', st2.listen === '止まっている' && !st2.start && !st2.end && !st2.intake && /「もう一度聞く」を押す/.test(after.msg), JSON.stringify(st2));
     const src = await readSrc(page, NAME);
     check('音声の行き先', '端末内: 素材ログの認識の始まりに local:true', src.some(function (l) { return l.ev === 'asr_start' && l.local === true; }) && !src.some(function (l) { return l.ev === 'asr_restart'; }), JSON.stringify(src));
     await page.click('#end');
@@ -1898,7 +1906,7 @@ async function loadFixture(page) {
 
   {
     // Z2b: 端末内で「言語が使えない」と言われ、終わりの知らせが来ない（Chromium の実物の形。abort() でも来ない）。
-    //      少し待って終わったものとし、止まった理由を出す。そのあと「聞き終える」は待たずに進み、「待っても来なかった」と言わない
+    //      少し待って終わったものとし、止まった理由を出す。そのあと「停止」は待たずに進み、「待っても来なかった」と言わない
     const NAME = '音声の行き先（終わりが来ない）';
     const w = await wherePage(NAME, 'available');
     const page = w.page;
@@ -1916,7 +1924,7 @@ async function loadFixture(page) {
     const took = Date.now() - t0;
     const notice = await txt(page, 'intakenotice');
     const src = await readSrc(page, NAME);
-    check('音声の行き先', '終わりが来ない: そのあと「聞き終える」は 3 秒待たずに進み、「待っても来なかった」と言わず、素材ログにも残さない',
+    check('音声の行き先', '終わりが来ない: そのあと「停止」は 3 秒待たずに進み、「待っても来なかった」と言わず、素材ログにも残さない',
       ended && took < 2500 && !/待っても来なかった/.test(notice) && !src.some(function (l) { return l.ev === 'asr_stop_timeout'; }) && !src.some(function (l) { return l.ev === 'asr_end'; }),
       took + ' ミリ秒 / ' + notice + ' / ' + JSON.stringify(src.map(function (l) { return l.ev || l.i; })));
     check('音声の行き先', '終わりが来ない: ページ内エラー無し', w.errs.length === 0, w.errs.join(' | '));
@@ -1924,7 +1932,7 @@ async function loadFixture(page) {
   }
   {
     // Z5: 認識の通信が止められている（始めるとすぐ「通信が切れた」で終わる）。始め直しの待ちを延ばして 5 回で止め、素材ログの行は
-    //     限られる。止まった後に入口を「打つ／貼る」にして「聞き始める」を押すと、同じ記録の続きを打って書ける
+    //     限られる。止まった後に入口を「打つ／貼る」にして「聞き取りを開始」を押すと、同じ記録の続きを打って書ける
     const NAME = '音声の通信が止められている';
     const w = await wherePage(NAME, 'netfail');
     const page = w.page;
@@ -1941,8 +1949,8 @@ async function loadFixture(page) {
     check('続けて失敗', '通信が止められている: 始め直しの待ちを延ばし（合わせて 7 秒ほど）、5 回で止める。素材ログの認識の行は 19 行で止まる',
       stopped && took >= 6500 && r.n === 5 && src1.length === 19 && evs.asr_start === 5 && evs.asr_error === 5 && evs.asr_end === 5 && evs.asr_restart === 4,
       took + ' ミリ秒 / ' + JSON.stringify({ n: r.n, rows: src1.length, evs: evs }));
-    check('続けて失敗', '通信が止められている: 札が、続けて失敗したこと・最後の誤り（network）・入口を「打つ／貼る」にするか「聞き始める」をもう一度押すことを言い、「止まっている」と出す',
-      /認識の通信が切れた（network）/.test(r.msg) && /「打つ／貼る」/.test(r.msg) && /「聞き始める」/.test(r.msg) && r.listen === '止まっている' && !r.start && !r.intake, JSON.stringify(r));
+    check('続けて失敗', '通信が止められている: 札が、続けて失敗したこと・最後の誤り（network）・入口を「打つ／貼る」にするか「もう一度聞く」を押すことを言い、「止まっている」と出す',
+      /認識の通信が切れた（network）/.test(r.msg) && /「打つ／貼る」/.test(r.msg) && /「もう一度聞く」/.test(r.msg) && r.listen === '止まっている' && !r.start && !r.intake, JSON.stringify(r));
     await page.waitForTimeout(1500);
     const src2 = await readSrc(page, NAME);
     check('続けて失敗', '通信が止められている: 止めた後は始め直さず、素材ログも増えない', src2.length === src1.length && (await page.evaluate(function () { return globalThis.__srs.length; })) === 5, src2.length);
@@ -1951,7 +1959,7 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('ta').disabled; }, null, { timeout: 5000 });
     const relisten = await page.evaluate(function () { return { listen: document.getElementById('st-listen').textContent, intake: document.getElementById('st-intake').textContent, setup: document.getElementById('setupmsg').textContent, name: document.getElementById('name').disabled }; });
-    check('続けて失敗', '「打つ／貼る」にして「聞き始める」: 同じ記録のまま聞いている（名前の欄は変えられないまま）', relisten.listen === '聞いている' && /打つ／貼る/.test(relisten.intake) && /同じ記録の続き/.test(relisten.setup) && relisten.name, JSON.stringify(relisten));
+    check('続けて失敗', '「打つ／貼る」にして「聞き取りを開始」: 同じ記録のまま聞いている（名前の欄は変えられないまま）', relisten.listen === '聞いている' && /打つ／貼る/.test(relisten.intake) && /同じ記録の続き/.test(relisten.setup) && relisten.name, JSON.stringify(relisten));
     await page.click('#ta');
     await page.keyboard.type('日向: 音声が止まった後に打った行です。');
     await page.keyboard.press('Enter');
@@ -1970,8 +1978,8 @@ async function loadFixture(page) {
     await page.close();
   }
   {
-    // Z4: 「聞き始める」を押してから記録を開き終えるまで（ブラウザ内の保存を 1.5 秒遅らせる）。その間は入口・音声の行き先の欄と
-    //     「聞き始める」を押せない。画面を通さずに入口を音声に書き換えても、承知の印が無ければ認識を作らず、記録にも何も書かない
+    // Z4: 「聞き取りを開始」を押してから記録を開き終えるまで（ブラウザ内の保存を 1.5 秒遅らせる）。その間は入口・音声の行き先の欄と
+    //     「聞き取りを開始」を押せない。画面を通さずに入口を音声に書き換えても、承知の印が無ければ認識を作らず、記録にも何も書かない
     const NAME = '押してから開くまで';
     const DELAY = 1500;
     const page = await ctx.newPage();
@@ -2009,7 +2017,7 @@ async function loadFixture(page) {
     await page.selectOption('#intake', 'text');
     await page.click('#start');
     const during = await page.evaluate(function () { const d = function (id) { return document.getElementById(id).disabled; }; return { intake: d('intake'), cloud: d('speech-cloud'), install: d('speech-install'), start: d('start'), route: d('route'), name: d('name'), msg: document.getElementById('setupmsg').textContent }; });
-    check('押してから開くまで', '記録を開いている間は、入口・音声の行き先の欄・「聞き始める」を押せない', during.intake && during.cloud && during.install && during.start && during.route && during.name && /記録を開いている/.test(during.msg), JSON.stringify(during));
+    check('押してから開くまで', '記録を開いている間は、入口・音声の行き先の欄・「聞き取りを開始」を押せない', during.intake && during.cloud && during.install && during.start && during.route && during.name && /記録を開いている/.test(during.msg), JSON.stringify(during));
     // 画面を通さずに入口を音声に書き換える（欄が押せない間にも変わった場合の守りを確かめる）
     await page.evaluate(function () { const s = document.getElementById('intake'); s.value = 'speech'; s.dispatchEvent(new Event('change', { bubbles: true })); });
     await page.waitForTimeout(DELAY + 1000);
@@ -2063,7 +2071,7 @@ async function loadFixture(page) {
     r = await tryStart();
     check('API の断り', 'OpenAI 互換でモデルが空なら聞き始めない', /モデル名が要る/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
     const notice = await page.evaluate(function () { return { api: document.getElementById('apibox').innerText, open: document.getElementById('apibox').open }; });
-    check('API の断り', 'API の設定の欄が開き、窓ごとに何を送るかを書いてある', notice.open && /窓が閉じるたびに/.test(notice.api) && /API の提供元へ送る/.test(notice.api), notice.api.slice(0, 200));
+    check('API の断り', 'API の設定の欄が開き、窓ごとに何を送るかを書いてある', notice.open && /区切りが閉じるたびに/.test(notice.api) && /API の提供元へ送る/.test(notice.api), notice.api.slice(0, 200));
     check('API の断り', 'どの断りでも外へ要求を出していない', sent === 0, sent);
     await page.fill('#api-key', ''); await page.fill('#api-url', ''); await page.fill('#api-model', '');
     await page.dispatchEvent('#api-key', 'change');
@@ -2077,7 +2085,7 @@ async function loadFixture(page) {
     await page.selectOption('#route', 'manual');
     const t = await txt(page, 'an-manual');
     // 文の言い回しは変わりうるので、言っている中身（その窓の発言・話者名・貼った先の提供元に渡る）で見る
-    check('API の断り', '手動の輪: プロンプトに発言と話者名が入り、貼った先に渡ることを画面が言う', /その窓の発言/.test(t) && /話者名/.test(t) && /貼った先のチャットの提供元に渡る/.test(t), t.slice(0, 200));
+    check('API の断り', '手動の輪: プロンプトに発言と話者名が入り、貼った先に渡ることを画面が言う', /その区切りの発言/.test(t) && /話者名/.test(t) && /貼った先のチャットの提供元に渡る/.test(t), t.slice(0, 200));
     await page.close();
   }
 
@@ -2094,8 +2102,11 @@ async function loadFixture(page) {
     await page.click('#end');
     await page.waitForFunction(function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 15000 });
     const before = (await readLog(page, NAME)).length;
-    page.once('dialog', function (d) { d.accept(); });
-    await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('#clear')]);
+    // 確認は画面の中（「本当に消す」）。画面の外の確認（window.confirm）は枠の中では出ないので使っていない
+    await page.click('#clear');
+    const ask = await txt(page, 'recmsg');
+    check('記録を消す', '押すとまず画面の中で確かめ、まだ消さない', /消すなら「本当に消す」/.test(ask) && (await readLog(page, NAME)).length === before, ask);
+    await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('#clear-yes')]);
     await page.waitForTimeout(500);
     const m1 = await txt(page, 'recmsg');
     const after = (await readLog(page, NAME)).length;
@@ -2105,6 +2116,59 @@ async function loadFixture(page) {
     const m2 = await txt(page, 'recmsg');
     check('記録を消す', 'もう一度読み込んだら、消したことはもう言わない', !/消した/.test(m2), m2);
     check('記録を消す', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
+    await page.close();
+  }
+
+  {
+    // 貼った書き起こしは、次の「聞き取りを開始」（ファイルの入口）の素材に残らない。貼る前に読み込んだファイルに戻る
+    const f = await fresh(ctx, '');
+    const page = f.page;
+    await page.selectOption('#route', 'mock');
+    await loadFixture(page);
+    await page.click('#paste-open');
+    await page.fill('#paste-text', 'これは貼り付けた別の会議の一文目です。\nこれは貼り付けた別の会議の二文目です。');
+    await page.click('#paste-go');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'done' && /停止しました/.test(document.getElementById('now-text').textContent); }, null, { timeout: 20000 });
+    const pasted = await page.evaluate(function () { return { intake: document.getElementById('intake').value, rec: document.getElementById('recname').textContent }; });
+    await page.click('#start');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'live' && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.click('#file-next');
+    await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    const name3 = await page.evaluate(function () { return document.getElementById('recname').textContent; });
+    let first = [];
+    for (let k = 0; k < 30; k++) { first = (await readSrc(page, name3)).filter(function (l) { return l.i != null; }).map(function (l) { return l.text; }); if (first.length) break; await page.waitForTimeout(100); }
+    check('貼り付けの後', '貼った後は入口がファイルに戻り、次の記録の素材は貼る前に読み込んだファイル（貼った文ではない）', pasted.intake === 'file' && name3 !== pasted.rec && /では始めます/.test(first[0] || '') && !first.some(function (t) { return /貼り付けた別の会議/.test(t); }), JSON.stringify(pasted) + ' / ' + name3 + ' / ' + JSON.stringify(first.slice(0, 2)));
+    await page.click('#end');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'done'; }, null, { timeout: 15000 });
+    // ファイルを読み込まずに貼った後は、ファイルの入口で始めると断る（貼った文で黙って始めない）
+    await page.reload();
+    await page.waitForTimeout(300);
+    await page.selectOption('#route', 'mock');
+    await page.click('#paste-open');
+    await page.fill('#paste-text', '貼った会議Aの発言です。\n貼った会議Aの二つ目です。');
+    await page.click('#paste-go');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'done' && /停止しました/.test(document.getElementById('now-text').textContent); }, null, { timeout: 20000 });
+    await page.selectOption('#intake', 'file');
+    await page.click('#start');
+    await page.waitForTimeout(500);
+    const r2 = await page.evaluate(function () { return { mode: document.body.dataset.mode, msg: document.getElementById('setupmsg').textContent }; });
+    check('貼り付けの後', 'ファイルを読み込まずに貼った後、ファイルの入口で始めると「先に素材のファイルを読み込む」と断る', r2.mode !== 'live' && /先に素材のファイルを読み込む/.test(r2.msg), JSON.stringify(r2));
+    // 同じ秒に 2 度始めても、自動の名前は前の記録と重ならない（番号を足す）
+    await page.selectOption('#intake', 'text');
+    await page.evaluate(function () { return new Promise(function (r) { setTimeout(r, 1000 - (Date.now() % 1000) + 20); }); });
+    await page.click('#start');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'live'; }, null, { timeout: 5000 });
+    await page.click('#end');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'done'; }, null, { timeout: 5000 });
+    const n1 = await page.evaluate(function () { return document.getElementById('recname').textContent; });
+    await page.click('#start');
+    await page.waitForTimeout(600);
+    const s2 = await page.evaluate(function () { return { mode: document.body.dataset.mode, name: document.getElementById('recname').textContent, msg: document.getElementById('setupmsg').textContent }; });
+    const sameSec = s2.name.indexOf(n1) === 0;
+    check('自動の名前', '停止してすぐ始め直しても、前の記録の名前と重ならずに始まる（同じ秒なら「（2）」を足す）', s2.mode === 'live' && s2.name !== n1 && (!sameSec || s2.name === n1 + '（2）'), n1 + ' → ' + JSON.stringify(s2));
+    await page.click('#end');
+    await page.waitForFunction(function () { return document.body.dataset.mode === 'done'; }, null, { timeout: 5000 });
+    check('貼り付けの後', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
   }
 

@@ -14,6 +14,12 @@
  *      processLocally を立てる（音声は外へ出ない）。立てて始めたら、失敗しても提供元のサーバーへは切り替えない。
  *      聞き終えるときは stopWait(done, limitMs)（K19・K29）で、止めたのに終わりの知らせがまだ来ていない認識をすべて待ってから
  *      次へ進む（上限は合わせて 3 秒）。待ち終えた後に届いた確定の結果は、素材ログに {ev:'late'} として残して捨て、知らせる
+ *   T2' 画面共有の音（Teams・Zoom の相手の声も。PC で鳴っている音を、マイクではなく画面共有の「システム音声」から取る）。
+ *      captureDisplayAudio() が getDisplayMedia で音のトラックを取り（クリックの中から呼ぶのは呼ぶ側の責任）、それを
+ *      makeSpeechIntake の opts.track に渡すと、認識を r.start(track) で始める（Chrome 135 以降の口。引数を渡せないブラウザは
+ *      始めるときの例外で知り、止める）。認識の振る舞いは T2 と同じ。トラックが live でなければ始めず、トラックが終わった
+ *      （共有を止めた）ら再開しない（どちらも再開しない誤りと同じに emit.stopped）。素材ログの asr_start に source を書く
+ *      （'mic'／'display'）。トラックは止めない（共有の持ち主はページ）
  *   T3 ファイル。読み方は format/FORMAT.md「素材ファイルの形」（rt.py と同じ読み方。書き方は 'alone'・'tsv'・'inline'・
  *      'vtt' の 4 つで、見出しの後の最初の時刻のある行（WebVTT は先頭の WEBVTT の行）で決まる。共通の試験素材と期待値は
  *      tests/fixtures/materials.json に並べた素材ごとの *.expect.json）。
@@ -21,6 +27,14 @@
  *      読めない行（読めないバイトを含む行も）は素材ログに {ev:'unreadable', line, raw} を残し、読めない行・読めないバイトを
  *      含む行・時刻が飛んでいる行・時刻で始まる本文の行は知らせる（知らせを付けた発話を渡すときに。最後の発話より後ろの
  *      知らせは、最後の発話を渡す窓で）
+ *   T4 橋。別のページ・拡張・親の枠から window.postMessage で届く文字を受ける（claude.ai のアーティファクトの枠の中のように、
+ *      マイクも画面共有も断られる所で、外で文字にしたものを運び込む口）。届く形は {source:'kiku-bridge', v:2, kind:'lines',
+ *      lines:[…]}（lines の要素は文字列か {who, text}）。文字列は打つ入口と同じ読み方（readTypedLine）で 1 行 1 発話にし、
+ *      時刻はいつも届いた時刻（送り手の時刻は使わない）。素材ログには打つ入口と同じ形で入る（src の名前は増やさない）。
+ *      {kind:'hello'} には {source:'kiku', v:2, kind:'hello', listening, received} を返す（送り手が、ページが居るかを知るため）。
+ *      {kind:'status', state:'listening'|'stopped'|'error', text} は橋の側の状態の知らせ。聞いている間に届いたものを札の後ろに
+ *      つなぎ（共有した画面の名前はここで見える）、error は知らせにも 1 回出す。枠の聞いている状態は変えない。
+ *      始める前・止めた後に届いたものは受けない（溜めない。status も捨てる）。形の違うものは数えるだけで、投げない
  *
  * 受け取る側（emit）:
  *   emit.line({who, text, t})   確定した発話。t が無ければ受け取る側が時計で押す
@@ -129,7 +143,7 @@
     return t === null ? null : { t: t, rest: trimSp(s.slice(j + 1)) };
   }
   //   (c) 読めないバイト: 行の中に置き換えの字（U+FFFD。UTF-8 として読めないバイトを読んだ字）がある
-  const BAD_BYTE = '�';
+  const BAD_BYTE = '\uFFFD';   // 置き換え文字（U+FFFD）。文字そのものを書くと「文字が欠けた跡」と見なす道具があるので逃がして書く
 
   const JUMP_SEC = 600;      // 時刻が飛んでいる行: 1 つ前の発話から、これより大きく先へ進んだ（か戻った）
   const RAW_MAX = 100;       // 読めない行の中身は先頭 100 字（コードポイント）まで残す
@@ -440,6 +454,67 @@
     return r.refusal();
   }
 
+  // ---- 貼った書き起こしを素材にする（時刻の無い文章も受ける） ----
+  // 時刻の付いた素材として読めるなら、そのまま使う。読めたとみなすのは、字幕（vtt）か、読めた発話が 2 つ以上で、かつ空でない行の
+  // 4 分の 1 以上のとき（「9:00 から始めます」のような行が 1 つだけ混じった文章を、その 1 行だけの素材として読まないため）。
+  // 読めなければ時刻の無い文章として、行ごと（長い行は文の終わり「。！？!?」で切り、それでも PLAIN_MAX_CHARS 字を超える文は
+  // 読点か空白のところで切る）に 1 発話にし、時刻は文字数から見積もる（1 分あたり PLAIN_CHARS_PER_MIN 字。その発話より前の文字数
+  // だけで決めるので、先の文字は見ない）。行の頭の「名前: 本文」は話者として読む（readTypedLine）。
+  // 返すもの: {text: 素材の読み手に渡す文字, estimated: 時刻を見積もったか}。見積もった素材は「時刻<TAB>話者<TAB>本文」の表の形
+  const PLAIN_CHARS_PER_MIN = 300;
+  const PLAIN_MAX_CHARS = 120;
+  function looksTimed(text) {
+    const s = String(text == null ? '' : text);
+    const r = makeMaterialReader(s);
+    let n = 0;
+    while (r.next()) n++;
+    if (!n) return false;
+    if (r.format() === 'vtt') return true;
+    const lines = s.split(/\r\n|\r|\n/).filter(function (l) { return !!trimWs(l); }).length;
+    return n >= 2 && n * 4 >= lines;
+  }
+  function splitSentences(text) {
+    const out = [];
+    String(text).split(/(?<=[。！？!?])/).forEach(function (piece) {
+      let p = trimSp(piece);
+      while (Array.from(p).length > PLAIN_MAX_CHARS) {
+        const a = Array.from(p);
+        const head = a.slice(0, PLAIN_MAX_CHARS).join('');
+        const cut = Math.max(head.lastIndexOf('、'), head.lastIndexOf('，'), head.lastIndexOf(' '), head.lastIndexOf('　'));
+        const at = cut >= PLAIN_MAX_CHARS / 3 ? cut + 1 : head.length;
+        out.push(trimSp(p.slice(0, at)));
+        p = trimSp(p.slice(at));
+      }
+      if (!p) return;
+      // 「はい。」のような短い切れ端は前の文につなぐ（1 発話ごとの見積もりの刻みが細かくなりすぎないように）
+      if (out.length && Array.from(p).length < 6 && Array.from(out[out.length - 1]).length + Array.from(p).length <= PLAIN_MAX_CHARS) out[out.length - 1] += p;
+      else out.push(p);
+    });
+    return out.filter(function (x) { return !!x; });
+  }
+  function clockText(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+    const two = function (x) { return (x < 10 ? '0' : '') + x; };
+    return h ? h + ':' + two(m) + ':' + two(s) : m + ':' + two(s);
+  }
+  function timedFromPlain(text) {
+    const s = String(text == null ? '' : text);
+    if (looksTimed(s)) return { text: s, estimated: false };
+    const rows = [];
+    let chars = 0;
+    s.split(/\r\n|\r|\n/).forEach(function (raw) {
+      if (!trimWs(raw)) return;
+      const r = readTypedLine(raw.replace(/\t+/g, ' '));
+      splitSentences(r.text).forEach(function (sen) {
+        const t = Math.floor(chars * 60 / PLAIN_CHARS_PER_MIN);
+        rows.push(clockText(t) + '\t' + (r.who || '') + '\t' + sen);
+        chars += Array.from(sen).length;
+      });
+    });
+    return { text: rows.join('\n'), estimated: rows.length > 0 };
+  }
+
   // 打つ／音声認識の入口の時刻を単調にする（直前の発話より前の時刻は、直前の時刻に揃える）。
   // 渡す時刻は整数の秒に切り捨てる（分析役が見る時刻を整数にして、カードの位置を根拠の発話の時刻の間に置きやすくする。
   // 窓の境目は整数の秒なので、切り捨てても発話の入る窓は変わらない）
@@ -526,6 +601,250 @@
     };
   }
 
+  // ---- T4: 橋（postMessage で受ける） ----
+  const BRIDGE_SOURCE = 'kiku-bridge';     // 送り手が付ける印
+  const BRIDGE_REPLY_SOURCE = 'kiku';      // こちらが返すときの印
+  // 決まりの版。2026-10-10 に 1 → 2（拡張 0.2.0）。版 1 の送り手（拡張 0.1.0）は、拡張を置き換えた後もタブに残って v:1 の指図に応え続け、
+  // 後から入った送り手からは止められない（Chromium 141 で実測）。版を上げれば、残った 0.1.0 は v:2 の ping・指図に黙る
+  const BRIDGE_VERSION = 2;
+  const BRIDGE_STATES = { listening: true, stopped: true, error: true };   // 橋が知らせる状態（これ以外は形が違うものとして null）
+  // 届いた message の data を読む。→ {kind:'lines', lines:[{who, text}…]} か {kind:'hello'} か {kind:'status', state, text} か
+  // null（この橋の言葉でない・形が違う）。
+  // lines の要素: 文字列は打つ入口と同じ読み方（readTypedLine）。{who, text} は text（空でない文字列）をそのまま、who は
+  // 文字列なら前後の空白を除いて（空なら無し）。それ以外の要素は落とす（dropped に数える）。時刻の欄があっても使わない。
+  // status: state が BRIDGE_STATES の 3 つのどれかで、text が文字列（空でもよい）のときだけ読む
+  function bridgeMessage(data) {
+    if (!data || typeof data !== 'object' || data.source !== BRIDGE_SOURCE || data.v !== BRIDGE_VERSION) return null;
+    if (data.kind === 'hello') return { kind: 'hello' };
+    if (data.kind === 'status') {
+      if (typeof data.state !== 'string' || !Object.prototype.hasOwnProperty.call(BRIDGE_STATES, data.state) || typeof data.text !== 'string') return null;
+      return { kind: 'status', state: data.state, text: data.text };
+    }
+    if (data.kind !== 'lines' || !Array.isArray(data.lines)) return null;
+    const out = [];
+    let dropped = 0, timecol = false;
+    data.lines.forEach(function (x) {
+      if (typeof x === 'string') {
+        x.split('\n').forEach(function (l) {
+          if (!trimSp(l)) return;
+          const r = readTypedLine(l);
+          if (r.kind === 'timecol') timecol = true;
+          out.push({ who: r.who, text: r.text });
+        });
+        return;
+      }
+      if (x && typeof x === 'object' && typeof x.text === 'string' && trimSp(x.text)) {
+        const who = typeof x.who === 'string' && trimSp(x.who) ? trimSp(x.who) : null;
+        out.push({ who: who, text: trimSp(x.text) });
+        return;
+      }
+      dropped++;
+    });
+    return { kind: 'lines', lines: out, dropped: dropped, timecol: timecol };
+  }
+  // 橋の入口。win は message を受ける窓（既定は globalThis。試験では偽物）。
+  // status(): {state:'stopped'|'listening'|'error', received（受けた発話の数）, messages（受けた lines の message の数）,
+  //           dropped（形の違いで落とした要素の数）, error, bridge（聞いている間に最後に届いた橋の状態 {state, text}。無ければ null）}
+  // 橋の status は聞いている間だけ受け、札の後ろに「。」でつなぐ（listening はその文、stopped は「橋は止めた（文）」、
+  // error は「橋は誤りで止まった（文）」）。error は知らせ（emit.notice）にも「橋が止まった: 文」を出す。同じ文の error が
+  // 続いても知らせは 1 回（間に listening・stopped が届けば、次の error はまた知らせる）。枠の聞いている状態は変えない
+  // （emit.stopped は呼ばない。利用者が橋を直して始め直せば続きが届く）。start のたびに橋の状態は忘れる
+  // （聞いていない間の知らせは捨てているので、前に受けた状態はもう当てにならない）
+  function makeBridgeIntake(emit, clock, opts) {
+    opts = opts || {};
+    const win = opts.win || globalThis;
+    const mono = makeMonotone();
+    const st = { state: 'stopped', received: 0, messages: 0, dropped: 0, error: null, bridge: null };
+    let on = false, timecol = false, noticedError = null;
+    function bridgeSentence(b) {
+      const text = trimSp(b.text);
+      if (b.state === 'listening') return text || '橋が聞き始めた';
+      if (b.state === 'stopped') return '橋は止めた' + (text ? '（' + text + '）' : '');
+      return '橋は誤りで止まった' + (text ? '（' + text + '）' : '');
+    }
+    function statusText() {
+      return '橋から受けている（届いた発話 ' + st.received + ' 件' + (st.dropped ? '。形の違いで落としたもの ' + st.dropped + ' 件' : '') + '）'
+        + (st.bridge ? '。' + bridgeSentence(st.bridge) : '');
+    }
+    function onStatus(m) {
+      st.bridge = { state: m.state, text: m.text };
+      if (m.state === 'error') {
+        if (noticedError !== m.text) { noticedError = m.text; tellNotice(emit, ['橋が止まった: ' + m.text]); }
+      } else noticedError = null;
+      emit.status(statusText());
+    }
+    function reply(ev, body) {
+      const to = ev && ev.source && typeof ev.source.postMessage === 'function' ? ev.source : (typeof win.postMessage === 'function' ? win : null);
+      if (!to) return;
+      try { to.postMessage(body, '*'); } catch (e) { /* 返せなくても受ける側は困らない */ }
+    }
+    function onMessage(ev) {
+      let m = null;
+      try { m = bridgeMessage(ev && ev.data); } catch (e) { m = null; }
+      if (!m) return;
+      if (m.kind === 'hello') { reply(ev, { source: BRIDGE_REPLY_SOURCE, v: BRIDGE_VERSION, kind: 'hello', listening: on, received: st.received }); return; }
+      if (!on) return;
+      if (m.kind === 'status') { onStatus(m); return; }
+      st.messages++;
+      st.dropped += m.dropped;
+      if (m.timecol && !timecol) { timecol = true; tellNotice(emit, [TIMECOL_TEXT]); }
+      m.lines.forEach(function (l) {
+        st.received++;
+        emit.line({ who: l.who, text: l.text, t: mono.at(Math.floor(clock())) });
+      });
+      emit.status(statusText());
+    }
+    return {
+      kind: 'bridge',
+      start: function () {
+        if (typeof win.addEventListener !== 'function') { st.state = 'error'; st.error = 'この窓では外からの知らせを受けられない'; emit.status('橋を開けない（' + st.error + '）'); return false; }
+        if (!on) { win.addEventListener('message', onMessage); on = true; st.bridge = null; noticedError = null; }
+        st.state = 'listening'; st.error = null;
+        emit.status(statusText());
+        return true;
+      },
+      stop: function () {
+        if (on && typeof win.removeEventListener === 'function') win.removeEventListener('message', onMessage);
+        on = false; st.state = 'stopped';
+        emit.status('止めた（橋）');
+      },
+      flush: function () {},
+      setFloor: mono.setFloor,
+      status: function () {
+        return { state: st.state, received: st.received, messages: st.messages, dropped: st.dropped, error: st.error,
+          bridge: st.bridge ? { state: st.bridge.state, text: st.bridge.text } : null };
+      },
+      noticed: function () { return { timecol: timecol }; }
+    };
+  }
+
+  // ---- 橋とのつなぎ（枠の側。拡張が居るか・この PC の中で文字にできるかを知り、枠のボタンから拡張の取り込みを始める・止める） ----
+  // 送る（枠 → 親）: {source:'kiku', v:2, kind:'ping'|'start'|'stop'|'install'|'probe', local?}。宛先は window.parent と window.top
+  //   （同じ窓なら 1 つ。枠の外で開いたページには宛先が無い）。targetOrigin は '*'（枠からは親の origin が分からない。送るものに
+  //   会議の中身は無い）。start と install は利用者のクリックの中で送る: 枠の中のクリックは親のページにも「操作の直後」の扱いを付け、
+  //   親で動く拡張はそのうちに画面共有を始められる（2026-10-10、Chromium 141 で実測。4 秒後は通り、6 秒後は切れていた）
+  // 受ける（親 → 枠）: {source:'kiku-bridge', v:2, kind:'here', where, capturing, ver}。where は拡張が調べた「この PC の中で文字にできるか」
+  //   （speechLocal と同じ語。知らない語は 'none'）、capturing は拡張が画面共有の音を取っている途中か、ver は拡張の版（manifest の
+  //   version。文字列でなければ null）
+  // ping は始めてすぐと、その後 LINK_PING_MS ごと。始めて LINK_FIRST_WAIT_MS のうちに here が来なければ居ないとみなし、居た後も
+  // here が LINK_LOST_MS 届かなければ居なくなったとみなす。state(): {present: null（まだ分からない）| true | false, where, capturing, ver}。
+  // 変わるたびに opts.onChange(state) を呼ぶ。opts.win・setTimeout・clearTimeout・now は試験で差し替える
+  const LINK_PING_MS = 2000;
+  const LINK_FIRST_WAIT_MS = 1500;
+  const LINK_LOST_MS = 7000;
+  const LINK_WHERE = ['available', 'downloadable', 'downloading', 'unavailable', 'none', 'checking'];
+  const LINK_KINDS = ['ping', 'start', 'stop', 'install', 'probe'];
+  // 音の診断の知らせ（親 → 枠、拡張 0.2.1 から）: {source:'kiku-bridge', v:2, kind:'probe', state:'running'|'done', text, summary?, report?}。
+  // 読んだものを opts.onProbe({state, text, summary（文の配列。無ければ []）, report（測った値。JSON にして PROBE_REPORT_MAX 字を
+  // 超えれば null）}) に渡す。形が違えば渡さない
+  const PROBE_REPORT_MAX = 20000;
+  function probeNote(d) {
+    if (d.state !== 'running' && d.state !== 'done') return null;
+    if (typeof d.text !== 'string') return null;
+    const summary = Array.isArray(d.summary) ? d.summary.filter(function (x) { return typeof x === 'string'; }).slice(0, 20).map(function (x) { return x.slice(0, 400); }) : [];
+    let report = null;
+    if (d.report && typeof d.report === 'object') {
+      try { const j = JSON.stringify(d.report); if (j.length <= PROBE_REPORT_MAX) report = JSON.parse(j); } catch (e) { report = null; }
+    }
+    return { state: d.state, text: d.text.slice(0, 400), summary: summary, report: report };
+  }
+  function makeBridgeLink(opts) {
+    opts = opts || {};
+    const win = opts.win || globalThis;
+    const setT = opts.setTimeout || globalThis.setTimeout;
+    const clearT = opts.clearTimeout || globalThis.clearTimeout;
+    const now = typeof opts.now === 'function' ? opts.now : function () { return Date.now(); };
+    const onChange = typeof opts.onChange === 'function' ? opts.onChange : function () {};
+    const onProbe = typeof opts.onProbe === 'function' ? opts.onProbe : function () {};
+    const st = { present: null, where: null, capturing: false, ver: null };
+    let last = 0, began = 0, timer = null, on = false;
+    function targets() {
+      const out = [];
+      let p = null, t = null;
+      try { p = win.parent; } catch (e) { p = null; }
+      try { t = win.top; } catch (e) { t = null; }
+      if (p && p !== win && typeof p.postMessage === 'function') out.push(p);
+      if (t && t !== win && t !== p && typeof t.postMessage === 'function') out.push(t);
+      return out;
+    }
+    function post(kind, extra) {
+      if (LINK_KINDS.indexOf(kind) < 0) return 0;
+      const body = { source: BRIDGE_REPLY_SOURCE, v: BRIDGE_VERSION, kind: kind };
+      if (extra && typeof extra === 'object') Object.keys(extra).forEach(function (k) { body[k] = extra[k]; });
+      let n = 0;
+      targets().forEach(function (w) { try { w.postMessage(body, '*'); n++; } catch (e) { /* 送れない窓は飛ばす */ } });
+      return n;
+    }
+    function snapshot() { return { present: st.present, where: st.where, capturing: st.capturing, ver: st.ver }; }
+    function changed(prev) {
+      if (prev.present !== st.present || prev.where !== st.where || prev.capturing !== st.capturing || prev.ver !== st.ver) {
+        try { onChange(snapshot()); } catch (e) { /* 受け手の誤りで、つなぎを止めない */ }
+      }
+    }
+    function onMessage(ev) {
+      const d = ev && ev.data;
+      if (!d || typeof d !== 'object' || d.source !== BRIDGE_SOURCE || d.v !== BRIDGE_VERSION) return;
+      if (d.kind === 'probe') {
+        const n = probeNote(d);
+        if (n) { try { onProbe(n); } catch (e) { /* 受け手の誤りで、つなぎを止めない */ } }
+        return;
+      }
+      if (d.kind !== 'here') return;
+      const prev = snapshot();
+      last = now(); st.present = true;
+      st.where = LINK_WHERE.indexOf(d.where) >= 0 ? d.where : 'none';
+      st.capturing = d.capturing === true;
+      st.ver = typeof d.ver === 'string' && /^\d+(\.\d+){0,3}$/.test(d.ver) ? d.ver : null;
+      changed(prev);
+    }
+    function tick() {
+      timer = null;
+      if (!on) return;
+      const prev = snapshot();
+      const t = now();
+      if (st.present === true && t - last > LINK_LOST_MS) { st.present = false; st.capturing = false; }
+      else if (st.present === null && t - began >= LINK_FIRST_WAIT_MS) st.present = false;
+      changed(prev);
+      post('ping');
+      timer = setT(tick, LINK_PING_MS);
+    }
+    return {
+      start: function () {
+        if (on) return;
+        on = true; began = now();
+        if (typeof win.addEventListener === 'function') win.addEventListener('message', onMessage);
+        post('ping');
+        timer = setT(tick, LINK_FIRST_WAIT_MS);
+      },
+      stop: function () {
+        on = false;
+        if (timer != null) { clearT(timer); timer = null; }
+        if (typeof win.removeEventListener === 'function') win.removeEventListener('message', onMessage);
+      },
+      // 拡張に画面共有の音を取り始めさせる。local: この PC の中で文字にする（false はサーバーへ送る形。利用者が選んだときだけ）。
+      // 利用者のクリックの中から呼ぶ。送れた宛先の数を返す（0 は枠の外で開いている）
+      capture: function (local) { return post('start', { local: local === true }); },
+      release: function () { return post('stop'); },
+      install: function () { return post('install'); },
+      // 音の診断を拡張に始めさせる（拡張 0.2.1 から。画面共有を開くので、利用者のクリックの中から呼ぶ）
+      probe: function () { return post('probe'); },
+      state: snapshot
+    };
+  }
+
+  // 拡張の版を比べる。a が b より古ければ true。版は「数.数.数」（Chrome の manifest の version と同じ、1〜4 個の整数）。
+  // どちらかが読めなければ false（古いとは言わない）
+  function versionLess(a, b) {
+    const rx = /^\d+(\.\d+){0,3}$/;
+    if (typeof a !== 'string' || typeof b !== 'string' || !rx.test(a) || !rx.test(b)) return false;
+    const x = a.split('.').map(Number), y = b.split('.').map(Number);
+    for (let i = 0; i < 4; i++) {
+      const p = x[i] || 0, q = y[i] || 0;
+      if (p !== q) return p < q;
+    }
+    return false;
+  }
+
   // ---- T2: ブラウザ音声認識 ----
   // 認識は 1 つだけ動かす。認識を作るたびに世代の数を 1 つ進め、古い世代の認識の終わり・誤りの知らせでは
   // 始め直さない（中断と再開を素早く繰り返したとき、古い認識の遅れた終わりの知らせで 2 つ目を始めないため）。
@@ -561,9 +880,73 @@
     'not-allowed': 'マイクの許可が無い', 'service-not-allowed': '認識の機能が許されていない', 'language-not-supported': '言語が使えない',
     'bad-grammar': '認識の設定の誤り'
   };
-  function asrErrorText(code) {
-    const ja = Object.prototype.hasOwnProperty.call(ASR_ERROR_TEXT, code) ? ASR_ERROR_TEXT[code] : 'そのほかの誤り';
+  // 画面共有の音（source が 'display'）のときの読み替え。audio-capture は「マイクが無い」ではなく、音の取り込みが無い
+  // （共有が止まった・「システム音声も共有」に印が無い）と読めるように
+  const DISPLAY_ASR_TEXT = { 'audio-capture': '画面共有の音の取り込みが無い' };
+  function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  // source: 'mic'（既定）か 'display'。省けばマイクの文
+  function asrErrorText(code, source) {
+    const ja = source === 'display' && hasOwn(DISPLAY_ASR_TEXT, code) ? DISPLAY_ASR_TEXT[code]
+      : hasOwn(ASR_ERROR_TEXT, code) ? ASR_ERROR_TEXT[code] : 'そのほかの誤り';
     return ja + '（' + code + '）';
+  }
+  // 再開しない誤りの理由の文（FATAL_ASR）。画面共有の音のときは audio-capture を読み替える
+  function fatalAsrText(code, source) {
+    return source === 'display' && hasOwn(DISPLAY_ASR_TEXT, code) ? DISPLAY_ASR_TEXT[code] : FATAL_ASR[code];
+  }
+
+  // ---- 画面共有の音（getDisplayMedia の「システム音声」。Teams・Zoom の相手の声は PC で鳴っている音なので、ここから取る） ----
+  // クリックの中から呼ぶ（呼ぶ側の責任。ブラウザは操作の直後にしか画面共有を始めさせない）。
+  // 取れたら {stream, track（音のトラック）, label（共有した画面の名前。無ければ ''）} で解決する Promise。
+  // 音のトラックが無ければ（「システム音声も共有」「タブの音声も共有」に印が無い・音の出ない面を選んだ）、取った映像のトラックを止めて断る。
+  // 断るときは Error で、message は日本語の文、reason に 'none'（画面共有の口が無い）・'not_allowed'・'no_audio'・'other'。
+  // 音が取れたときは映像のトラックを止めない（止めると共有そのものが終わるおそれがある。計器で確かめるまで）
+  const DISPLAY_ASK = {
+    video: true,
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    systemAudio: 'include', selfBrowserSurface: 'exclude'
+  };
+  const DISPLAY_TEXT = {
+    none: 'このブラウザでは画面共有の音を取り込めない',
+    not_allowed: '画面共有が許されていない（取りやめたか、使う場所の決まりで止められている）',
+    no_audio: '音声が共有されていない。Windows は「画面全体」を選び「システム音声も共有」に印を付ける。会議がブラウザのタブなら、そのタブを選び「タブの音声も共有」に印を付ける',
+    old_browser: 'このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）',
+    not_live: '画面共有が止まっている',
+    ended: '画面共有が止められた'
+  };
+  // getDisplayMedia が投げたそのほかの誤り（名前 → 文）。表に無い名前は、名前をかっこの中に添える
+  const DISPLAY_ERROR_TEXT = {
+    InvalidStateError: 'ボタンを押した直後にしか画面共有を始められない', AbortError: '画面共有が途中で終わった',
+    NotFoundError: '共有できる画面が無い', NotReadableError: '画面の音を読めない'
+  };
+  function displayError(reason, text, cause) {
+    const e = new Error(text);
+    e.reason = reason;
+    if (cause !== undefined) e.cause = cause;
+    return e;
+  }
+  function captureDisplayAudio() {
+    const nav = globalThis.navigator;
+    const md = nav && nav.mediaDevices;
+    if (!md || typeof md.getDisplayMedia !== 'function') return Promise.reject(displayError('none', DISPLAY_TEXT.none));
+    let p;
+    try { p = Promise.resolve(md.getDisplayMedia(DISPLAY_ASK)); } catch (e) { p = Promise.reject(e); }
+    return p.then(function (stream) {
+      const audio = stream && typeof stream.getAudioTracks === 'function' ? stream.getAudioTracks() : [];
+      const video = stream && typeof stream.getVideoTracks === 'function' ? stream.getVideoTracks() : [];
+      if (!audio.length) {
+        video.forEach(function (v) { try { v.stop(); } catch (e) { /* 止め損ねても、断ることは変わらない */ } });
+        throw displayError('no_audio', DISPLAY_TEXT.no_audio);
+      }
+      const track = audio[0];
+      const label = String(track.label || (video[0] && video[0].label) || '');
+      return { stream: stream, track: track, label: label };
+    }, function (e) {
+      const name = e && e.name ? String(e.name) : '';
+      if (name === 'NotAllowedError') throw displayError('not_allowed', DISPLAY_TEXT.not_allowed, e);
+      const ja = hasOwn(DISPLAY_ERROR_TEXT, name) ? DISPLAY_ERROR_TEXT[name] : '画面共有を始められない（' + (name || '不明') + '）';
+      throw displayError('other', ja, e);
+    });
   }
   // ---- この PC の中で文字にできるか（端末内の認識。Chrome 139 以降の processLocally・available()・install()） ----
   // 調べる口が無いブラウザ・古いブラウザでは 'none'。版の数ではなく、口があるかで決める
@@ -599,14 +982,23 @@
 
   // opts.local: この PC の中だけで文字にする（認識に processLocally を立てる）。立てて始めた後に失敗しても、
   // 提供元のサーバーへは切り替えない（言語が使えない・認識が許されていない、は再開しない）
+  // opts.track: 画面共有の音のトラック（captureDisplayAudio() の track）。あれば認識を r.start(track) で始める（Chrome 135 以降の口。
+  //   引数を渡せないブラウザは start が投げる例外で知る）。トラックが live でなければ始めず、ended（共有を止めた）で止める。
+  //   どれも再開しない誤りと同じに扱う（札に理由を出し、emit.stopped で知らせる）。止まった知らせは start() が返った後に届く
+  //   （ブラウザの誤りの知らせと同じ順。呼んだ側が始めた印を立て終えてから受け取れるように）。トラックは止めない（共有の持ち主はページ）。
+  //   source は track があれば 'display'、無ければ 'mic'（asr_start の出来事と、返すものの source）
   function makeSpeechIntake(emit, clock, opts) {
     const SR = speechCtor();
     const local = !!(opts && opts.local);
+    const track = opts && opts.track ? opts.track : null;
+    const source = track ? 'display' : 'mic';
     let rec = null, wanted = false, fatal = false, fatalWhy = '', restarts = 0, gen = 0;
     // alive: 作ったのに終わりの知らせがまだ来ていない認識（世代の番号 → 認識）。始められなかった認識は入れない
+    // finishers: その世代の認識を終わったものとする手（世代の番号 → finished）。alive と同じときに入れて外す
     // endWaiters: stopWait が待っている、alive が空になること。stopTimedOut: 終わりを待ちきれずに聞き終えたことがある
     // closed: stopWait が待ち終えた（聞き終えた）。lateCount: 待ち終えた後に届いて捨てた確定の結果の数
     const alive = Object.create(null);
+    const finishers = Object.create(null);
     let stopTimedOut = false, closed = false, lateCount = 0;
     // failed: 続けて失敗した認識の数（RESTART_WAIT_MS・FAIL_LIMIT）。failErr: その間の最後の誤りの符号
     let failed = 0, failErr = '';
@@ -618,7 +1010,29 @@
     // 再開しない誤りで止まり、その認識が終わった（終わりの知らせが来たか、待ちきれずに終わったものとした）ことを、
     // 受け取る側に 1 回だけ知らせる（emit.stopped(理由)。任意。受け取る側は、入口を変えて聞き直せるようにする）
     function tellStopped() { if (typeof emit.stopped === 'function') emit.stopped(fatalWhy); }
+    // 画面共有の音で、認識の外から分かる止まり方（トラックが live でない・start(track) が投げた・共有を止めた）。
+    // 再開しない誤りと同じに止める（fatal・札）。止まった知らせ（emit.stopped）は 1 回だけ: いまの世代の認識が動いていれば
+    // 止めて、その終わり（来なければ FATAL_END_WAIT_MS で終わったものとする）で finished が知らせる。動いていなければ、
+    // 呼んだ側に戻った後に知らせる。古い世代の認識は止めるだけ（その終わりでは知らせない。finished と同じ）
+    function giveUp(why, statusText) {
+      fatal = true; wanted = false; fatalWhy = why;
+      emit.status(statusText || ('音声認識が使えない（' + why + '）。再開しない'));
+      const current = !!alive[gen];
+      Object.keys(alive).forEach(function (g) { try { alive[g].stop(); } catch (e) { /* 止め損ねても、終わったものとして扱う */ } });
+      if (current) setTimeout(function () { Object.keys(alive).forEach(function (g) { finishers[g](true); }); }, FATAL_END_WAIT_MS);
+      else setTimeout(function () { if (fatal && !closed) tellStopped(); }, 0);
+    }
+    function onTrackEnded() { if (!fatal && !closed) giveUp(DISPLAY_TEXT.ended); }
+    if (track) {
+      if (typeof track.addEventListener === 'function') track.addEventListener('ended', onTrackEnded);
+      else track.onended = onTrackEnded;
+    }
+    function listeningText() {
+      return '聞いている（' + (track ? '画面共有の音。' : '') + (local ? 'この PC の中で文字にしている' : '音声は提供元のサーバーへ送られている') + '）';
+    }
     function spin() {
+      // 画面共有が止まっている（トラックが live でない）なら、認識を作らずに止める
+      if (track && track.readyState !== 'live') { giveUp(DISPLAY_TEXT.not_live); return; }
       const my = ++gen;
       const r = new SR();
       rec = r;
@@ -631,8 +1045,8 @@
       let heard = false, err = '';
       const began = clock();
       r.onstart = function () {
-        event({ ev: 'asr_start', t: clock(), local: local });
-        if (my === gen && !closed) emit.status(local ? '聞いている（この PC の中で文字にしている）' : '聞いている（音声は提供元のサーバーへ送られている）');
+        event({ ev: 'asr_start', t: clock(), local: local, source: source });
+        if (my === gen && !closed) emit.status(listeningText());
       };
       // 確定した結果は、古い世代のもの（止める前に聞いた分）も捨てない。聞き終えた後に届いたものだけは記録の外（K29）
       r.onresult = function (ev) {
@@ -661,12 +1075,12 @@
         if (code !== 'no-speech') failErr = code;
         if (Object.prototype.hasOwnProperty.call(FATAL_ASR, code)) {
           fatal = true; wanted = false;
-          fatalWhy = code === 'language-not-supported' && local ? 'この PC の中では日本語を文字にできない。提供元のサーバーへは切り替えない' : FATAL_ASR[code];
+          fatalWhy = code === 'language-not-supported' && local ? 'この PC の中では日本語を文字にできない。提供元のサーバーへは切り替えない' : fatalAsrText(code, source);
           emit.status('音声認識が使えない（' + fatalWhy + '）。再開しない');
           // 終わりの知らせが来ない認識がある（端末内で日本語が無いとき）。少し待って来なければ、終わったものとして扱う
           setTimeout(function () { if (alive[my]) finished(true); }, FATAL_END_WAIT_MS);
         } else {
-          emit.status('認識の誤り: ' + asrErrorText(code) + '（始め直す）');
+          emit.status('認識の誤り: ' + asrErrorText(code, source) + '（始め直す）');
         }
       };
       // 認識が終わった。synthetic: 再開しない誤りの後に終わりの知らせが来なかったので、終わったものとした（このときは
@@ -674,6 +1088,7 @@
       function finished(synthetic) {
         if (!alive[my]) return;            // 同じ認識の 2 度目の終わりの知らせ
         delete alive[my];
+        delete finishers[my];
         if (synthetic) {
           try { if (typeof r.abort === 'function') r.abort(); else r.stop(); } catch (e) { /* 止め損ねても、終わったものとして扱う */ }
         }
@@ -687,7 +1102,7 @@
             failed = bad ? failed + 1 : 0;
             if (failed >= FAIL_LIMIT) {
               fatal = true; wanted = false;
-              fatalWhy = failErr ? '何も聞き取れないまま ' + FAIL_LIMIT + ' 回続けて失敗した。最後の誤りは「' + asrErrorText(failErr) + '」'
+              fatalWhy = failErr ? '何も聞き取れないまま ' + FAIL_LIMIT + ' 回続けて失敗した。最後の誤りは「' + asrErrorText(failErr, source) + '」'
                 : '何も聞き取れないまま、認識が ' + FAIL_LIMIT + ' 回続けてすぐに終わった';
               emit.status('音声認識を止めた（' + fatalWhy + '）。もう始め直さない');
               tellStopped();
@@ -706,7 +1121,14 @@
         wakeEndWaiters();
       }
       r.onend = function () { finished(false); };
-      try { r.start(); } catch (e) { delete alive[my]; emit.status('音声認識を始められない: ' + (e && e.message || e)); wakeEndWaiters(); }
+      finishers[my] = finished;
+      try { if (track) r.start(track); else r.start(); } catch (e) {
+        delete alive[my]; delete finishers[my];
+        // 画面共有の音: start にトラックを渡せないブラウザ（Chrome 135 より前）。再開しない誤りと同じに止める
+        if (track) giveUp(DISPLAY_TEXT.old_browser, '音声認識を始められない: ' + DISPLAY_TEXT.old_browser);
+        else emit.status('音声認識を始められない: ' + (e && e.message || e));
+        wakeEndWaiters();
+      }
     }
 
     // K19・K29 聞き終えるときの止め方。認識を止め、止めたのに終わりの知らせ（onend）がまだ来ていない世代を、いまの世代も
@@ -754,6 +1176,8 @@
       kind: 'speech',
       available: !!SR,
       local: local,
+      // 音の取り込み口: 'mic'（マイク）か 'display'（画面共有の音。opts.track を渡したとき）
+      source: source,
       start: function () {
         if (!SR) { emit.status('この環境ではブラウザ音声認識が使えない'); return false; }
         // 前の認識がまだ終わっていなければ止める（その終わりの知らせは古い世代なので、始め直さない）
@@ -879,14 +1303,14 @@
       stopPlay: stopPlay,
       isPlaying: function () { return playing; },
       clock: function () { return clockT; },
-      // ファイルを読み切ったか（次の発話を読もうとして何も無かった）。読み切る前に「聞き終える」を押したら false
+      // ファイルを読み切ったか（次の発話を読もうとして何も無かった）。読み切る前に「停止」を押したら false
       atEof: function () { return eof && peek == null; },
       on: function (k, f) { listeners[k].push(f); },
       // 素材の書き方（'alone'・'tsv'・'inline'・'vtt'。まだ決まっていなければ null）
       format: function () { return reader ? reader.format() : null; },
       // ここまでに知らせた行番号 {unreadable:[…], badbyte:[…], jump:[…], timehead:[…]}
       noticed: function () { return { unreadable: badLines.slice(), badbyte: byteLines.slice(), jump: jumpLines.slice(), timehead: headLines.slice() }; },
-      start: function () { if (!reader) { emit.status('先にファイルを読む'); return false; } emit.status('ファイル。「次の窓を流す」か「等倍再生」で進める'); return true; },
+      start: function () { if (!reader) { emit.status('先にファイルを読む'); return false; } emit.status('ファイル。「次の区切りを流す」か「等倍再生」で進める'); return true; },
       stop: function () { stopPlay(); },
       flush: function () {}
     };
@@ -894,8 +1318,12 @@
 
   const api = {
     makeTextIntake: makeTextIntake, makeSpeechIntake: makeSpeechIntake, makeFileIntake: makeFileIntake,
+    makeBridgeIntake: makeBridgeIntake, makeBridgeLink: makeBridgeLink, bridgeMessage: bridgeMessage, versionLess: versionLess,
+    LINK_PING_MS: LINK_PING_MS, LINK_FIRST_WAIT_MS: LINK_FIRST_WAIT_MS, LINK_LOST_MS: LINK_LOST_MS, PROBE_REPORT_MAX: PROBE_REPORT_MAX,
+    timedFromPlain: timedFromPlain, looksTimed: looksTimed, PLAIN_CHARS_PER_MIN: PLAIN_CHARS_PER_MIN, BRIDGE_SOURCE: BRIDGE_SOURCE, BRIDGE_REPLY_SOURCE: BRIDGE_REPLY_SOURCE, BRIDGE_VERSION: BRIDGE_VERSION,
     RESTART_WAIT_MS: RESTART_WAIT_MS, FAIL_LIMIT: FAIL_LIMIT, FATAL_END_WAIT_MS: FATAL_END_WAIT_MS, asrErrorText: asrErrorText,
-    speechLocal: speechLocal, speechInstall: speechInstall,
+    fatalAsrText: fatalAsrText, speechLocal: speechLocal, speechInstall: speechInstall,
+    captureDisplayAudio: captureDisplayAudio, DISPLAY_TEXT: DISPLAY_TEXT, DISPLAY_ASK: DISPLAY_ASK,
     makeMaterialReader: makeMaterialReader, materialRefusal: materialRefusal, splitWho: splitWho, readTypedLine: readTypedLine, parseTs: parseTs,
     noticeSentences: noticeSentences, NOTICE_TEXT: NOTICE_TEXT, NO_TIMED_TEXT: NO_TIMED_TEXT, NO_BODY_TEXT: NO_BODY_TEXT, VTT_DECIDED_TEXT: VTT_DECIDED_TEXT,
     TIMECOL_TEXT: TIMECOL_TEXT, STOP_WAIT_MS: STOP_WAIT_MS, STOP_WAIT_TEXT: STOP_WAIT_TEXT, stopWaitText: stopWaitText, lateText: lateText

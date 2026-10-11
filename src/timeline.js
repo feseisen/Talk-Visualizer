@@ -111,6 +111,13 @@
       return n;
     }
 
+    // 字下げの段の数。幅は CSS の側で「1 段の幅 × 段の数」にする（1 段の幅は画面の幅で変わる）
+    function setDepth(r, dd) {
+      const v = String(dd);
+      if (r.rail.style.getPropertyValue('--d') !== v) r.rail.style.setProperty('--d', v);
+      r.node.dataset.depth = v;
+    }
+
     function sync(st, o) {
       o = o || {};
       const T = o.T;
@@ -139,16 +146,19 @@
         const last = g.echoes[g.echoes.length - 1];
         if (T == null || (last.seen != null && T - last.seen <= ECHO_WIN)) activeEcho[id] = last;
       });
+      // 「要点だけ」の目印: 最後の要点（塊の着地か最上位）より後のカードは、いま話している所なのですべて出す。
+      // 要点がまだ 1 枚も無いうちは全部出す（空の表で待たせない）。どちらも、その時刻までの状態だけで決まる（R2b）
+      const isKey = function (c) { return (c.role === 'land' && c.d === 0) || st.tops.indexOf(c.id) >= 0; };
+      let lastKeyT = -Infinity;
+      Object.keys(st.cards).forEach(function (id) { const c = st.cards[id]; if (isKey(c) && c.t > lastKeyT) lastKeyT = c.t; });
       // 3. 全行を状態に合わせる
       Object.keys(rows).forEach(function (key) {
         const r = rows[key];
         if (r.k === 'c') {
           const c = st.cards[r.id];
-          const vis = mode === 'all' || (c.role === 'land' && c.d === 0) || st.tops.indexOf(c.id) >= 0;
+          const vis = mode === 'all' || isKey(c) || c.t > lastKeyT;
           r.node.hidden = !vis;
-          const dd = c.d + nesting(st, c.t, null);
-          const w = (dd * 26) + 'px';
-          if (r.rail.style.width !== w) r.rail.style.width = w;
+          setDepth(r, c.d + nesting(st, c.t, null));
           r.card.className = 'card ' + c.role;
           r.mark.className = 'mark ' + c.role;
           r.rl.textContent = ROLE[c.role] || c.role;
@@ -170,9 +180,7 @@
         } else {
           const g = st.groups[r.id];
           r.node.hidden = false;
-          const dd = nesting(st, g.t, g.id);
-          const w = (dd * 26) + 'px';
-          if (r.rail.style.width !== w) r.rail.style.width = w;
+          setDepth(r, nesting(st, g.t, g.id));
           if (r.lb.textContent !== g.lb) r.lb.textContent = g.lb;
           r.sb.textContent = spanText(g.span);
           if (g.fixes.length) {

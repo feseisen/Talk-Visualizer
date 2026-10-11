@@ -20,6 +20,13 @@
 | `_data.js` | **生成物。手で直さない。**`tools/make_test_data.py` が規則表・cases・fixtures を 1 つの JS に埋め込む（`file://` では fetch が効かないため）。元のファイルを変えたら作り直す |
 | `run_node.js` | `_runner.js` を node で走らせる入口。`_data.js` が無いか元のファイルより古ければ、その旨を出して元から直接読む（`--fresh` で常に元から読む） |
 | `run_analyst_node.js` | `src/analyst.js` と `src/cut.js` の試験（node。API は呼ばない）。返事の読み取り（画面に出す文と分析役に返す文を分けて持つこと。返事を 1 回だけ囲んだ ``` は外して読み、囲みの前後に文があれば断る。判断の並びが無ければ空として読み、並びの中の所感は断る）・プロンプトの組み立て・台本（`meeting10.jsonl` を台本にした分析役が fixture を一字違わず作り直せること）・API 本文の組み立て・窓の刻み（ライブで遅れて閉じる窓の終わりは窓幅の刻みの位置、終わりちょうどの発話は次の窓、素材の終わりで閉じる窓、1 つの窓の発話は規則表の上限 40 件まで、上限で切った窓は終わりを次に回した発話の時刻まで縮める、ファイルの入口では窓の終わりを始まり＋窓幅の位置に置く、窓幅は整数の秒だけ、前に戻った時刻は直前の時刻に揃えた写しで渡す、上限で切るときは 41 件目と同じ時刻の塊の手前で切る）。返事の読み取りには、`events` が `null` なら読めない返事、一番外に `e` の欄があれば読めない返事、前後から落とす空白の集まり、500 段を超える入れ子の事前検査も入る |
+| `run_record_node.js` | `src/record.js` の、枠の共有データベース（db）への写し（`makeDbSink`）と枠の保存（`makeDownloadsExport`）・能力の取り方（`useCapability`）の試験（node。偽の db と偽の downloads。本物は呼ばない）。名前の変換、追記ごとに 1 文書、書き込みの直列化、失敗のやり直しと止め方、`loadAll` の頁繰り、続きの番号、消す、保存の拡張子、記録への結び付け、単一の書き手（書く前に見出しの貸し出し `acquire` を取り、別の端末が持っていれば書かずに止める。持っている間は延ばし、切れた後に取り直したら見出しを読み直す。貸し出しの口が無ければ前のとおり書く） |
+| `run_bridge_node.js` | `src/intake.js` の橋の入口（`makeBridgeIntake`・`bridgeMessage`）の試験（node。偽の窓に message を流す）。橋の言葉の読み（打つ入口と同じ読み方・形の違う要素は落として数える）、始める前と止めた後は受けない、届いた時刻で単調、hello の返事、札と状態、投げない守り。枠の側から拡張を探すつなぎ（`makeBridgeLink`。here の拡張の版 `ver` を覚え、版の形でないものは捨てる）と、拡張の版の比べ方（`versionLess`。数で比べ、読めない版は古いと言わない） |
+| `run_bridge_ext_node.js` | 橋の送り手（`bridge/chrome/bridge.js`。claude.ai の親ページで動く Chrome 拡張）の純粋な部分の試験（node。偽の document・iframe・postMessage。画面共有も音声認識も使わない）。枠の選び方（src のホスト名が claudeusercontent.com で終わる iframe だけ。無ければ送らない。targetOrigin はその iframe の origin）、送れた数と投げない守り、発話を 1 秒ごとに 1 回でまとめて送り同じ発話を 2 回送らないこと、枠が聞き始める（hello の返事の listening が true になる）まで確定した発話を溜め、聞き始めたら 1 回の lines で流して失わないこと、hello の返事の判定と操作部の文、送る形（hello・lines・status）が枠の側の `bridgeMessage` で読めること、送る時に枠が 1 つも無ければ（開いている間に枠が消えた）その分を溜めに戻して門を閉じること、`bridge/chrome/intake.js` が `src/intake.js` の写しと一致すること |
+| `run_bridge_ui_node.js` | 橋の送り手の画面の側の試験（node。`bridge.js` をそのまま vm で読み、偽の document・iframe・時計・intake.js の口を渡してボタンを押す）。外へ送る承知を求めている間に日本語の部品を入れ終えると承知の問いが下りて端末内で始まること、枠が聞いている間に iframe が消えてもその間の発話が溜めに戻り枠が戻ると古い順に全部届くこと（「止める」の瞬間も同じ）、前の回の「止めた」を次の回の画面共有を選んでいる間に送り直さないこと、同じタブに送り手が 2 つ入ると（拡張を置き換えた・開いていたタブへ差し込んだ）前の送り手が退いて ping に答えるのは最後に入った 1 つだけなこと（前の送り手が音を取っている途中なら、新しい方は取り終えるまで待つ。待っている間にさらに新しい送り手が入れば、立ち上がるのは最後の 1 つ。取り終えて退くときは枠に capturing:false を知らせ、枠へまだ渡せていない発話は新しい送り手へ渡って、枠が聞き始めると古い順のまま届く。0.1.0＝`fixtures/bridge-0.1.0.js` は操作部を取り除かれて v:2 には黙る）、here に拡張の版が乗ること。引数に別の `bridge.js` を渡すと、それを読む（直しを外した写しで、この試験が壊れを捕まえるかを確かめるため） |
+| `e2e/e2e_bridge_ext.js` | 橋の送り手を **本物の Chromium に拡張として読み込み**、claude.ai を模した https の親ページ（本物と同じ形の CSP と permissions-policy。ホスト名の解決を 127.0.0.1 に向ける）から、枠（`kiku-artifact.html` を骨で包んだもの）へ文字が届くかを通しで確かめる。読み込みと操作部、注入の範囲（枠には入らない・iframe の無い claude.ai のページには入る）、CSP の下での操作部の見た目、hello の返事（枠が聞いていない／聞いている）、画面共有と音声認識を差し替えて発話 3 件が枠の札と素材ログに届くこと、「止める」で音のトラックが止まり枠に status が届くこと、親・枠・拡張の誤りが 0 件であること。結果の JSON と節ごとの screenshot を出力フォルダに書く。playwright・Chromium・openssl が要る |
+| `e2e/e2e_bridge_install.js` | 拡張を、利用者と同じ道筋で入れる・置き換える通しの試験（Chromium headed、xvfb の下。走らせ方は下）。`chrome://extensions` に ZIP を OS のドラッグで落とし、開いていた claude.ai のタブの枠が読み込み直さずに拡張に気づくこと、置き換えた後もタブで答える送り手が 1 つだけなこと、古い版なら枠が新しい版を知らせることを確かめる。ドラッグは同じフォルダの `xdnd_drop.py` |
+| `e2e/e2e_artifact.js` | 枠（claude.ai のアーティファクト）に貼る形 `kiku-artifact.html` を、枠が付ける骨で包んで偽の `window.claude`（`use('sample')` は台本と同じ返事を文字列で、`use('db')` はメモリの保存庫、`use('downloads')` は呼ばれた名前を記録）の中で開き、起動の既定（分析役は「この画面の Claude」、音声の入口は選べない）、貼り付けからカードまで、橋（`postMessage` と hello）、写しのオン・オフ、枠の保存での書き出し、`not_granted` で出し直さずに止まること、`rate_limited` が 1 回だけなら「1 秒おいてから、同じ窓で出し直す」と出て同じ窓で書けること（置く間は `KIKU_RATE_LIMIT_WAIT_MS` で縮める）、`use('downloads')` が null なら iframe の中では「この枠では保存できない」と言うこと、枠の中では API の経路が選べず無理に選んでも断ること、拡張が答えないと拡張を入れる 3 つの手順が出て「拡張を保存する」で `build_bridge.py` の ZIP と 1 バイトも違わないものが枠の保存に渡り、拡張が答え始めると読み込み直さずに手順が消え、つながった拡張の版が古いと「新しい版があります」が出ること、仕組みが自分のページとして出す版（`?nosample&nodl` で真似る。`use()` が全部 null で iframe でない）では問う能力が無いと出て「聞き始める」を断り、書き出しがふつうの a[download] に落ちること、を確かめる（Chromium headless、`file://`。本物の枠と同じく iframe の中で開く） |
 | `e2e/e2e_kiku.js` / `e2e/e2e_routes.js` | `kiku.html` を Chromium（headless、`file://`）で開いて画面から押し、通しで確かめる試験（経路・入口ごとの一筋、聞いている間も追体験でも、右の逐語は窓として渡した発話までであること、時刻の打ち間違いや読めない行のある素材で窓が 40 発話までに収まり、読めない行と時刻の飛びを入口の欄で知らせること、同じ名前の記録の続きから聞くときに素材の頭を読み飛ばし、素材が前と合わなければ断ること、窓幅に整数でない数や範囲外の数を打つと断ること、中断と聞き終えたときの時刻、中断の間に打った行が素材ログに残って再開した後の最初の窓に入ること、打つ入口で行頭の時刻や URL を話者にしないこと、表から貼った行の 1 列目の時刻を使わず話者だけの行も捨てないこと、素材ファイルの時刻で始まる本文の行を前の発話の続きとして読み入口の欄に行の番号を残すこと、読めないバイトを含む行を発話にせず、次の窓では入口の欄の「前の窓までの知らせ」の 1 行にその行番号を残すこと、WebVTT の素材（`fixtures/material_vtt.vtt`）をファイルの入口で読んで発話・窓・窓ごとの知らせの文が共通の期待値と一字違わず同じこと、ライブで中断が窓幅より長いときの窓の終わりと `end` の `t` が `rt.py` と同じこと、中断中の入口の札を知らせで上書きしないこと、音声の入口で中断と再開を素早く繰り返しても動く認識は 1 つで同じ発話が二重にならないこと、40 件の上限で切れる窓では、後ろの窓に回った発話の知らせを前の窓の入口の欄に出さないこと、音声の入口で「聞き終える」を押すと、止めた認識（中断の前に止めたものも）の終わりの知らせを合わせて 3 秒まで待ち、その間に届いた確定の結果も最後の窓に入れ、3 秒で来なければ知らせの欄と素材ログにそう残し、それより後に届いた結果は記録に入れずに素材ログの出来事 `late` として残して知らせの欄に出すこと（聞き終えて別の記録を開いた後に届いた結果は前の記録の素材ログに残すこと）、中断のあと再開せずに聞き終えたときの最後の窓の終わりが聞き終えた時計の秒（幅は窓幅の 3 倍まで）で `rt.py` の `next --last` と同じこと、発話の無い素材（0 バイトのファイル・空白だけの素材・空白だけを貼った素材・見出しの行のせいで字幕と決めた素材を含む）では記録を作らずに断り、断りの文が共通の期待値と `rt.py` と同じこと、`WEBVTT` の行の無い字幕を字幕として読むこと、続きから聞くときに、まだ窓で渡していない発話の知らせをその発話を渡す窓で出し、`rt.py` と同じ文になること、音声の入口がこの PC の中で文字にできるかを調べ、できれば承知の印なしで端末内で始め、できなければ音声を外へ送る承知の印が無いと聞き始めないこと、端末内で始めた後に失敗してもサーバーへ切り替えないこと、API の鍵が空・OpenAI 互換のモデルが空・Anthropic に住所がある設定では聞き始めず外へ要求を出さないこと、記録を開いている途中に入口を切り替えても承知の印なしに音声認識が始まらないこと、何も聞き取れないまま失敗が続く音声認識を 5 回で止めて同じ記録の続きを聞けること、止める誤りの後に終わりの知らせが来なくても片付くこと、「書き出す」がファイルごとの結果を言うこと）。`rt.py` と同じかは、`e2e_routes.js` が `python3` で `tools/rt.py` の窓・`end` の `t`・窓ごとの知らせの文・素材の断りの文の計算を呼んで比べる（読むだけで、何も書かない。比べるための素材は出力フォルダに書く）。ライブの最後の窓だけは、出力フォルダの中で `rt.py` の `open --live`・`watch --once`・`next`・`append`・`pause`・`next --last` を試験の時計（`KIKU_TEST_CLOCK=1` と `--now`）で走らせて比べる（書くのは出力フォルダの中だけ）。playwright が要るので、node 無しで開ける `tests.html` とは別物。Chromium の場所は環境変数 `CHROMIUM_PATH` で渡す（無ければ playwright の既定）。結果は `docs/results.md` |
 
 ## cases の形
@@ -61,14 +68,33 @@
 python3 tools/test_rt.py
 node tests/run_node.js
 node tests/run_analyst_node.js
+node tests/run_record_node.js
+node tests/run_bridge_node.js
+node tests/run_bridge_ext_node.js
+node tests/run_bridge_ui_node.js
 ```
 
 どれも、この道具の根（`kiku.html` のあるフォルダ）で打つ。Windows では `python3` の代わりに、たいてい `py -3` と打つ。
 
-ブラウザだけで見るなら `tests/tests.html` を開く（node 不要。`_data.js` が最新であること）。ただし素材の読みの試験（`fixtures/materials.json` の素材、273 件）・話者の切り出しの試験（`fixtures/typed_lines.json` を含む 5 件）・音声認識の入口の試験（28 件）・違反文の試験（1 件）は `run_node.js` だけが走らせるので、`tests.html` の合計は node より 307 件少ない（2026-10-09 の公開 2 回目の前の時点で node 543 件・`tests.html` 236 件で、どちらも不合格 0。ほかの数は `docs/results.md`）。
-`tests/e2e/*.js` は playwright と Chromium が要る（`node tests/e2e/e2e_kiku.js`、`node tests/e2e/e2e_routes.js`）。Chromium を playwright の既定の場所に置いていないときは、その場所を環境変数 `CHROMIUM_PATH` で渡す。
+ブラウザだけで見るなら `tests/tests.html` を開く（node 不要。`_data.js` が最新であること）。ただし素材の読みの試験（`fixtures/materials.json` の素材、273 件）・話者の切り出しの試験（`fixtures/typed_lines.json` を含む 5 件）・音声認識の入口の試験（46 件）・違反文の試験（1 件）は `run_node.js` だけが走らせるので、`tests.html` の合計は node より 325 件少ない（2026-10-10 の時点で node 561 件・`tests.html` 236 件で、どちらも不合格 0。ほかの数は `docs/results.md` で、そちらは 10-09 の時点の数）。
+`tests/e2e/*.js` は playwright と Chromium が要る（`node tests/e2e/e2e_kiku.js`、`node tests/e2e/e2e_routes.js`、`node tests/e2e/e2e_artifact.js`。最後のものは `python3 build_html.py --artifact` で `kiku-artifact.html` を作ってから）。Chromium を playwright の既定の場所に置いていないときは、その場所を環境変数 `CHROMIUM_PATH` で渡す。
+
+橋の拡張の通しの試験 `tests/e2e/e2e_bridge_ext.js` は、拡張を本物として読み込むので headed（画面あり）で開く。画面の無い Linux では `xvfb-run -a` の下で走らせる。引数は道具の根と出力フォルダ（出力フォルダに証明書・結果の JSON・screenshot を書く。リポジトリの外に置く）。
+
+```
+CHROMIUM_PATH=<Chromium の実行ファイル> xvfb-run -a node tests/e2e/e2e_bridge_ext.js . <出力フォルダ>
+```
+
+拡張を入れる・置き換える通しの試験 `tests/e2e/e2e_bridge_install.js` も headed で、`xvfb-run -a` の下で走らせる（OS のドラッグを X11 の XDND で話すので、headless では走らない。同じフォルダの `xdnd_drop.py` と python3・libX11 が要る）。利用者と同じ道筋で、claude.ai のタブを先に開いておき、まっさらなプロファイルの `chrome://extensions` でデベロッパーモードをオンにして、`build_bridge.py` の ZIP を落とす。確かめるのは、確かめの画面なしに入って ID が `manifest.json` の `key` のものになること、開いていたタブを読み込み直さずに枠が手順を消して「拡張とつながっています」になること、版を上げた ZIP を落とすと拡張が 1 つのまま置き換わり、タブの送り手も 1 つだけ答えること、版を下げた ZIP では枠が「新しい版があります」を出すこと、枠のページが埋め込む ZIP が `make_zip()` と 1 バイトも違わないこと。一回はおよそ 20 秒。
+
+```
+CHROMIUM_PATH=<Chromium の実行ファイル> xvfb-run -a node tests/e2e/e2e_bridge_install.js . <出力フォルダ>
+```
+
+`e2e_bridge_ext.js` は `KIKU_E2E_HEADLESS=1` を置くと xvfb 無しの headless で開く（拡張は headed の方が確かなので、既定は headed）。確かめるのは、拡張が読み込まれて親ページに操作部が出ること、content script が枠には入らず claude.ai のページにだけ入ること、本物と同じ CSP の下で操作部の見た目が効くこと、hello の返事と差し替えた画面共有・音声認識での発話の到達、「止める」で音のトラックが止まって枠に status が届くこと。本物の画面共有に音が乗るか・本物の認識が文字にするかは差し替えているので確かめない。
 
 v1 の既存の実走記録で作り直しを確かめた（この公開版には入っていない試験）。この公開版の中で v1 の列を確かめるのは `fixtures/v1_small.*` の架空の記録。`tools/rt.py` に手を入れたときは、続けて `tools/test_rt.py` も走らせる。
+`src/intake.js` に手を入れたときは、`python3 bridge/chrome/build_bridge.py`（写し）に続けて `python3 bridge/chrome/build_bridge.py --check` も走らせる（拡張の `bridge/chrome/intake.js` は `src/intake.js` の写しで、違えば終了コード 1。`run_bridge_ext_node.js` も同じ一致を見る）。写しが変わると拡張の中身が変わるので、`--check` は版の控え（`bridge/chrome/zip.lock`）とも食い違いを言う。`bridge/chrome/manifest.json` の `version` を上げてから `python3 bridge/chrome/build_bridge.py --lock` で書き直す（`bridge/chrome/` の `bridge.js`・`background.js`・`manifest.json` を直したときも同じ）。
 
 ## fixture の使い方
 

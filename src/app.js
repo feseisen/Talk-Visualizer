@@ -1,8 +1,37 @@
 /*
  * app.js — 配線。入口（intake）→ 刻み（cut）→ 分析役（analyst）→ 検査（verify）→ 記録（record）→ 畳み込み（fold）→ 画面（timeline / panels）
  *
- * 経路（分析役）: 未選択／API（Anthropic）／API（OpenAI 互換）／手動の輪／人が書く／内蔵の模擬（試験用）
- * 入口: 打つ／貼る（OS の音声入力もここ）／ブラウザ音声認識／ファイル
+ * 経路（分析役）: 未選択／API（Anthropic）／API（OpenAI 互換）／この画面の Claude（枠の中）／手動の輪／人が書く／内蔵の模擬（試験用）
+ * 入口: 打つ／貼る（OS の音声入力もここ）／ブラウザ音声認識／ファイル／橋（拡張などから postMessage で受ける）
+ *
+ * 表（2026-10-10 の作り直し）: 表に出すのは「聞き取りを開始」（聞いている間は「停止」と小さな「一時停止」）と「書き起こしを貼る」だけ。
+ *   名前・音の入り方・整理する AI・区切りの長さなどは「設定と記録」の引き出し（#settings）の中で、触らなくても始められる。
+ *   - 記録の名前は、欄が空なら押した時刻から付ける（autoName。「:」は名前に使えないので「時・分・秒」）。打てば今までどおり
+ *     その名前の記録（同じ名前なら続きから）
+ *   - 枠の中では、音の入り方の既定は拡張「橋」。「聞き取りを開始」を押すと、そのクリックの中で拡張に画面共有を始めさせ
+ *     （intake.js の makeBridgeLink。枠の中のクリックは親のページにも「操作の直後」の扱いを付ける。Chromium 141 で実測）、
+ *     拡張が音を取り始めたと言ってから記録を開く（取り始める前に断られたら、記録に何も書かない）。拡張が見つからない・
+ *     この PC の中で文字にできない（外へ送る承知が要る）ときは、押す前から「始める前に」の欄（#ask）にそう出す。
+ *     「停止」は拡張に止めさせ、拡張が止め終えた（最後の発話を送り終えた）と言ってから最後の区切りを閉じる。
+ *     拡張の側で共有が止まったら（Chrome の「共有を停止」など）、そこで聞き取りを終える
+ *   - 「書き起こしを貼る」: 時刻の無い文も受ける（intake.js の timedFromPlain。1 分 300 字として時刻を見積もる）。
+ *     入口はファイルと同じで、区切りは 120 秒。区切りを書き終えるたびに次の区切りを自分で流す（先は読まない。残りの長さも出さない）
+ *   - 前の記録は「設定と記録」の「前の記録」から開いて見る（振り返り）・書き出す
+ *
+ * 枠の中（claude.ai のアーティファクト）: 起動時に globalThis.claude（use か complete）があれば「枠の中」とする。
+ *   - 分析役の既定を「この画面の Claude」にし、音声の入口を選べなくする（枠ではマイクも画面共有も断られる）
+ *   - 「この画面の Claude」は analyst.js の makeAnalyst({kind:'claude'})。鍵の欄は要らない。もう一度呼んでも同じに落ちる誤り
+ *     （e.fatal。閲覧者が許していない・口が無い）は、3 回の再試行をせずに聞き取りを止めて知らせる。混んでいる（rate_limited）
+ *     ときは 10 秒おいてから同じ窓を出し直す
+ *   - 記録の写し: 「枠の保存庫（db）にも写す」の印（既定オフ）が付いていて claude.use('db') が取れたら、record.js の makeDbSink を
+ *     記録に結び付け、IndexedDB への追記と同じ所で写す（本体の追記の後。写しの失敗で本体は止めない）。「続きから」で IndexedDB に
+ *     無く写しにあるときは、写しから本体へ流し込んでから結び付ける
+ *   - 書き出し: claude.use('downloads') が取れれば枠の保存で促す。取れなければ、iframe の中では「保存できない」と言う（a[download] は
+ *     枠で効かない）。iframe でなければ（仕組みが自分のページとして出す版）ふつうの書き出しに落とす
+ *   - API（Anthropic／OpenAI 互換）は枠の中では選べない（fetch が外へ出ない）。問う能力（use('sample')）が無いと起動後に分かったら、
+ *     分析役の欄にそう出して「聞き取りを開始」を断る
+ *   - 画面の外の確認（window.confirm）は使わない。「記録を消す」は画面の中の「本当に消す」で確かめる
+ *   枠の外（file:// で開いたとき）の振る舞いは、「記録を消す」の確認が画面の中（「本当に消す」）になったことを除いて変えない
  *
  * 組み込まれる部品（無ければ画面に「部品が組み込まれていない（組み立てからやり直す）」と出す）:
  *   makeVerifier(rules) / TSV_VERIFY.versionOf(open)      verify.js（版の判定はこれだけを使う。自前で open.v を読まない）
@@ -36,7 +65,7 @@
  *     最後の発話をまだ渡していないときの末尾の知らせは捨てず、その発話を渡す窓で出す（K22。rt.py と同じ窓に同じ文）
  *   - ファイルの入口は、時刻のある行が 1 つも無い（発話が 0 件の）素材では記録を作らずに断り、断りの文を知らせの欄に出す
  *     （K21。rt.py の file の open と同じ文）
- *   - 音声の入口で「聞き終える」を押したら、いま動いている認識の終わりの知らせを待ってから（上限 3 秒）、最後の窓 → end に
+ *   - 音声の入口で「停止」を押したら、いま動いている認識の終わりの知らせを待ってから（上限 3 秒）、最後の窓 → end に
  *     進む。待つ間に届いた確定の結果は捨てず、最後の窓に入れる。上限を過ぎたら、そのことを知らせの欄に出して進む（K19）
  *   - ライブの最後の窓の終わりは、聞き終えた時計の整数の秒（刻みには合わせない。幅は open.window × 3 まで。K23。
  *     中断のあと再開せずに聞き終えたときも同じ）。聞き終えたあとは、ふだんの刻みで窓を閉じない
@@ -48,10 +77,10 @@
  *     発話の知らせは出さない）、前の窓の分は種類と行番号だけを 1 行に残す
  *   - end の t は rt.py の end_t と同じ: ライブは max(直前の窓の終わり, end を書くときの聞き始めからの秒の切り捨て)、
  *     ファイルは直前の窓の終わり（窓が無ければ 0）
- *   - 「聞き始める」を押してから記録を開き終えるまでは、入口・音声の行き先の欄と「聞き始める」を押させない。音声の入口なら、
+ *   - 「聞き取りを開始」を押してから記録を開き終えるまでは、入口・音声の行き先の欄と「聞き取りを開始」を押させない。音声の入口なら、
  *     押した時・記録を開き終えた時・認識を作る直前に、音声の行き先を確かめ直す（承知していない音声を外へ送らない）
  *   - 音声認識が再開しない誤りで止まったら（続けて失敗した・マイクの許可が無いなど。intake.js の emit.stopped）、記録は
- *     閉じずに「止まっている」と出す。入口を選び直して「聞き始める」を押すと、同じ記録の続きを聞く。「聞き終える」もそのまま押せる
+ *     閉じずに「止まっている」と出す。入口を選び直して「聞き取りを開始」を押すと、同じ記録の続きを聞く。「停止」もそのまま押せる
  *   - 「書き出す」の一言は、2 つのファイルそれぞれが実際にどうなったか（保存した・落とした・選ばなかった）を言う
  *   - 追体験の間は、運転状態の札も T で畳んだ状態から数える。分析役の欄（手動の輪のプロンプト・人が書くフォーム・
  *     いまの窓の知らせ）は、いまの窓（T より先の発話を含む）を持っているので、中身を画面からも DOM からも外して預かる。
@@ -86,8 +115,39 @@
   const verify = (typeof globalThis.makeVerifier === 'function' && RULES) ? globalThis.makeVerifier(RULES) : null;
   const VA = (globalThis.TSV_VERIFY && typeof globalThis.TSV_VERIFY.versionOf === 'function') ? globalThis.TSV_VERIFY : null;
 
-  const ROUTE_LABEL = { none: '未選択', anthropic: 'API（Anthropic）', openai: 'API（OpenAI 互換）', manual: '手動（遅い）', human: '人が書く', mock: '内蔵の模擬' };
-  const INTAKE_LABEL = { text: '打つ／貼る', speech: 'ブラウザ音声認識', file: 'ファイル' };
+  const ROUTE_LABEL = { none: '未選択', anthropic: 'API（Anthropic）', openai: 'API（OpenAI 互換）', claude: 'この画面の Claude', manual: '手動（遅い）', human: '人が書く', mock: '内蔵の模擬' };
+  const INTAKE_LABEL = { text: '打つ／貼る', speech: 'ブラウザ音声認識', file: 'ファイル', bridge: '橋' };
+  // 枠の中（claude.ai のアーティファクト）か。window.claude に use（いまの形）か complete（チャットで作る古い形）があれば枠の中。
+  // 枠の外（file:// で開いたとき）は false で、以下の振る舞いは「記録を消す」の確認（画面の中）を除いて変わらない。
+  // 仕組みが自分のページとして（枠の外で）出している版にも window.claude（use）はあるが、能力は全部 null（契約の型定義）。
+  // そのときも FRAME は true で、問う能力の有無は起動後に use('sample') が解決してから分かる（下の起動の節。S.sampleAbsent）
+  const FRAME = (function () { const c = globalThis.claude; return !!(c && (typeof c.use === 'function' || typeof c.complete === 'function')); })();
+  // 音の診断（renderAsk の後ろの「音の診断」の節）: 診断のできる拡張の版・返事を待つ上限
+  const PROBE_MIN_VER = '0.2.1';
+  const PROBE_WAIT_MS = 4000;      // 押してから拡張の最初の返事（running）を待つ上限
+  const PROBE_LIMIT_MS = 180000;   // 終わりの知らせ（done）を待つ上限（画面共有を選ぶ時間を含む）
+  // 拡張「橋」の ZIP（枠に貼る形だけ。build_html.py --artifact が @@zip で埋め込む。ZIP の版・file:// の版では null）
+  const BRIDGE_ZIP = (function () {
+    const z = globalThis.KIKU_BRIDGE_ZIP;
+    return z && typeof z.b64 === 'string' && typeof z.file === 'string' && typeof z.version === 'string' ? z : null;
+  })();
+  // iframe の中か（枠の中は iframe。仕組みが自分のページとして出す版は iframe でない）。cross-origin でも top の同一性は読める
+  function inIframe() { try { return globalThis.top !== globalThis; } catch (e) { return true; } }
+  // 拡張「橋」を入れて使える画面か（パソコンの Chrome 系のブラウザ）。Claude のアプリ（Electron）・スマートフォン・Chrome でない
+  // ブラウザでは、拡張を入れる手順を出さずに「パソコンの Chrome で開く」と言う（そこでは入れられない・入れても枠に届かない）。
+  // 見分けは userAgent の文字だけ（Electron／Mobile・Android・iPhone・iPad／Chrome/ の有無。アプリの UA は実物で確かめていない）。
+  // 見分けられないもの: パソコン向けのページを求める Android のタブレット（UA が Linux のパソコンと同じ形になる）では手順が出る。
+  // 触れる画面の有無で分けると、触れる画面の Linux のパソコンから手順を取り上げてしまうので、見分けを足していない
+  function bridgeHostOk() {
+    const ua = String((globalThis.navigator && globalThis.navigator.userAgent) || '');
+    if (/Electron\/|Claude\//.test(ua)) return false;
+    if (/Mobile|Android|iPhone|iPad/.test(ua)) return false;
+    return /Chrome\//.test(ua);
+  }
+  const OPEN_IN_CHROME_TEXT = '会議の音を聞くには、パソコンの Chrome でこのアーティファクトを開きます（この画面では拡張「橋」を入れられません）。拡張が無くても「書き起こしを貼って組み上げる」は使えます。';
+  // この画面の Claude が混んでいる（rate_limited）ときに、同じ窓を出し直す前に置く間。試験が短くできるよう、数が置いてあればそれを使う
+  const RATE_LIMIT_WAIT_MS = (typeof globalThis.KIKU_RATE_LIMIT_WAIT_MS === 'number' && globalThis.KIKU_RATE_LIMIT_WAIT_MS >= 0) ? globalThis.KIKU_RATE_LIMIT_WAIT_MS : 10000;
+  const LIVE_KINDS = { text: true, speech: true, bridge: true };   // ライブの入口（ファイル以外）
   const MISSING = '部品が組み込まれていない（組み立てからやり直す）';
   const CHECK_STOP = '記録の検査で止まった';    // 検査器に落ちたときの画面の文の頭。違反文そのもの（規則の id つき）は畳んだ欄に置く
   const RAW_TO_ANALYST = '分析役に返した文（そのまま）';   // 次の呼び出しの違反文として分析役に渡した、機械向けの文
@@ -95,6 +155,10 @@
   const HALT_TEXT = '止まった（記録に書けない）。記録を書き出して原因を調べる';
   const UNWRITTEN_LIMIT = 3;                     // 続けてこの数の窓を記録に書けなかったら聞き取りを止める
   const PAUSED_TEXT = '中断中。打った行は捨てない（届いた時刻で溜め、再開した後の最初の窓に入る）';
+  const PASTE_WIN = 120;                         // 貼った書き起こしの区切りの長さ（秒）
+  const BRIDGE_END_WAIT_MS = 6000;               // 「停止」で拡張に止めさせたあと、止め終えた知らせを待つ上限（拡張は認識の終わりを 3 秒まで待つ）
+  const BRIDGE_PLAN_KEEP_MS = 120000;            // 枠のボタンで始められず拡張の操作部で始め直したとき、押した時の段取りを使う長さ
+  const START_LABEL = '聞き取りを開始';
 
   function nowIso() { return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'); }
   // 素材ログの発話（i のある行）の時刻を単調にした写し。発話でない行はそのまま。元の配列は変えない
@@ -109,15 +173,18 @@
   }
   function clip(s, n) { const a = Array.from(String(s || '')); return a.length > n ? a.slice(0, n).join('') : a.join(''); }
   function msg(id, text, bad) { const e = $(id); if (!e) return; e.textContent = text || ''; e.className = bad ? 'warn' : 'soft'; }
+  // 入口の欄（intakebox）を隠している間（枠の中で拡張から聞く・貼った書き起こしを流す）は、入口の知らせを見える所にも出す
+  function seenNote(text) { if ($('intakebox').hidden) msg('setupmsg', text); }
 
   // ---- 状態 ----
   const S = {
+    takenNames: Object.create(null),   // 使っている記録の名前（自動の名前が重ならないように。鍵は名前なので素の表）
     route: 'none', intakeKind: 'text', name: '', win: 30,
     record: null, state: F.initState(), cutter: null, intake: null,
     listening: false, paused: false, ended: false, eof: false, halted: false,
-    finishing: false,    // 「聞き終える」を押して、音声認識の終わりの知らせを待っている（K19）
-    starting: false,     // 「聞き始める」を押して、記録を開いている途中（入口と音声の行き先の欄を変えさせない）
-    stalled: false,      // 音声認識が再開しない誤りで止まった（記録は開いたまま。「聞き始める」で入口を選び直して続ける）
+    finishing: false,    // 「停止」を押して、音声認識の終わりの知らせを待っている（K19）
+    starting: false,     // 「聞き取りを開始」を押して、記録を開いている途中（入口と音声の行き先の欄を変えさせない）
+    stalled: false,      // 音声認識が再開しない誤りで止まった（記録は開いたまま。「聞き取りを開始」で入口を選び直して続ける）
     installing: false,   // 日本語の部品を入れている途中
     t0ms: null, nextI: 1, interim: '',
     cur: null,           // いまの窓 {w, attempt, violations}
@@ -128,7 +195,24 @@
     view: 'live', T: 0, playing: false, speed: 20, lastFrame: 0,
     follow: true, lockScroll: false, lastAutoY: 0,
     human: { events: [] },
-    notice: null         // 入口の知らせ（下の newNotice と renderNotices）
+    notice: null,        // 入口の知らせ（下の newNotice と renderNotices）
+    sink: null,          // 枠の保存庫（db）への写し（record.js の makeDbSink）。無ければ null
+    claudeAnalyst: null, // 「この画面の Claude」の分析役（makeAnalyst({kind:'claude'})）。「聞き取りを開始」ごとに作り直す（口の判定を覚えているため）
+    stoppedBy: null,     // 分析役の致命の誤りで聞き取りを止めた理由（画面の文）。止めている間だけ
+    sampleAbsent: false, // 枠の中（window.claude.use あり）で、起動後に use('sample') が null と分かった（問う能力が無い。枠の外の版など）
+    autoNamed: false,    // いまの記録の名前を、押した時刻から付けた
+    autoFeed: false,     // 貼った書き起こしを流している（区切りを書き終えるたびに次を流す）
+    link: null,          // 拡張「橋」とのつなぎ（intake.js の makeBridgeLink。枠の中だけ）
+    linkState: { present: null, where: null, capturing: false },
+    bridgeRefusalShown: null,   // 「聞き取りを開始」で出した拡張まわりの断りの文（当てはまらなくなったら消す。clearStaleRefusal）
+    awaitCapture: null,  // 「聞き取りを開始」で拡張に画面共有を頼み、取り始めるのを待っている {plan, local, at}
+    lastPlan: null,      // 最後に拡張に頼んだときの段取り {plan, at}（枠のボタンで始められず、拡張の操作部で始め直したときに使う）
+    bridgeSession: false,// この聞き取りは拡張が音を取っている（拡張が止まったら聞き取りを終える）
+    bridgeEnding: false, // 「停止」で拡張に止めさせ、止め終えるのを待っている／拡張の側で止まった
+    releaseSent: false,  // 拡張に止めるよう頼んだ（止め終えるまで、拡張が取っていても自分から始め直さない）
+    sampleAsked: false,  // この画面から Claude に問う許しを、先に 1 回尋ねた
+    probeBusy: false,    // 拡張に音の診断を頼み、終わりの知らせを待っている（その間は「聞き取りを開始」を断る）
+    nowNote: ''          // 表の状態の行に添える一言（拡張が止まったので終えた、など）
   };
 
   function clock() {
@@ -201,11 +285,42 @@
     renderFeedNow(st);
     $('clock').textContent = fmt(T);
     const e = $('edge');
-    if (st.step) e.textContent = 'いま ' + st.step.lines[0] + '〜' + st.step.lines[1] + ' 発話目まで判断した（S' + st.step.n + '）。この先に何があるかは知らない';
-    else e.textContent = 'まだ最初の窓を判断していない';
+    // 終わった記録の終わりでは「この先」は無いので言わない。聞いている間と、振り返りの途中だけ言う
+    if (st.step) e.textContent = 'いま ' + st.step.lines[0] + '〜' + st.step.lines[1] + ' 発話目まで判断した（S' + st.step.n + '）' + (ended ? '' : S.view === 'live' ? '。この先はまだ聞いていない' : '。この時点では、この先を知らない');
+    else e.textContent = 'まだ最初の区切りをまとめていない';
     if (S.view === 'live' && added.length && S.follow) scrollToLast();
     if (S.view === 'replay') { $('scrub').max = endT(); $('scrub').value = S.T; }
+    renderPending(st);
+    // 見本は、記録が無いあいだだけ。未確定の区切りの欄は、あるときだけ
+    $('sample').hidden = !!(S.record || S.listening || S.starting);
+    const gp = $('gaps').parentNode;
+    if (gp) gp.hidden = !F.openHolds(st).some(function (h) { return h.kind === 'gap'; });
   }
+
+  // 流れの最後の「まとめています」の行（ライブで聞いている間だけ。追体験では出さない＝その時刻に持っていなかった）
+  function renderPending(st) {
+    const on = S.view === 'live' && S.listening && !S.paused && !S.stalled && !S.halted;
+    $('pendrow').hidden = !on;
+    if (!on) return;
+    const from = st && st.step ? st.step.t[1] : 0;
+    const busy = !!(S.cutter && S.cutter.isBusy());
+    // 音の入口で、始めてから 15 秒たっても言葉が 1 つも届かなければ、音が来ていないと言う（黙って待たせない）
+    const quiet = !!NO_SOUND[S.intakeKind] && !S.heardCount && S.heardSince != null && Date.now() - S.heardSince > 15000;
+    $('pendrow').classList.toggle('quiet', quiet);
+    $('pendrow-t').textContent = fmt(from) + '〜';
+    $('pendrow-text').textContent = busy ? fmt(from) + ' からの話をまとめています' : fmt(from) + ' からの話を聞いています';
+    // 届いた言葉があれば、数と最新の言葉を出す（音が来ていることがその場で分かる。右の逐語は、まとめに渡した分だけのまま）
+    const waiting = S.nextI != null ? Math.max(0, S.nextI - 1 - S.passedTo) : 0;
+    const latest = S.lastHeard ? '最新「' + (S.lastHeard.length > 36 ? '…' + S.lastHeard.slice(-36) : S.lastHeard) + '」' : '';
+    const later = busy ? '' : '区切りが閉じたら、まとめてここに出します';
+    $('pendrow-sub').textContent = quiet ? NO_SOUND[S.intakeKind]
+      : waiting ? 'まだまとめていない言葉 ' + waiting + ' 件' + (latest ? '・' + latest : '') + (later ? '。' + later : '')
+      : later;
+  }
+  const NO_SOUND = {
+    bridge: 'まだ言葉が 1 つも届いていません。画面共有で音声も共有したかを確かめます（Windows は「システム音声も共有」、会議がタブなら「タブの音声も共有」に印）',
+    speech: 'まだ言葉が 1 つも届いていません。マイクに声が入っているかを確かめます'
+  };
 
   // 右の逐語に出す行。発話は番号が upTo 以下（窓として渡したもの）だけ。発話の時刻では絞らない。
   // 読めない行の知らせ（ev が unreadable）は、まだ渡していない発話より前にあるものだけ（入口はその行より後ろの発話を
@@ -233,7 +348,7 @@
       note = S.interim || '';
       if (!note) {
         const waiting = src.filter(function (l) { return l && l.i != null && l.i > upTo; }).length;
-        if (waiting) note = '（窓を待っている発話 ' + waiting + ' 件。窓として渡したら、ここに出る）';
+        if (waiting) note = '（区切りを待っている発話 ' + waiting + ' 件。区切りが閉じてまとめに渡したら、ここに出ます）';
       }
     }
     panels.renderFeed(shown, note, cardsBySrc(st), jumpTo);
@@ -301,7 +416,9 @@
     // 聞き終えの待ちの間と聞き終えた後は、ふだんの刻みで窓を閉じない（残りは最後の窓として閉じる。K19・K23）
     if (S.listening && !S.paused && !S.finishing && !S.eof && S.cutter && S.intake && S.intake.kind !== 'file') S.cutter.tick(clock());
     renderStatus();
+    if (S.sink) renderDbState();
     if (S.view === 'live' && S.listening) $('clock').textContent = fmt(clock());
+    renderNow();
   }, 1000);
 
   // ---- 記録の受け口（素材ログ） ----
@@ -317,6 +434,8 @@
       if (l.replaces != null) line.replaces = l.replaces;
       S.record.appendSrc(line);
       S.cutter.push(line);
+      S.heardCount = (S.heardCount || 0) + 1;
+      S.lastHeard = String(line.text || '').replace(/\s+/g, ' ').trim();
       S.interim = '';
       refresh(false);
     },
@@ -328,7 +447,7 @@
       refresh(false);
     },
     interim: function (text) { S.interim = text || ''; if (S.view === 'live') renderFeedNow(S.state); },
-    status: function (text) { msg('intakemsg', text); if (S.intakeKind === 'speech') msg('speechmsg', text); renderNotices(); },
+    status: function (text) { msg('intakemsg', text); if (S.intakeKind === 'speech') msg('speechmsg', text); if (S.intakeKind === 'bridge') msg('bridgemsg', text); renderNotices(); },
     // 入口の知らせ（打った行の 1 列目の時刻・音声認識の終わりを待ちきれなかったこと）。文を預かって下の知らせの欄に出す
     // （同じ文は 1 回だけ）。入口の札（intakemsg）には書かない——中断中の札「中断中。打った行は捨てない」を、
     // 打った行の 1 列目の時刻の知らせで上書きしない
@@ -391,9 +510,9 @@
   }
 
   // 音声認識が再開しない誤りで止まった（続けて失敗した・マイクの許可が無い・言語が使えないなど。intake.js の emit.stopped）。
-  // 記録は閉じない（end を書かない）。「聞いている」とは言わず、入口を選び直して「聞き始める」を押せば、同じ記録の続きを
-  // 聞けるようにする（restartIntake）。「聞き終える」もそのまま押せる（止まった認識の終わりは待たない）
-  const STALLED_GUIDE = '続けるなら、入口を「打つ／貼る」にして「聞き始める」を押す（同じ記録の続きに書く）。音声でもう一度試すなら、そのまま「聞き始める」を押す。終えるなら「聞き終える」';
+  // 記録は閉じない（end を書かない）。「聞いている」とは言わず、入口を選び直して「聞き取りを開始」を押せば、同じ記録の続きを
+  // 聞けるようにする（restartIntake）。「停止」もそのまま押せる（止まった認識の終わりは待たない）
+  const STALLED_GUIDE = '続けるなら、「設定と記録」で音の入り方を「打つ／貼る」にして「もう一度聞く」を押す（同じ記録の続きに書く）。音声でもう一度試すなら、そのまま「もう一度聞く」を押す。終えるなら「停止」';
   function speechStopped(why) {
     if (!S.listening || S.finishing || S.paused || S.ended || S.halted) return;
     S.stalled = true;
@@ -456,9 +575,17 @@
     $('in-text').hidden = kind !== 'text';
     $('in-speech').hidden = kind !== 'speech';
     $('in-file').hidden = kind !== 'file';
+    $('in-bridge').hidden = kind !== 'bridge';
+    renderIntakeBox();
     if (kind === 'speech' && !(globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition)) msg('speechmsg', 'このブラウザには音声認識が無い', true);
-    else if (kind === 'speech') msg('speechmsg', '「聞き始める」で始まる（マイクの許可を求められる）');
+    else if (kind === 'speech') msg('speechmsg', '「聞き取りを開始」で始まる（マイクの許可を求められる）');
     if (kind === 'speech') probeSpeech();
+    renderAsk();
+  }
+  // 入口の操作の欄を表に出すか。拡張とつながる枠の中で「橋」なら表の欄（#ask）が案内し、貼った書き起こしは
+  // ひとりでに流れるので、どちらも出さない
+  function renderIntakeBox() {
+    $('intakebox').hidden = (S.intakeKind === 'bridge' && !!S.link) || !!S.autoFeed;
   }
   $('intake').addEventListener('change', function () { showIntake(this.value); });
 
@@ -509,7 +636,7 @@
   function speechRefusal() {
     if (!hasSpeech()) return 'このブラウザには音声認識が無い。入口を「打つ／貼る」にする';
     const w = S.speechWhere;
-    if (!w || w === 'checking') return 'この PC の中で文字にできるかを調べている途中。少し待ってから聞き始める';
+    if (!w || w === 'checking') return 'この PC の中で文字にできるかを調べている途中。少し待ってから始める';
     if (w !== 'available' && !$('speech-cloud').checked) return 'この PC の中では文字にできないので、音声を提供元のサーバーへ送ることを承知する印が要る（入口の欄）。送ってよくなければ、入口を「打つ／貼る」にする';
     return '';
   }
@@ -529,15 +656,23 @@
     $('an-manual').hidden = r !== 'manual';
     $('an-human').hidden = r !== 'human';
     $('apibox').open = (r === 'anthropic' || r === 'openai');
+    $('claudenote').hidden = r !== 'claude';
     const notes = [];
     if (!verify) notes.push('検査の' + MISSING + '。記録できない');
     if ((r === 'anthropic' || r === 'openai') && !fn('analyze')) notes.push('API の分析役の' + MISSING);
-    if ((r === 'anthropic' || r === 'openai' || r === 'manual') && !PREFIX) notes.push('分析役への指示文が組み込まれていない（組み立てからやり直す）');
+    if (r === 'claude' && !fn('makeAnalyst')) notes.push('この画面の Claude に問う分析役の' + MISSING);
+    if (r === 'claude' && !FRAME) notes.push(CLAUDE_OUTSIDE);
+    if (r === 'claude' && FRAME && S.sampleAbsent) notes.push(CLAUDE_NO_SAMPLE);
+    if ((r === 'anthropic' || r === 'openai') && FRAME) notes.push(API_IN_FRAME);
+    if ((r === 'anthropic' || r === 'openai' || r === 'claude' || r === 'manual') && !PREFIX) notes.push('分析役への指示文が組み込まれていない（組み立てからやり直す）');
     if (r === 'manual' && !fn('makePrompt')) notes.push('手動の輪のプロンプトを作る' + MISSING + '。指示文と状態をそのまま連結して出す');
     if (r === 'manual' && !fn('parseReply')) notes.push('手動の輪の返事を読む' + MISSING + '。返事はそのまま機械向けの形式として読む');
     msg('setupmsg', notes.join('／'), notes.length > 0);
     renderStatus();
   }
+  const CLAUDE_OUTSIDE = 'この画面には、画面を開いている相手への口が無い（枠の外で開いている）。分析役を他のものにする';
+  const CLAUDE_NO_SAMPLE = 'この画面には、画面を開いている相手に問う能力が与えられていない（枠の外で開いているか、能力が無い）。分析役を他のものにする';
+  const API_IN_FRAME = 'この枠からは外の API に送れない（枠の外向きの通信は止められている）。分析役を「この画面の Claude」にする';
   // 分析役を変えたら、前の分析役で「接続を試す」を押した結果を消す（別の分析役の結果に見えないように）
   $('route').addEventListener('change', function () { msg('api-msg', ''); showRoute(this.value); });
 
@@ -569,7 +704,8 @@
   // API の設定で、送れない・送り先が食い違うものを先に断る（送れるなら空文字）。
   // Anthropic はいつも api.anthropic.com に送るので、住所の欄に何かあれば断る（打った住所へ送るように見えて、別の所へ送らないため）
   function apiRefusal(cfg) {
-    if (!String(cfg.key || '').trim()) return 'API の鍵が空。「API の設定」で鍵を貼る（「接続を試す」で通るのを確かめてから聞き始める）';
+    if (FRAME) return API_IN_FRAME;   // 枠の中では fetch が外へ出ない。窓ごとに 3 回落ちて空振りを積むだけなので、先に断る
+    if (!String(cfg.key || '').trim()) return 'API の鍵が空。「API の設定」で鍵を貼る（「接続を試す」で通るのを確かめてから始める）';
     if (cfg.kind === 'openai' && !cfg.model) return 'API（OpenAI 互換）はモデル名が要る（「API の設定」の「モデル」に打つ）';
     if (cfg.kind === 'anthropic' && cfg.base) return 'API（Anthropic）は送り先の住所を変えられない（いつも api.anthropic.com に送る）。住所の欄を空にするか、分析役を「API（OpenAI 互換）」にする';
     return '';
@@ -583,6 +719,18 @@
   $('api-test').addEventListener('click', function () {
     const t = fn('testConnection');
     if (!t) { msg('api-msg', '接続を試す' + MISSING, true); return; }
+    if (S.route === 'claude') {
+      if (!FRAME) { msg('api-msg', CLAUDE_OUTSIDE, true); return; }
+      msg('api-msg', 'この画面の Claude に短い問いを送っている…（画面を開いている人に、許すかどうかの確認が出る）');
+      Promise.resolve().then(function () { return t({ kind: 'claude' }, '', {}); }).then(function (r) {
+        if (!r) { msg('api-msg', '返事が無い', true); return; }
+        const parts = [r.ok ? '通った' : '通らなかった', '口: ' + (r.reached ? 'ある' : '無い'), '返事: ' + (r.authed ? '来た' : '来ない')];
+        if (r.model) parts.push('答えた段 ' + r.model);
+        if (r.error) parts.push(String(r.error));
+        msg('api-msg', parts.join('／'), !r.ok);
+      }, function (e) { msg('api-msg', '失敗：' + (e && e.screen || e && e.message || e), true); });
+      return;
+    }
     if (S.route !== 'anthropic' && S.route !== 'openai') { msg('api-msg', '分析役で API を選んでから', true); return; }
     const no = apiRefusal(apiCfg());
     if (no) { msg('api-msg', no, true); return; }
@@ -603,69 +751,583 @@
   loadApiCfg();
 
   // ---- 始める・中断・終える ----
-  // 聞いている間と、「聞き始める」を押して記録を開いている途中（S.starting）は、聞き始めの欄を変えさせない。
-  // 音声認識が止まった間（S.stalled）だけは、入口と音声の行き先の欄を選び直して「聞き始める」を押せる（restartIntake）
+  // 聞いている間と、「聞き取りを開始」を押して記録を開いている途中（S.starting）・拡張が音を取り始めるのを待っている間
+  // （S.awaitCapture）は、聞き取りの設定を変えさせない。音声認識が止まった間（S.stalled）だけは、入口と音声の行き先の欄を
+  // 選び直して「もう一度聞く」（#start）を押せる（restartIntake）。
+  // 表のボタンは 1 か所で形が変わる: 待っている間は「聞き取りを開始」、聞いている間は「停止」と小さな「一時停止」／「再開」
   function setButtons() {
-    const lock = S.listening || S.starting;
+    const waiting = !!S.awaitCapture;
+    const lock = S.listening || S.starting || waiting;
     const retry = S.listening && S.stalled && !S.finishing && !S.paused && !S.halted;
-    $('start').disabled = S.halted || S.starting || (S.listening && !retry);
+    const st = $('start');
+    st.disabled = S.halted || S.starting || waiting || S.probeBusy || (S.listening && !retry);
+    st.hidden = S.listening && !retry;
+    st.textContent = retry ? 'もう一度聞く' : waiting ? '画面を選んでいます…' : S.starting ? '始めています…' : START_LABEL;
+    $('hero').hidden = S.listening && !retry;
     $('pause').disabled = !S.listening || S.paused || S.finishing || S.eof || !!(S.cutter && S.cutter.isBusy());
-    $('pause').hidden = S.paused;
+    $('pause').hidden = !S.listening || S.paused;
     $('resume').hidden = !S.paused; $('resume').disabled = !S.paused || S.finishing;
+    $('end').hidden = !S.listening;
     $('end').disabled = !S.listening || S.finishing;
-    ['name', 'route', 'win', 'known'].forEach(function (id) { $(id).disabled = lock; });
+    $('end').textContent = S.finishing ? '止めています…' : '停止';
+    ['name', 'route', 'win', 'known', 'db-mirror'].forEach(function (id) { $(id).disabled = lock; });
     ['intake', 'speech-cloud'].forEach(function (id) { $(id).disabled = lock && !retry; });
     $('speech-install').disabled = (lock && !retry) || S.installing;
+    $('bridge-cloud').disabled = lock;
+    $('bridge-install').disabled = lock;
+    $('paste-go').disabled = lock || S.halted;
+    $('paste-open').hidden = !!S.halted;   // 記録に書けずに止まった後は、読み込み直すまで新しく始められない
+    $('past-open').disabled = lock || !$('past').value;
     const fileOn = S.listening && S.intake && S.intake.kind === 'file' && !S.paused && !S.ended;
     $('file-next').disabled = !fileOn || !!(S.cutter && S.cutter.isBusy()) || S.intake.isPlaying() || S.eof;
     $('file-play').disabled = !fileOn || S.intake.isPlaying() || S.eof;
     $('file-play').hidden = !!(fileOn && S.intake.isPlaying());
     $('file-stop').hidden = !(fileOn && S.intake.isPlaying()); $('file-stop').disabled = !fileOn;
+    renderNow();
+    renderAsk();
+    renderIntakeBox();
   }
 
-  $('start').addEventListener('click', function () {
-    if (S.starting) return;
-    // 音声認識が止まった後: 同じ記録のまま、いま選んでいる入口で聞き直す
-    if (S.listening) { if (S.stalled) restartIntake(); return; }
+  // 記録の名前を、押した時刻から付ける（「:」は名前に使えない＝ファイル名になるので「時・分・秒」で書く）
+  function autoName(suffix) {
+    const d = new Date();
+    const p = function (n) { return String(n).padStart(2, '0'); };
+    const base = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + '時' + p(d.getMinutes()) + '分' + p(d.getSeconds()) + '秒' + (suffix || '');
+    // 同じ秒に 2 度始めても、前の記録の名前と重ならないよう番号を足す（このブラウザにある記録とこのページで始めた記録）
+    let name = base, k = 2;
+    while (S.takenNames[name]) name = base + '（' + (k++) + '）';
+    return name;
+  }
+
+  // 「聞き取りを開始」・「構造にする」の前の確かめ。始めてよければ {name, win, autoNamed} を、断るなら {error, open, api}
+  // （open: 設定の引き出しを開いて見せる）か {material}（発話が 1 つも無い素材。K21・K31）を返す。記録はまだ何も触らない。
+  // o.win: 区切りの長さを欄からでなくこの値にする（貼った書き起こし）。o.suffix: 自動の名前の後ろに足す語
+  function startPlan(o) {
+    o = o || {};
     S.resume = null;
-    const name = $('name').value.trim();
-    if (!name) { msg('setupmsg', '会議の名前を打つ', true); return; }
-    if (/[\\/:*?"<>|]/.test(name)) { msg('setupmsg', '名前に使えない文字がある（\\ / : * ? " < > |）', true); return; }
-    if (S.route === 'none') { msg('setupmsg', '分析役を選ぶ（API が無ければ「手動の輪」か「人が書く」。試すだけなら「内蔵の模擬」）', true); return; }
-    if (!verify || !VA) { msg('setupmsg', '検査の' + MISSING + 'ので記録できない', true); return; }
+    const typed = $('name').value.trim();
+    // 分析役に問えずに止まった記録（end を書いていない）は、名前を打たなくても同じ記録の続きに書く（貼り付けは別の記録）
+    const cont = !typed && !o.suffix && S.stoppedBy && S.record && !S.ended && !S.viewOnly ? S.record.name : '';
+    const name = typed || cont || autoName(o.suffix);
+    if (/[\\/:*?"<>|]/.test(name)) return { error: '名前に使えない文字がある（\\ / : * ? " < > |）', open: true };
+    if (S.route === 'none') return { error: '整理する AI を選ぶ（「設定と記録」の中。API が無ければ「手動の輪」か「人が書く」。試すだけなら「内蔵の模擬」）', open: true };
+    if (!verify || !VA) return { error: '検査の' + MISSING + 'ので記録できない' };
     if (S.route === 'anthropic' || S.route === 'openai') {
       const no = apiRefusal(apiCfg());
-      if (no) { msg('setupmsg', no, true); $('apibox').open = true; return; }
+      if (no) return { error: no, open: true, api: true };
     }
+    if (S.route === 'claude' && !FRAME) return { error: CLAUDE_OUTSIDE, open: true };
+    if (S.route === 'claude' && S.sampleAbsent) return { error: CLAUDE_NO_SAMPLE, open: true };
     if (S.intakeKind === 'speech') {
       const no = speechGate();
-      if (no) { msg('setupmsg', no, true); return; }
+      if (no) return { error: no, open: true };
     }
-    // 窓の幅は 5〜180 の整数の秒（記録の先頭の型。小数や範囲の外は、黙って直さずに断る）
-    const winRaw = String($('win').value).trim();
-    const winBad = !!($('win').validity && $('win').validity.badInput);   // 数として読めない字（欄の値は空になる）
-    const winNum = winBad ? NaN : (winRaw === '' ? 30 : Number(winRaw));
-    if (!Number.isInteger(winNum) || winNum < 5 || winNum > 180) { msg('setupmsg', '窓幅は 5〜180 の整数の秒で打つ（' + (winRaw || '空') + ' は使えない）', true); return; }
-    S.win = winNum;
+    let win = o.win;
+    if (win == null) {
+      // 区切りの長さは 5〜180 の整数の秒（記録の先頭の型。小数や範囲の外は、黙って直さずに断る）
+      const winRaw = String($('win').value).trim();
+      const winBad = !!($('win').validity && $('win').validity.badInput);   // 数として読めない字（欄の値は空になる）
+      const winNum = winBad ? NaN : (winRaw === '' ? 30 : Number(winRaw));
+      if (!Number.isInteger(winNum) || winNum < 5 || winNum > 180) return { error: '区切りの長さは 5〜180 の整数の秒で打つ（' + (winRaw || '空') + ' は使えない）', open: true };
+      win = winNum;
+    }
     // ファイルの入口: 発話が 1 つも無い素材（時刻のある行が無い・どれも本文が空）は、記録を作らずに断る（K21。
     // rt.py の file の open と同じ文。続きから聞くときも、記録を開く前に断る）。0 バイトのファイル・空白だけの素材も、
     // 「読み込んでいない」とは言わずに同じ文で断る（K31）
     if (S.intakeKind === 'file' && typeof S.fileText === 'string' && typeof INTAKE.materialRefusal === 'function') {
       const no = INTAKE.materialRefusal(S.fileText);
-      if (no && no.length) { refuseMaterial(no); return; }
+      if (no && no.length) return { material: no };
     }
-    S.name = name;
-    const rec = REC.makeRecord(name);
-    msg('setupmsg', '記録を開いている…');
-    // 記録を開き終えるまで（ブラウザ内の保存が遅いと数秒かかる）、入口・音声の行き先の欄と「聞き始める」を押させない
-    S.starting = true;
-    setButtons();
-    rec.load().then(function (info) {
-      try { opened(rec); } finally { S.starting = false; setButtons(); }
-    }, function (e) { S.starting = false; setButtons(); msg('setupmsg', '記録を開けない：' + (e && e.message || e), true); });
+    return { name: name, win: win, autoNamed: !typed && !cont };
+  }
+  function refuse(plan) {
+    if (plan.material) { refuseMaterial(plan.material); return; }
+    msg('setupmsg', plan.error, true);
+    if (plan.open) openSettings(true);
+    if (plan.api) $('apibox').open = true;
+  }
+
+  $('start').addEventListener('click', function () {
+    if (S.starting || S.awaitCapture) return;
+    if (S.probeBusy) { msg('setupmsg', '音の診断の途中です。終わってから押します', true); return; }
+    // 音声認識が止まった後: 同じ記録のまま、いま選んでいる入口で聞き直す
+    if (S.listening) { if (S.stalled) restartIntake(); return; }
+    restoreIntake();
+    const plan = startPlan({});
+    if (plan.error || plan.material) { refuse(plan); renderAsk(); return; }
+    // 拡張「橋」から聞く（枠の中）: 画面共有を、押したこの操作の中で拡張に始めさせる（枠の中のクリックは親のページにも
+    // 「操作の直後」の扱いを付けるので、親で動く拡張はそのうちに画面共有を始められる）。記録を開くのは、拡張が音を
+    // 取り始めたと言ってから（onCaptureStarted。選ぶ画面で断られたら、記録に何も書かない）
+    if (S.intakeKind === 'bridge' && S.link) {
+      const ls = S.link.state();
+      const why = bridgeRefusal(ls);
+      if (why) { msg('setupmsg', why, true); S.bridgeRefusalShown = why; renderAsk(); return; }
+      const local = ls.where === 'available';
+      S.awaitCapture = { plan: plan, local: local, at: Date.now() };
+      S.lastPlan = null;
+      msg('setupmsg', '');
+      S.link.capture(local);
+      setButtons();
+      // すでに取っている（拡張の操作部から始めていた）: 返事の here は変わらないので、ここで始める
+      if (ls.capturing) onCaptureStarted();
+      return;
+    }
+    startSession(plan);
   });
 
-  // 記録を開き終えた（「聞き始める」の続き）。押した時に確かめたことのうち、音声の行き先はここでもう一度確かめる
+  // 記録を開いて聞き始める（startPlan の段取りで）。開き終えるまで（ブラウザ内の保存が遅いと数秒かかる）、入口・音声の
+  // 行き先の欄と「聞き取りを開始」を押させない
+  function startSession(plan) {
+    S.takenNames[plan.name] = true;
+    S.name = plan.name;
+    S.win = plan.win;
+    S.autoNamed = !!plan.autoNamed;
+    S.viewOnly = false;
+    S.nowNote = '';
+    S.claudeAnalyst = null;   // 口の判定（閲覧者が許したか）を覚えているので、聞き始めるたびに作り直す
+    S.stoppedBy = null;
+    const rec = REC.makeRecord(plan.name);
+    clearScreen();
+    if (S.view !== 'live') setView('live');
+    msg('setupmsg', '記録を開いている…');
+    S.starting = true;
+    setButtons();
+    rec.load().then(function () { return prepareMirror(rec); }).then(function () {
+      try { opened(rec); } finally { S.starting = false; afterOpen(); setButtons(); }
+    }, function (e) { S.starting = false; afterOpen(); setButtons(); msg('setupmsg', '記録を開けない：' + (e && e.message || e), true); });
+  }
+  // 記録を開き終えた後（聞き始めたかどうかにかかわらず）の後始末。聞き始めなかったなら、拡張には止めてもらい、
+  // 貼った書き起こしの流しも止める
+  function afterOpen() {
+    if (S.listening) return;
+    S.autoFeed = false;
+    if (S.bridgeSession) dropBridge();
+  }
+
+  // ---- 拡張「橋」とのつなぎ（枠の中） ----
+  // 始められない理由（始めてよければ空文字）
+  function bridgeRefusal(ls) {
+    if (ls.present === null) return '拡張「橋」を探している途中です。少し待ってから押します';
+    if (ls.present === false && BRIDGE_ZIP && !bridgeHostOk()) return OPEN_IN_CHROME_TEXT;
+    if (ls.present === false) return '拡張「橋」が見つかりません（入れ方は下）。拡張が無くても「書き起こしを貼って組み上げる」は使えます';
+    if (ls.where == null || ls.where === 'checking') return 'この PC の中で文字にできるかを、拡張が調べている途中です。少し待ってから押します';
+    if (ls.where !== 'available' && !$('bridge-cloud').checked) {
+      if (ls.where === 'downloadable') return 'この PC の中で文字にする部品が、まだ入っていません。下の「日本語の部品を入れる」で入れるか、音声を外へ送ることを承知する印を付けると始められます';
+      if (ls.where === 'downloading') return '日本語の部品を入れている途中です。入れ終われば始められます。待たずに始めるなら、音声を外へ送ることを承知する印を付けます（下の欄）';
+      return 'この PC の中では文字にできないので、音声を外へ送ることを承知する印が要ります（下の欄）';
+    }
+    return '';
+  }
+  // 拡張が音を取り始めた（here の capturing:true）。押した時の段取りで記録を開く。押していないのに始まった（拡張の
+  // 操作部で始めた・枠のボタンからは始められず操作部で始め直した）ときは、少し前に押した時の段取りか、いまの設定で始める
+  function onCaptureStarted() {
+    const kept = S.lastPlan && Date.now() - S.lastPlan.at < BRIDGE_PLAN_KEEP_MS ? S.lastPlan : null;
+    const a = S.awaitCapture || kept;
+    S.awaitCapture = null; S.lastPlan = null;
+    if (S.listening || S.starting || S.releaseSent) { setButtons(); return; }
+    let plan = a ? a.plan : null;
+    if (!plan) {
+      if (S.intakeKind !== 'bridge') { setButtons(); return; }
+      const p = startPlan({});
+      if (p.error || p.material) {
+        msg('setupmsg', '拡張が音を取り始めましたが、こちらは始められません：' + (p.error || p.material[0]), true);
+        if (p.open) openSettings(true);
+        S.releaseSent = true; S.link.release();
+        setButtons(); return;
+      }
+      plan = p;
+    }
+    S.bridgeSession = true;
+    S.bridgeLocal = S.linkState.where === 'available';
+    startSession(plan);
+  }
+  // 拡張が音を取る前に断った（選ぶ画面で取り消した・音が共有されていない・この PC の中では文字にできないなど）。
+  // 記録は開いていないので、何も書かない。拡張の操作部で始め直したときのために、押した時の段取りを少しだけ覚えておく
+  function captureFailed(text) {
+    const a = S.awaitCapture;
+    S.awaitCapture = null;
+    if (a) S.lastPlan = { plan: a.plan, at: Date.now() };
+    msg('setupmsg', '始められませんでした：' + (text || '拡張が画面共有を始められなかった'), true);
+    setButtons();
+  }
+  // 聞き取りをやめた（始められなかった・終えた）ので、拡張にも音を取るのをやめてもらう
+  function dropBridge() {
+    S.bridgeSession = false;
+    if (S.link && S.linkState.capturing) { S.releaseSent = true; S.link.release(); }
+  }
+  // 「聞き取りを開始」で出した断り（赤の文）が、つながりの変化（拡張が入った・部品が入ったなど）や承知の印で当てはまらなく
+  // なったら消す（断りの文がそのまま残っていると、もう押せるのに押せないように読める）。別の文に書き換わっていれば触らない
+  function clearStaleRefusal() {
+    const shown = S.bridgeRefusalShown;
+    if (!shown || bridgeRefusal(S.linkState) === shown) return;
+    S.bridgeRefusalShown = null;
+    if ($('setupmsg').textContent === shown) msg('setupmsg', '');
+  }
+  // 拡張から here が届いた・つながりが変わった
+  function onLink(st) {
+    const was = S.linkState;
+    S.linkState = st;
+    clearStaleRefusal();
+    if (!st.capturing) S.releaseSent = false;
+    if (st.capturing && !was.capturing && !S.releaseSent) onCaptureStarted();
+    else if (S.awaitCapture && st.present === false) captureFailed('拡張とのつながりが切れた');
+    bridgeWatch();
+    setButtons();
+  }
+  // 拡張が音を取るのをやめた: 「停止」を押した後なら、止め終えたので最後の区切りを閉じる。押していないなら（Chrome の
+  // 「共有を停止」・拡張の誤り・つながりが切れた）、そこで聞き取りを終える（拡張は、溜めた発話を送ってから止まったと言う）
+  function bridgeWatch() {
+    if (!S.bridgeSession || !S.listening || !S.intake || S.intake.kind !== 'bridge' || S.linkState.capturing) return;
+    if (!S.bridgeEnding) {
+      const b = S.intake.status().bridge;
+      S.nowNote = b && b.state === 'error' && b.text ? '拡張が止まったので、聞き取りを終えました（' + b.text + '）'
+        : S.linkState.present === false ? '拡張とのつながりが切れたので、聞き取りを終えました' : '画面の共有が止まったので、聞き取りを終えました';
+      S.bridgeEnding = true; S.finishing = true;
+    }
+    finishBridge();
+  }
+  function finishBridge() {
+    if (!S.bridgeEnding) return;
+    S.bridgeEnding = false; S.bridgeSession = false;
+    clearTimeout(S.bridgeEndTimer);
+    S.finishing = false;
+    if (S.halted || !S.listening) { setButtons(); return; }
+    try { S.intake.stop(); } catch (e) { /* 止め損ねても、終える */ }
+    finishListening();
+  }
+  // この画面から Claude に問う許しを、聞き始めたときに 1 回だけ先に尋ねる（最初の区切りが閉じるまで待たせない。
+  // 断られたら、その場で知らせる。断られても聞き取りは続く——区切りが閉じたときに分析役が同じ断りで止める）
+  function askSampleOnce() {
+    if (S.sampleAsked || S.route !== 'claude' || !FRAME) return;
+    S.sampleAsked = true;
+    REC.useCapability('permissions').then(function (p) {
+      if (!p || typeof p.request !== 'function') return null;
+      return p.request(['sample']);
+    }).then(function (r) {
+      if (r && r.sample === 'denied') msg('setupmsg', 'この画面から Claude に問うことが許されていないので、構造を作れません。画面の右上の許可の欄で、問うことを許してから始め直します', true);
+    }).catch(function () { /* 尋ねられなくても、最初の区切りで分析役が尋ねる */ });
+  }
+
+  // ---- 表の状態の行・始める前の欄 ----
+  function renderNow() {
+    const box = $('now');
+    if (!box) return;
+    let text, cls, where = '';
+    if (S.halted || S.stoppedBy) { text = '止まりました'; cls = 'bad'; }
+    else if (S.awaitCapture) { text = '共有する画面を選んでいます'; cls = 'wait'; }
+    else if (S.starting) { text = '始めています'; cls = 'wait'; }
+    else if (S.listening && S.stalled) { text = '音声認識が止まりました'; cls = 'bad'; }
+    else if (S.listening && S.finishing) { text = '止めています'; cls = 'wait'; }
+    else if (S.listening && S.paused) { text = '一時停止中'; cls = 'pause'; }
+    else if (S.listening && S.autoFeed) { text = '書き起こしを読んでいます'; cls = 'on'; }
+    else if (S.listening) { text = '聞き取り中'; cls = 'on'; }
+    else if (S.viewOnly) { text = '前の記録を見ています'; cls = 'off'; }
+    else if (S.ended) { text = '停止しました'; cls = 'off'; }
+    else { text = '待機中'; cls = 'idle'; }
+    if (S.listening && !S.stalled) {
+      const k = S.intake ? S.intake.kind : S.intakeKind;
+      if (k === 'bridge' && S.bridgeSession) where = S.bridgeLocal ? 'この PC の中で文字にしています' : '音声は Google のサーバーで文字にしています';
+      else if (k === 'speech') where = S.speechLocalOn ? 'この PC の中で文字にしています' : '音声は提供元のサーバーで文字にしています';
+      else if (k === 'text') where = '打った文から';
+      else if (k === 'bridge') where = '拡張から届いた文から';
+    }
+    box.className = 'now ' + cls;
+    $('now-text').textContent = text;
+    $('now-clock').textContent = S.listening ? fmt(clock()) : '';
+    $('now-where').textContent = S.nowNote || where;
+    $('feedwhere').textContent = where;
+    $('recname').textContent = S.record ? S.record.name : '';
+    // まとめが追いついている所（最後に書いた区切りの終わり）。聞いている間だけ
+    const sv = S.viewSt;
+    $('now-lag').textContent = S.listening && !S.stalled ? (sv && sv.step ? 'まとめは ' + fmt(sv.step.t[1]) + ' まで' : '最初のまとめを待っています') : '';
+    // 画面の段取り（見た目だけに使う）: idle＝まだ何も無い、live＝聞いている、done＝記録を見ている
+    document.body.dataset.mode = S.listening ? 'live' : S.record ? 'done' : 'idle';
+    renderPending(S.viewSt);
+  }
+  function renderAsk() {
+    const box = $('ask');
+    if (!box) return;
+    if (!(S.link && S.intakeKind === 'bridge') || S.listening || S.starting) { box.hidden = true; return; }
+    const ls = S.linkState;
+    let text = '', cls = 'info', install = false, cloud = false, setup = false;
+    if (S.awaitCapture) text = '画面共有の画面で、会議の音が出ている所を選びます。Windows は「画面全体」を選んで「システム音声も共有」に印。会議がブラウザのタブなら、そのタブを選んで「タブの音声も共有」に印。';
+    else if (ls.present === null) text = '拡張「橋」を探しています…';
+    else if (ls.present === false && BRIDGE_ZIP && !bridgeHostOk()) { text = OPEN_IN_CHROME_TEXT; cls = 'warn'; }
+    else if (ls.present === false && BRIDGE_ZIP) { text = '会議の音を聞くには、Chrome に拡張「橋」を入れます。はじめの 1 回だけ、3 つの手順です。'; cls = 'setup'; setup = true; }
+    else if (ls.present === false) { text = 'この画面の中では音を取れないため、会議の音を聞くには Chrome の拡張「橋」が要ります。いまは見つかりません（この版の画面には拡張が入っていません。アーティファクトの版で開くと、そこから保存できます）。'; cls = 'warn'; }
+    else if (ls.where === 'available') { text = '拡張とつながっています。押すと画面共有の画面が出ます。会議の音は、この PC の中で文字にします（音声は外へ出ません）。'; cls = 'ok'; }
+    else if (ls.where == null || ls.where === 'checking') text = '拡張とつながっています。この PC の中で文字にできるかを調べています…';
+    else if (ls.where === 'downloadable') { text = '拡張とつながっています。この PC の中で文字にするための日本語の部品が、まだ入っていません。部品を入れるか、音声を外へ送ることを承知すると始められます。'; cls = 'warn'; install = true; cloud = true; }
+    else if (ls.where === 'downloading') { text = '拡張とつながっています。日本語の部品を入れています。入れ終われば、この PC の中で文字にします。待たずに始めるなら、音声を外へ送ることを承知します。'; cloud = true; }
+    else { text = '拡張とつながっています。このブラウザは、この PC の中だけでは文字にできません。始めるには、音声を外へ送ることを承知します。'; cls = 'warn'; cloud = true; }
+    box.hidden = false;
+    box.className = 'ask ' + cls;
+    $('ask-text').textContent = text;
+    $('ask-install-row').hidden = !install;
+    $('ask-cloud-row').hidden = !cloud;
+    $('ask-setup').hidden = !setup;
+    if (setup) renderSetup();
+    // 拡張の新しい版がある（つながっている拡張の版が、この画面の持つ版より古い）: 止めずに知らせ、保存の口を出す
+    const old = !!(BRIDGE_ZIP && ls.present === true && !S.awaitCapture && typeof INTAKE.versionLess === 'function' && INTAKE.versionLess(ls.ver, BRIDGE_ZIP.version));
+    $('ask-update-row').hidden = !old;
+    if (old) $('ask-update-text').textContent = '拡張の新しい版（' + BRIDGE_ZIP.version + '）があります（いまは ' + ls.ver + '。このままでも使えます）。保存した ZIP を拡張機能の画面（chrome://extensions）に落とすと置き換わります。';
+    // 音の診断: 診断のできる版（PROBE_MIN_VER 以降）の拡張とつながっている間だけ出す（診断の途中と、結果を出した後も出したまま）
+    const probeOk = ls.present === true && typeof ls.ver === 'string' && typeof INTAKE.versionLess === 'function' && !INTAKE.versionLess(ls.ver, PROBE_MIN_VER);
+    $('ask-probe-row').hidden = !(probeOk || S.probeBusy);
+    $('probe-go').disabled = S.probeBusy || !!S.awaitCapture;
+  }
+
+  // ---- 音の診断（拡張 0.2.1 から。拡張が画面全体の音を取り、届くか・この PC の中で文字になるか・Google のサーバーなら文字になるかを
+  // 1 回で測る。2026-10-10 の私用 PC の初めての実走で、端末内の認識が「aborted」で止まったため）。
+  // 結果は画面に出し、枠の保存庫（db）の probe にも残す（Claude が読んで、文字にする所をどうするかを相談するため）
+  let probeTimer = null, probeHeard = false;
+  function probeReset() { S.probeBusy = false; clearTimeout(probeTimer); probeTimer = null; setButtons(); }
+  $('probe-go').addEventListener('click', function () {
+    if (!S.link || S.probeBusy || S.awaitCapture || S.listening || S.starting) return;
+    S.probeBusy = true; probeHeard = false;
+    $('probe-out').textContent = '';
+    msg('probe-msg', 'Chrome の画面共有の画面が出ます。');
+    S.link.probe();
+    setButtons();
+    probeTimer = setTimeout(function () {
+      if (!S.probeBusy) return;
+      if (!probeHeard) { msg('probe-msg', '拡張から返事がありません。拡張の版が古いか、拡張とのつながりが切れています', true); probeReset(); return; }
+      probeTimer = setTimeout(function () { if (S.probeBusy) { msg('probe-msg', '診断の終わりの知らせが届きませんでした。右下の拡張の欄に結果が出ていれば、それを読みます', true); probeReset(); } }, PROBE_LIMIT_MS);
+    }, PROBE_WAIT_MS);
+  });
+  function onProbe(n) {
+    if (!S.probeBusy) return;   // 頼んでいない知らせ（別の枠が頼んだ診断など）は出さない
+    probeHeard = true;
+    if (n.state === 'running') { msg('probe-msg', n.text); return; }
+    const out = $('probe-out');
+    out.textContent = '';
+    n.summary.forEach(function (line) { const p = document.createElement('p'); p.textContent = line; out.appendChild(p); });
+    msg('probe-msg', '終わりました。結果を保存庫に残しています…');
+    probeReset();
+    REC.useCapability('db').then(function (db) {
+      if (!db) { msg('probe-msg', '終わりました（保存庫が無いので、結果はこの画面だけにあります）'); return; }
+      return db.doc('probe/p' + Date.now()).set({ at: new Date().toISOString(), summary: n.summary, report: n.report }).then(function () {
+        msg('probe-msg', '終わりました。結果はこのアーティファクトの保存庫にも残しました（Claude が読めます）');
+      });
+    }).then(null, function (e) { msg('probe-msg', '終わりました（保存庫に残せませんでした：' + (e && e.message || e) + '。この画面の結果を写して送ります）', true); });
+  }
+
+  // ---- 拡張「橋」を入れる手順（枠に貼る形だけ。ZIP は build_html.py --artifact が埋め込む） ----
+  // 手順は 3 つ: 保存する（枠の保存で ZIP を渡す）・拡張機能の画面を開いてデベロッパーモードをオン・ZIP を落とす。
+  // 入ったかは押させずに気づく（つなぎの ping が here を受けると、この手順は消えて「つながっています」になる）。
+  // 確かめたこと（Chromium 141 で実測。tests/e2e/e2e_bridge_install.js）: デベロッパーモードがオンの拡張機能の画面に ZIP を落とすと、
+  // 確かめの画面なしに入る。入ったときに開いていた claude.ai のタブにも拡張が入り（background.js）、読み込み直さずにつながる
+  const SETUP = { saved: null, saving: false, copied: false };
+  function bridgeZipBytes() {
+    const bin = atob(BRIDGE_ZIP.b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function renderSetup() {
+    if (!BRIDGE_ZIP) return;
+    const kb = Math.max(1, Math.round(BRIDGE_ZIP.b64.length * 3 / 4 / 1024));
+    $('step-save').classList.toggle('done', !!SETUP.saved);
+    $('bridge-save').disabled = SETUP.saving;
+    $('bridge-save-msg').textContent = BRIDGE_ZIP.file + '（約 ' + kb + ' KB）';
+    $('step-open').classList.toggle('done', SETUP.copied);
+    $('bridge-zip-name').textContent = SETUP.saved || BRIDGE_ZIP.file;
+  }
+  // 枠の保存（downloads）で ZIP を渡す。閲覧者が保存の確かめで受けたときだけ保存される。outId は結果を出す所
+  function saveBridgeZip(outId) {
+    if (!BRIDGE_ZIP || SETUP.saving) return;
+    const out = $(outId);
+    SETUP.saving = true; out.textContent = '保存の確かめを出しています…'; out.classList.remove('warn');
+    renderSetup();
+    REC.useCapability('downloads').then(function (dl) {
+      if (!dl) return { ok: false, why: 'この画面では保存できない' };
+      const x = REC.makeDownloadsExport(dl);
+      return x.save(BRIDGE_ZIP.file, bridgeZipBytes()).then(function (ok) { return ok ? { ok: true, name: x.status.lastSaved } : { ok: false, why: x.status.reason, code: x.status.lastError && x.status.lastError.code }; });
+    }).then(function (r) {
+      SETUP.saving = false;
+      if (r.ok) { SETUP.saved = r.name; out.textContent = r.name + ' を保存しました'; }
+      // 保存の確かめで取り消した: 誤りではないので赤にしない。もう一度押せば確かめが出る
+      else if (r.code === 'declined') out.textContent = '保存を取り消しました。もう一度押すと保存の確かめが出ます';
+      else { out.textContent = '保存しませんでした（' + r.why + '）'; out.classList.add('warn'); }
+      renderSetup();
+    });
+  }
+  $('bridge-save').addEventListener('click', function () { saveBridgeZip('bridge-save-result'); });
+  $('bridge-update').addEventListener('click', function () { saveBridgeZip('bridge-update-msg'); });
+  // chrome://extensions はページから開けない（リンクも window.open も Chrome が断る。Chromium 141 で実測）ので、アドレスを写させる。
+  // 写せなければ（古いアプリの枠などで clipboard が断られる）、アドレスを選んだ状態にして Ctrl+C を頼む
+  $('ext-copy').addEventListener('click', function () {
+    const url = $('ext-url').textContent;
+    const say = function (t, bad) { $('ext-copy-msg').textContent = t; $('ext-copy-msg').classList.toggle('warn', !!bad); };
+    const pick = function () {
+      try { const r = document.createRange(); r.selectNodeContents($('ext-url')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } catch (e) { /* 選べなくても文は出す */ }
+      say('写せなかったので、アドレスを選びました。Ctrl+C で写してください', true);
+    };
+    let p = null;
+    try { p = navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(url) : null; } catch (e) { p = null; }
+    if (!p) { pick(); return; }
+    p.then(function () { SETUP.copied = true; say('写しました'); renderSetup(); }, pick);
+  });
+  function openSettings(open) {
+    const d = $('settings');
+    d.open = open;
+    if (open) { try { d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { d.scrollIntoView(); } }
+  }
+  $('settings').addEventListener('toggle', function () { $('settings-open').setAttribute('aria-expanded', String(this.open)); });
+  $('settings-open').addEventListener('click', function () { openSettings(!$('settings').open); });
+  $('settings-close').addEventListener('click', function () { openSettings(false); try { $('settings-open').focus(); } catch (e) { /* 戻せなくても困らない */ } });
+  $('bridge-install').addEventListener('click', function () { if (S.link) { S.link.install(); msg('setupmsg', '日本語の部品を入れています（入れるときに音声は送りません）'); } });
+  $('bridge-cloud').addEventListener('change', function () { if (this.checked) msg('setupmsg', ''); clearStaleRefusal(); renderAsk(); });
+
+  // 前の記録の画面を空にする（別の記録を開く・始める前に）。カードの番号は記録ごとに C1 から振るので、空の状態で
+  // 一度描いて、前の記録の行を消してから次を描く
+  function clearScreen() {
+    if (S.listening) return;
+    S.state = F.initState(); S.record = null; S.cur = null; S.cutter = null; S.passedTo = 0; S.lastAt = null;
+    S.ended = false; S.eof = false; S.viewOnly = false; S.interim = '';
+    refresh(false);
+  }
+
+  // ---- 前の記録 ----
+  // 表の「前の記録」（新しい順に 5 件まで。押すと開いて振り返る）。名前が自動の日時なら「10月10日 14:05」の形で見せる
+  const PAST_SHOWN = 5;
+  function pastLabel(name) {
+    const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2})時(\d{2})分\d{2}秒(.*)$/.exec(name);
+    return m ? Number(m[2]) + '月' + Number(m[3]) + '日 ' + Number(m[4]) + ':' + m[5] + m[6] : name;
+  }
+  function renderPastList(list) {
+    const ul = $('pastitems');
+    ul.innerHTML = '';
+    list.slice(0, PAST_SHOWN).forEach(function (r) {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'past-item';
+      const n = document.createElement('b'); n.textContent = pastLabel(r.name); b.appendChild(n);
+      if (!r.ended) { const s = document.createElement('span'); s.className = 'soft'; s.textContent = '途中で止まった記録'; b.appendChild(s); }
+      b.addEventListener('click', function () { openPast(r.name, 'setupmsg'); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+    $('pastlist').hidden = !list.length;
+    $('pastmore').hidden = list.length <= PAST_SHOWN;
+    $('pastmore').textContent = 'ほか ' + (list.length - PAST_SHOWN) + ' 件は「設定と記録」の「前の記録」から開けます';
+  }
+  // このブラウザに残っている記録の一覧（始めた日時の新しい順。閉じていない記録には「（途中）」を添える）
+  function refreshPast() {
+    const ask = typeof REC.listRecords === 'function' ? REC.listRecords()
+      : REC.listNames().then(function (ns) { return ns.map(function (n) { return { name: n, ended: true }; }); });
+    ask.then(function (list) {
+      const sel = $('past');
+      const was = sel.value;
+      sel.innerHTML = '';
+      if (!list.length) { const o = document.createElement('option'); o.value = ''; o.textContent = '（まだ無い）'; sel.appendChild(o); }
+      list.forEach(function (r) { S.takenNames[r.name] = true; });
+      list.forEach(function (r) { const o = document.createElement('option'); o.value = r.name; o.textContent = r.name + (r.ended ? '' : '（途中）'); sel.appendChild(o); });
+      if (was && list.some(function (r) { return r.name === was; })) sel.value = was;
+      renderPastList(list);
+      setButtons();
+    }, function () { /* 読めなければ一覧は空のまま */ });
+  }
+  // 前の記録を開いて、振り返りで見る（書き足さない。続きに書くなら、記録の名前を打って「聞き取りを開始」）
+  $('past-open').addEventListener('click', function () { openPast($('past').value, 'recmsg'); });
+  // 前の記録を開いて振り返る（聞いていないときだけ）。知らせは box の欄に出す（表の一覧から開いたときは表の欄）
+  function openPast(name, box) {
+    if (!name || S.listening || S.starting || S.awaitCapture) return;
+    const rec = REC.makeRecord(name);
+    msg(box, '開いている…');
+    rec.load().then(function () {
+      if (!rec.log.length) { msg(box, '「' + name + '」は空でした', true); return; }
+      if (VA.versionOf(rec.log[0]) !== 2) { msg(box, '「' + name + '」は古い形か知らない版の記録なので、この画面では開けません', true); return; }
+      clearScreen();
+      S.record = rec; S.state = F.fold(rec.log); S.ended = !!S.state.ended;
+      S.viewOnly = true; S.stoppedBy = null; S.nowNote = ''; $('halt').hidden = true;
+      setView('replay');
+      msg(box, '「' + name + '」を開きました。上の「頭から」「再生」で、話が進んだ順に見られます');
+      setButtons();
+    }, function (e) { msg(box, '開けない：' + (e && e.message || e), true); });
+  }
+
+  // ---- 書き起こしを貼る ----
+  // 時刻の無い文も受ける（1 分 300 字として時刻を見積もる）。入口はファイルと同じ。区切りは PASTE_WIN 秒で、区切りを
+  // 書き終えるたびに次の区切りを流す（feedNext）。貼った全文は S.fileText に持ち、欄は空にする（先の発話を画面に残さない。R2b）
+  $('paste-open').addEventListener('click', function () {
+    const p = $('paste');
+    p.hidden = !p.hidden;
+    if (!p.hidden) { msg('paste-msg', ''); $('paste-text').focus(); }
+  });
+  $('paste-cancel').addEventListener('click', function () { $('paste').hidden = true; });
+  $('paste-go').addEventListener('click', function () {
+    if (S.listening || S.starting || S.awaitCapture) { msg('paste-msg', '聞き取りの途中は使えません。先に「停止」を押します', true); return; }
+    if (S.halted) { msg('paste-msg', HALT_TEXT + '。新しく始めるには、このページを読み込み直します', true); return; }
+    const raw = $('paste-text').value;
+    if (!raw.trim()) { msg('paste-msg', '貼った文が空です', true); return; }
+    const conv = INTAKE.timedFromPlain(raw);
+    const before = S.intakeKind;
+    const fileBefore = S.fileText;   // 読み込んであったファイル（無ければ undefined）。貼り付けが終わったら戻す
+    $('intake').value = 'file'; showIntake('file');
+    S.fileText = conv.text;
+    const plan = startPlan({ win: PASTE_WIN, suffix: '（貼り付け）' });
+    if (plan.error || plan.material) { S.fileText = fileBefore; $('intake').value = before; showIntake(before); refuse(plan); msg('paste-msg', plan.error || plan.material[0], true); return; }
+    S.intakeBeforePaste = before;
+    S.fileBeforePaste = fileBefore;
+    $('paste-text').value = '';
+    $('paste').hidden = true;
+    S.autoFeed = true;
+    S.pasteEstimated = !!conv.estimated;
+    startSession(plan);
+  });
+  // 貼った書き起こしの次の区切りを流す（分析役が前の区切りを書き終えてから）
+  function feedNext() {
+    if (!S.autoFeed || !S.listening || S.paused || S.eof || S.halted || !S.intake || S.intake.kind !== 'file') return;
+    if (S.cutter && S.cutter.isBusy()) return;
+    S.intake.playWindow();
+    setButtons();
+  }
+  // 貼り付けのために入口をファイルにしていたら、元に戻す（次の「聞き取りを開始」が元の入口で始まるように）
+  function restoreIntake() {
+    if (S.intakeBeforePaste == null) return;
+    const k = S.intakeBeforePaste;
+    S.intakeBeforePaste = null;
+    // 貼った文は、次の「聞き取りを開始」の素材にしない（ファイルの入口で、貼る前に読み込んであった素材に戻す）
+    S.fileText = S.fileBeforePaste; S.fileBeforePaste = undefined;
+    $('intake').value = k; showIntake(k);
+  }
+  // ---- 枠の保存庫（db）への写し ----
+  // 「枠の保存庫にも写す」の印が付いていれば、claude.use('db') を取り、record.js の makeDbSink をこの記録に結び付ける。
+  // 取れなければ（枠の外・能力が無い・断られた）写さない（印の隣にそう出す）。本体は IndexedDB のまま。
+  // 続きから: IndexedDB にこの名前の記録が無く、写しにあれば（別のタブ・別の端末で聞いた記録）、写しから本体へ流し込む。
+  // 流し込みは結び付ける前に行う（流し込んだ分を写しに二重に書かないため）。IndexedDB にあれば本体を正とし、写しは続きから書く
+  // （写しの側が短くても長くても、ここでは揃えない）。写しの失敗は status に残るだけで、本体の追記は止めない（record.js）
+  function prepareMirror(rec) {
+    S.sink = null;
+    renderDbState();
+    if (!$('db-mirror').checked) return Promise.resolve();
+    return REC.useCapability('db').then(function (db) {
+      if (!db) { msg('db-state', '枠の保存庫が無いので写さない（枠の外か、この画面に保存庫の能力が無い）', true); return; }
+      const sink = REC.makeDbSink(db, rec.name);
+      if (rec.log.length) { rec.attachMirror(sink); S.sink = sink; renderDbState(); return; }
+      return sink.loadAll().then(function (all) {
+        if (!all || !all.ok) { msg('db-state', '写しを読めなかった（' + (all && all.error || '理由不明') + '）。写さずに続ける', true); return; }
+        if (all.log.length) {
+          // 写しから本体へ（結び付ける前なので、写しには二重に書かない）
+          rec.appendLog(all.log);
+          all.src.forEach(function (l) { rec.appendSrc(l); });
+        }
+        rec.attachMirror(sink); S.sink = sink;
+        renderDbState(all.log.length ? '写しから復元した（判断ログ ' + all.log.length + ' 行・素材ログ ' + all.src.length + ' 行）。' : '');
+      });
+    }).catch(function (e) { msg('db-state', '写しを用意できなかった（' + (e && e.message || e) + '）。写さずに続ける', true); });
+  }
+  function renderDbState(head) {
+    const e = $('db-state');
+    if (!e) return;
+    if (!S.sink) { if (!head && !$('db-mirror').checked) e.textContent = ''; return; }
+    const st = S.sink.status;
+    if (st.error) { e.textContent = (head || '') + '写しは止まった：' + st.error + '（本体はこの画面の中に残っている）'; e.className = 'warn'; return; }
+    e.textContent = (head || '') + '写している（判断ログ ' + st.written.log + ' 行・素材ログ ' + st.written.src + ' 行' + (st.retried ? '。やり直し ' + st.retried + ' 回' : '') + (st.dropped ? '。落とした ' + st.dropped + ' 件' : '') + '）';
+    e.className = 'soft';
+  }
+
+  // 記録を開き終えた（「聞き取りを開始」の続き）。押した時に確かめたことのうち、音声の行き先はここでもう一度確かめる
   // （押してから開き終えるまでに入口や印が変わっていても、承知していない音声を外へ送らない。記録はまだ何も書かない）
   function opened(rec) {
     const name = rec.name;
@@ -705,7 +1367,7 @@
       }
       rec.appendLog(r.batch);
       S.state = F.foldInc(S.state, r.batch);
-      msg('setupmsg', '新しい記録を始めた');
+      msg('setupmsg', '');   // 始めたことは上の札（聞き取り中）が言う。ここに重ねて出さない
     }
     beginListening();
   }
@@ -726,14 +1388,14 @@
     const o = st.open || {};
     if (!Number.isInteger(o.window)) return 'この記録の窓幅（' + o.window + '）が整数でない（前の版で作った記録）。別の名前にする';
     const fileRec = o.mode === 'file';
-    if (fileRec && S.intakeKind !== 'file') return 'ファイルから聞いた記録なので、入口を「ファイル」にして、前と同じ素材を読み込んでから聞き始める';
+    if (fileRec && S.intakeKind !== 'file') return 'ファイルから聞いた記録なので、入口を「ファイル」にして、前と同じ素材を読み込んでから始める';
     if (!fileRec && S.intakeKind === 'file') return 'ライブで聞いた記録なので、ファイルの入口では続きを聞けない。入口を「打つ／貼る」か「ブラウザ音声認識」にする';
     if (!fileRec) return '';
     // ファイル: 素材ログにある発話の数だけ素材の頭を読み、読んだ発話がどれも素材ログの発話と一致することを確かめる
     const utts = rec.src.filter(function (l) { return l && l.i != null; });
     const n = utts.length;
     if (!n) { S.resume = { n: 0 }; return ''; }
-    if (typeof S.fileText !== 'string') return '前と同じ素材ファイルを読み込んでから聞き始める（素材ログにある ' + n + ' 発話を、素材の頭から読み飛ばして続ける）';
+    if (typeof S.fileText !== 'string') return '前と同じ素材ファイルを読み込んでから始める（素材ログにある ' + n + ' 発話を、素材の頭から読み飛ばして続ける）';
     // 読み飛ばす発話は、最後の 1 件に限らず全部を素材ログと照らす（違うファイルで続きを書かないため）
     const rd = INTAKE.makeMaterialReader(S.fileText);
     let u = null;
@@ -757,6 +1419,8 @@
   // ライブの入口（打つ／貼る・音声認識）を作る
   function makeLiveIntake(rec, kind) {
     if (kind === 'text') return INTAKE.makeTextIntake($('ta'), emit, clock);
+    // 橋: 届いた発話は打つ入口と同じ emit.line に入る（素材ログの形も src の名前も同じ）。札は emit.status（入口の札）に出る
+    if (kind === 'bridge') return INTAKE.makeBridgeIntake(emit, clock);
     // 時計もこの記録の聞き始めから数える（聞き終えた後に別の記録を開いても、遅れた結果の時刻をこの記録の秒で書く）
     const t0ms = S.t0ms;
     const holder = {};
@@ -770,12 +1434,12 @@
     return t;
   }
 
-  // 音声認識が止まった後（S.stalled）に「聞き始める」を押した: 同じ記録・同じ時計・同じ刻みのまま、いま選んでいる入口で
+  // 音声認識が止まった後（S.stalled）に「聞き取りを開始」を押した: 同じ記録・同じ時計・同じ刻みのまま、いま選んでいる入口で
   // 聞き直す（記録は開き直さない。分析役に渡している窓もそのまま）。ライブの記録なので、ファイルの入口には切り替えない。
   // 音声なら、聞き始めるときと同じに音声の行き先を確かめる
   function restartIntake() {
     const kind = S.intakeKind;
-    if (kind !== 'text' && kind !== 'speech') { msg('setupmsg', 'この記録はライブで聞いているので、ファイルの入口には切り替えられない。入口を「打つ／貼る」か「ブラウザ音声認識」にする', true); return; }
+    if (!LIVE_KINDS[kind]) { msg('setupmsg', 'この記録はライブで聞いているので、ファイルの入口には切り替えられない。入口を「打つ／貼る」か「ブラウザ音声認識」か「橋」にする', true); return; }
     if (kind === 'speech') {
       const no = speechGate();
       if (no) { msg('setupmsg', no, true); return; }
@@ -796,7 +1460,7 @@
   function beginListening() {
     const rec = S.record;
     // 音声の入口なら、認識を作る直前にもう一度確かめる（押した時と記録を開き終えた時にも確かめている。ここは最後の守り）。
-    // 断ったら聞き始めない。記録は開いたまま（記録の先頭を書いた後なら、整えて「聞き始める」を押すと続きから書く）
+    // 断ったら聞き始めない。記録は開いたまま（記録の先頭を書いた後なら、整えて「聞き取りを開始」を押すと続きから書く）
     if (S.intakeKind === 'speech') {
       const no = speechGate();
       if (no) {
@@ -821,13 +1485,14 @@
     let lastT = null;
     mono.forEach(function (l) { if (l && l.i != null) { lastT = l.t; if (l.i > seen) S.cutter.push(l); } });
 
-    if (S.intakeKind === 'text' || S.intakeKind === 'speech') S.intake = makeLiveIntake(rec, S.intakeKind);
+    if (LIVE_KINDS[S.intakeKind]) S.intake = makeLiveIntake(rec, S.intakeKind);
     // 打つ／音声認識の入口は、続きなら素材ログの最後の発話の時刻を下限にする（時刻が前に戻らない）
     if (S.intakeKind !== 'file' && S.intake && typeof S.intake.setFloor === 'function' && lastT != null) S.intake.setFloor(lastT);
     // 読み飛ばし（続きから聞くとき）: left は残りの数、ids は読み飛ばす発話の番号、curI はいま読み飛ばした発話の番号
     const skip = { left: 0, E: null, last: null, eof: false, bad: '', ids: [], k: 0, curI: 0 };
     S.notice = newNotice();
     S.lateStopped = 0;
+    S.heardCount = 0; S.heardSince = Date.now(); S.lastHeard = '';
     if (S.intakeKind === 'file') {
       // 前に素材ログへ残した読めない行の知らせ（続きから聞くとき、同じ行を二度残さない）
       const logged = Object.create(null);
@@ -880,6 +1545,7 @@
     // 貼った全文は S.fileText に持つ。聞き始めたら欄を空にして、先の発話を画面（DOM）に残さない（R2b）
     $('file-paste').value = '';
     S.listening = true; S.paused = false; S.ended = false; S.eof = false; S.stalled = false; S.unwritten = 0; S.lastAt = S.state.step && S.state.step.at ? Date.parse(S.state.step.at) : null;
+    S.stoppedBy = null; $('halt').hidden = true;
     S.lastAt = isFinite(S.lastAt) ? S.lastAt : null;
     if (!S.intake.start()) { S.listening = false; S.intake = null; setButtons(); return; }
     // 続きから: 素材の頭から、素材ログにある発話の数だけ読み飛ばす（記録にも窓にも入れない）
@@ -897,7 +1563,8 @@
         setButtons(); refresh(false); renderStatus();
         return;
       }
-      msg('intakemsg', '前に聞いた ' + want + ' 発話を読み飛ばした。「次の窓を流す」で続きから');
+      msg('intakemsg', '前に聞いた ' + want + ' 発話を読み飛ばした。' + (S.autoFeed ? '続きから流す' : '「次の区切りを流す」で続きから'));
+      seenNote('前に聞いた ' + want + ' 発話を読み飛ばして、続きから流します');
       if (skip.eof) { S.eof = true; tryFinish(); }
     }
     S.resume = null;
@@ -906,6 +1573,10 @@
     refresh(false);
     renderStatus();
     renderNotices();
+    askSampleOnce();
+    // 記録を開いている間に、拡張が音を取るのをやめていた（共有を止めた）なら、ここで終える
+    bridgeWatch();
+    if (S.autoFeed) feedNext();
   }
 
   $('pause').addEventListener('click', function () {
@@ -926,6 +1597,7 @@
     if (S.intake.kind === 'file') S.intake.stopPlay();
     // 打つ欄は中断の間も打てる。打った行は捨てず、再開した後の最初の窓に入ることを札で示す
     if (S.intake.kind === 'text') msg('intakemsg', PAUSED_TEXT);
+    if (S.intake.kind === 'bridge') { msg('intakemsg', '中断中。橋から届いた行は捨てない（届いた時刻で溜め、再開した後の最初の窓に入る）'); seenNote('一時停止中です。拡張から届いた言葉は捨てずに取っておき、再開した後の最初の区切りに入れます'); }
     setButtons();
     renderStatus();
   });
@@ -934,12 +1606,25 @@
     S.paused = false;
     if (S.intake.kind === 'speech') S.intake.start();
     if (S.intake.kind === 'text') msg('intakemsg', '打つ／貼る（Enter か 2 秒で確定）' + (S.cutter && S.cutter.pendingCount() ? '。中断の間に打った行は、次の窓に入る' : ''));
+    if (S.intake.kind === 'bridge') { msg('intakemsg', '橋から受けている' + (S.cutter && S.cutter.pendingCount() ? '（中断の間に届いた行は、次の窓に入る）' : '')); seenNote(S.cutter && S.cutter.pendingCount() ? '再開しました。一時停止の間に届いた言葉は、次の区切りに入れます' : ''); }
     setButtons();
     renderStatus();
+    feedNext();
   });
   $('end').addEventListener('click', function () {
     if (!S.listening || S.finishing) return;
     S.intake.flush();
+    // 拡張から聞いている: 拡張に止めてもらい、止まったと言うのを待つ（拡張は残りの発話を送ってから止まったと言う）。
+    // 上限 BRIDGE_END_WAIT_MS で待ち切ったら、届いた分で終える（bridgeWatch → finishBridge）
+    if (S.intake.kind === 'bridge' && S.bridgeSession && S.link) {
+      S.finishing = true; S.bridgeEnding = true;
+      setButtons();
+      if (!S.linkState.capturing) { finishBridge(); return; }
+      S.releaseSent = true; S.link.release();
+      clearTimeout(S.bridgeEndTimer);
+      S.bridgeEndTimer = setTimeout(finishBridge, BRIDGE_END_WAIT_MS);
+      return;
+    }
     // 音声認識（K19・K29）: 止めた後にも確定の結果が届くことがある。止めたのに終わりの知らせがまだ来ていない認識を、
     // いまの認識も中断の前の古い認識もすべて待ってから（上限は合わせて 3 秒）最後の窓へ進む。待つ間に届いた確定の結果は、
     // いつもどおり素材ログと溜まりに入り、最後の窓に入る（中断の道と同じ）。上限を過ぎたら、入口がそのことを知らせの欄に
@@ -947,7 +1632,7 @@
     if (S.intake.kind === 'speech' && typeof S.intake.stopWait === 'function') {
       S.finishing = true;
       setButtons();
-      msg('intakemsg', '聞き終える：音声認識の終わりの知らせを待っている（' + Math.round((INTAKE.STOP_WAIT_MS || 3000) / 1000) + ' 秒まで）');
+      msg('intakemsg', '止めている：音声認識の終わりの知らせを待っている（' + Math.round((INTAKE.STOP_WAIT_MS || 3000) / 1000) + ' 秒まで）');
       S.intake.stopWait(function () {
         S.finishing = false;
         if (S.halted || !S.listening) { setButtons(); return; }
@@ -1001,7 +1686,11 @@
     commit(r.batch);
     clearTimeout(S.finishTimer);
     S.ended = true; S.listening = false; S.stalled = false;
-    msg('setupmsg', '聞き終えた。「書き出す」で記録を落とせる');
+    if (S.sink) S.sink.flush().then(renderDbState, renderDbState);
+    msg('setupmsg', '停止しました。記録はこのブラウザに残っています（「設定と記録」の「書き出す」でファイルに落とせます）');
+    S.autoFeed = false;
+    restoreIntake();
+    refreshPast();
     setButtons();
     renderStatus();
   }
@@ -1052,7 +1741,8 @@
       raw.forEach(function (r) { const d = document.createElement('div'); d.textContent = String(r); det.appendChild(d); });
       box.appendChild(det);
     }
-    $('analystbox').hidden = false;
+    // 手動の輪・人が書くは、いつも出す（そこで操作する）。ほかの分析役は、うまくいかなかったときだけ表に出す
+    $('analystbox').hidden = !(bad || S.route === 'manual' || S.route === 'human');
   }
 
   // 前の返事で何が起きたかと、違反の文を分析役に返したことを知らせる一行（違反の文そのものは畳んだ欄に）
@@ -1075,6 +1765,18 @@
       Promise.resolve().then(function () { return a(pack, PREFIX, apiCfg()); })
         .then(function (reply) { handleReply(reply); }, function (e) {
           handleFailure(['呼び出しに失敗：' + (e && e.message || e)], (e && e.screen) || '分析役の呼び出しに失敗した');
+        });
+    } else if (S.route === 'claude') {
+      const mk = fn('makeAnalyst');
+      if (!mk) { anMsg([head, 'この画面の Claude に問う分析役の' + MISSING + '。手動の輪に切り替える'], true); fallbackManual(pack, head); return; }
+      if (!S.claudeAnalyst) S.claudeAnalyst = mk({ kind: 'claude', tier: 'default' });
+      anMsg(withPrev([head, 'この画面の Claude に問うている…' + (c.attempt === 1 && S.state.n === 0 ? '（最初の問いでは、画面を開いている人に許すかどうかの確認が出る）' : '')]), false, c.violations, RAW_TO_ANALYST);
+      const my = S.claudeAnalyst;
+      Promise.resolve().then(function () { return my.analyze(pack, PREFIX); })
+        .then(function (reply) { if (S.claudeAnalyst === my) handleReply(reply); }, function (e) {
+          if (S.claudeAnalyst !== my || !S.cur || S.cur !== c) return;   // 止めた後・次の記録に移った後の遅れた失敗
+          if (e && e.fatal) { stopByAnalyst(e); return; }
+          handleFailure(['呼び出しに失敗：' + (e && e.message || e)], (e && e.screen) || '分析役の呼び出しに失敗した', e && e.code === 'rate_limited' ? RATE_LIMIT_WAIT_MS : 0);
         });
     } else if (S.route === 'manual') {
       fallbackManual(pack, head);
@@ -1241,18 +1943,45 @@
     } else handleFailure(r.errors, '返事が記録の決まりに合わなかった（違反 ' + r.errors.length + ' 件）');
   }
 
-  // errors: 分析役に返す機械向けの文（次の呼び出しの違反文になる）。screen: 画面に出す日本語の一行
-  function handleFailure(errors, screen) {
+  // errors: 分析役に返す機械向けの文（次の呼び出しの違反文になる）。screen: 画面に出す日本語の一行。
+  // waitMs: 出し直す前に置く間（この画面の Claude が混んでいるとき。待つ間に止まったら出し直さない）
+  function handleFailure(errors, screen, waitMs) {
     const c = S.cur;
     c.violations = errors.slice();
     c.lastScreen = screen || CHECK_STOP;
     c.attempt++;
     if (c.attempt <= 3) {
+      if (waitMs > 0) {
+        anMsg([(screen || CHECK_STOP) + '（' + (c.attempt - 1) + ' 回目）', Math.round(waitMs / 1000) + ' 秒おいてから、同じ窓で出し直す'], true, errors, RAW_TO_ANALYST);
+        setTimeout(function () { if (S.cur === c && S.listening && !S.halted) ask(); }, waitMs);
+        return;
+      }
       anMsg([(screen || CHECK_STOP) + '（' + (c.attempt - 1) + ' 回目）', '同じ窓で出し直す'], true, errors, RAW_TO_ANALYST);
       ask();
       return;
     }
     writeGap();
+  }
+
+  // この画面の Claude に問えないと分かった（e.fatal: 閲覧者が許していない・口が無い・能力が止められている）。同じ窓を出し直しても
+  // 同じに落ちるので、3 回の再試行をせずに聞き取りを止めて知らせる。記録は閉じない（end は書かない）。いまの窓の発話は素材ログに
+  // あるので、分析役を変えて「聞き取りを開始」を押すと、同じ名前の記録の続きから（この窓の発話を含めて）聞ける。
+  // 記録に書けない halt と違い、ページを読み込み直さなくてよい
+  function stopByAnalyst(e) {
+    const why = (e && e.screen) || '分析役に問えない';
+    S.stoppedBy = why;
+    S.listening = false; S.paused = false; S.finishing = false; S.stalled = false; S.cur = null;
+    clearTimeout(S.finishTimer);
+    try { if (S.intake) S.intake.stop(); } catch (x) { /* 止め損ねても、聞いている印は下で消す */ }
+    const h = $('halt'); h.textContent = '止まった（' + why + '）'; h.hidden = false;
+    anMsg(['聞き取りを止めた：' + why, 'もう一度問うても同じ答えになるので、同じ区切りは出し直さない。整理する AI を変えて（または許してから）「聞き取りを開始」を押すと、同じ記録の続き（この区切りの発話を含む）を聞ける'], true, [String(e && e.message || e)], RAW_TO_ANALYST);
+    msg('setupmsg', '聞き取りを止めた：' + why + '。直してから「聞き取りを開始」を押すと、同じ記録の続きを聞ける', true);
+    S.autoFeed = false;
+    if (S.bridgeSession) dropBridge();
+    msg('intakemsg', '止めた（分析役に問えない）', true);
+    setButtons();
+    renderStatus();
+    refresh(false);
   }
 
   // 3 回落ちた窓: 嘘のカードを作らず、空振りを記録に残して進める
@@ -1286,6 +2015,8 @@
     clearTimeout(S.finishTimer);
     try { if (S.intake) S.intake.stop(); } catch (e) { /* 止め損ねても、聞いている印は下で消す */ }
     const h = $('halt'); h.textContent = HALT_TEXT; h.hidden = false;
+    S.autoFeed = false;
+    if (S.bridgeSession) dropBridge();
     anMsg([CHECK_STOP, '続けて ' + UNWRITTEN_LIMIT + ' 窓を記録に書けなかったので、聞き取りを止めた。「書き出す」で記録を落とし、原因を調べる。続きはこのページを読み込み直してから'], true, errors || [], RAW_CHECK);
     msg('setupmsg', HALT_TEXT, true);
     msg('intakemsg', '止めた（記録に書けない）', true);
@@ -1317,6 +2048,8 @@
     } else S.cutter.ready(clock());
     if (S.eof && !S.cutter.isBusy()) tryFinish();
     setButtons();
+    // 貼った書き起こし: 前の区切りを書き終えたので、次の区切りを流す（同じ呼び出しの中で次を問わない）
+    if (S.autoFeed) setTimeout(feedNext, 0);
   }
 
   // ---- ファイル入口の操作 ----
@@ -1341,7 +2074,7 @@
   }
   function materialHint(text) {
     const no = noUtterance(text);
-    return no ? 'ただし発話が 1 つも無いので、聞き始められない（' + no[0] + '）' : '「聞き始める」で始める';
+    return no ? 'ただし発話が 1 つも無いので、始められない（' + no[0] + '）' : '「聞き取りを開始」で始める';
   }
   $('file-next').addEventListener('click', function () { if (S.intake && S.intake.kind === 'file') { S.intake.playWindow(); setButtons(); } });
   $('file-play').addEventListener('click', function () { if (S.intake && S.intake.kind === 'file') { S.intake.startPlay(); setButtons(); } });
@@ -1351,10 +2084,39 @@
   $('export').addEventListener('click', function () {
     if (!S.record) { msg('recmsg', 'まだ記録が無い', true); return; }
     const rec = S.record;
+    if (FRAME) { exportInFrame(rec); return; }
+    exportPlain(rec);
+  });
+  // 枠の外の書き出し: 保存の画面（showSaveFilePicker）か a[download]。ファイルごとに実際にどうなったかを言う
+  function exportPlain(rec) {
     rec.exportLog().then(function (a) { return rec.exportSrc().then(function (b) { return [a, b]; }); }).then(function (how) {
       msg('recmsg', exportText(rec.name, how), how.some(function (h) { return h === 'cancelled' || h === 'fallback'; }));
     });
-  });
+  }
+  // 枠の中の書き出し: 保存の画面も a[download] も枠では効かないので、枠の保存（claude.use('downloads')）で閲覧者に保存を促す。
+  // 取れなければ: iframe の中なら保存できないと言う（落としたと言わない）。iframe でなければ（仕組みが自分のページとして出す版。
+  // window.claude はあるが能力は全部 null）ふつうの書き出しが効くので、そちらに落とす——でないと記録を 1 つも持ち出せない。
+  // .jsonl は枠で保存できる拡張子に無いので、.txt を足した名前で出る
+  function exportInFrame(rec) {
+    const names = [rec.name + '.jsonl', rec.name + '.src.jsonl'];
+    const texts = [rec.log, rec.src].map(function (evs) { return evs.map(function (e) { return JSON.stringify(e); }).join('\n') + '\n'; });
+    msg('recmsg', '保存を促している…');
+    REC.useCapability('downloads').then(function (dl) {
+      if (!dl) {
+        if (!inIframe()) { exportPlain(rec); return; }
+        msg('recmsg', 'この枠では保存できない（保存の能力が無い）。記録はこの画面の中にある', true); return;
+      }
+      const x = REC.makeDownloadsExport(dl);
+      const outs = [];
+      return x.save(names[0], texts[0]).then(function (ok) { outs.push({ ok: ok, name: ok ? x.status.lastSaved : names[0], why: ok ? '' : x.status.reason }); })
+        .then(function () { return x.save(names[1], texts[1]); }).then(function (ok) { outs.push({ ok: ok, name: ok ? x.status.lastSaved : names[1], why: ok ? '' : x.status.reason }); })
+        .then(function () {
+          const parts = outs.map(function (o) { return o.name + (o.ok ? ' を保存した' : ' は保存しなかった（' + o.why + '）'); });
+          const bad = outs.some(function (o) { return !o.ok; });
+          msg('recmsg', parts.join('。') + (bad ? '。保存しなかった記録はこの画面の中にだけある' : '。同僚に渡すなら素材ログは渡さず、話者を役割名に置き換える'), bad);
+        });
+    });
+  }
   // 書き出した結果の一言。how[0] が判断ログ、how[1] が素材ログで、どちらも record.js の exportVia の値
   // （'picker'・'cancelled'・'download'・'fallback'）。ファイルごとに、実際にどうなったかを言う（1 つ目の結果だけで決めない）
   function exportText(name, how) {
@@ -1387,8 +2149,17 @@
   $('clear').addEventListener('click', function () {
     const name = S.record ? S.record.name : $('name').value.trim();
     if (!name) { msg('recmsg', '消す記録の名前が無い', true); return; }
-    if (S.listening) { msg('recmsg', '聞いている間は消せない。先に「聞き終える」', true); return; }
-    if (!window.confirm('「' + name + '」の記録（判断ログと素材ログ）をこのブラウザから消す。書き出していなければ戻らない。消すか')) return;
+    if (S.listening) { msg('recmsg', '聞いている間は消せない。先に「停止」', true); return; }
+    // 画面の外の確認（window.confirm）は使わない（枠の中では出ない）。「本当に消す」を押すまで消さない
+    msg('recmsg', '「' + name + '」の記録（判断ログと素材ログ）をこのブラウザから消す。書き出していなければ戻らない。消すなら「本当に消す」', true);
+    $('clearconfirm').hidden = false;
+  });
+  $('clear-no').addEventListener('click', function () { $('clearconfirm').hidden = true; msg('recmsg', '消さなかった'); });
+  $('clear-yes').addEventListener('click', function () {
+    $('clearconfirm').hidden = true;
+    const name = S.record ? S.record.name : $('name').value.trim();
+    if (!name) { msg('recmsg', '消す記録の名前が無い', true); return; }
+    if (S.listening) { msg('recmsg', '聞いている間は消せない。先に「停止」', true); return; }
     const rec = S.record || REC.makeRecord(name);
     rec.clear().then(function () {
       S.record = null; S.state = F.initState(); S.cur = null; S.cutter = null; S.lastAt = null; S.ended = false; S.eof = false;
@@ -1484,6 +2255,53 @@
   requestAnimationFrame(tick);
 
   // ---- 起動 ----
+  if (FRAME) {
+    // 枠の中: 分析役の既定は「この画面の Claude」、音声の入口は選べない（枠ではマイクも画面共有も断られる）、
+    // 写しの印を見せる、ファイルに直接結び付けるボタン（保存の画面が要る）は出さない
+    $('route').value = 'claude';
+    const sp = $('intake').querySelector('option[value="speech"]');
+    if (sp) { sp.disabled = true; sp.textContent = 'ブラウザ音声認識（この枠では使えない）'; }
+    // 音の入り方の既定は拡張「橋」（会議の音を聞く本線）。拡張とのつなぎを始める（居るか・この PC の中で文字にできるかを知る）。
+    // ただし枠（iframe）の中だけ: 拡張は claude.ai のページの中の枠にしか届かないので、仕組みが自分のページとして出す版
+    // （iframe でない）では「橋」を選べなくし、既定は「打つ／貼る」にする（拡張を入れる手順を出しても、入れた後につながらない）
+    if (inIframe()) {
+      $('intake').value = 'bridge';
+      if (INTAKE && typeof INTAKE.makeBridgeLink === 'function') { S.link = INTAKE.makeBridgeLink({ onChange: onLink, onProbe: onProbe }); S.link.start(); }
+    } else {
+      const br = $('intake').querySelector('option[value="bridge"]');
+      if (br) { br.disabled = true; br.textContent = '拡張「橋」（claude.ai の中で開いたときだけ）'; }
+      $('intake').value = 'text';
+    }
+    // 枠の中では fetch が外へ出ないので、API の経路は選べない（選べると、窓ごとに 3 回落ちて空振りを積むだけ）
+    ['anthropic', 'openai'].forEach(function (v) {
+      const o = $('route').querySelector('option[value="' + v + '"]');
+      if (o) { o.disabled = true; o.textContent = o.textContent + '（この枠では使えない）'; }
+    });
+    $('db-row').hidden = false;
+    $('bindlog').hidden = true; $('bindsrc').hidden = true;
+    msg('speechmsg', 'この枠（アーティファクト）の中では、マイクも画面共有も断られるので使えない。外で文字にして「橋」か「打つ／貼る」で入れる', true);
+    // 問う能力は起動後に決まる（契約: 能力は後から promise で届く。仕組みが自分のページとして出す版では全部 null）。
+    // 無いと分かったら、分析役の欄にそう出し、「聞き取りを開始」は断る（分析役を他のものにする）。古い形（complete だけ）には use が無いので見ない
+    const c0 = globalThis.claude;
+    if (c0 && typeof c0.use === 'function') {
+      REC.useCapability('sample').then(function (s) { if (typeof s !== 'function') { S.sampleAbsent = true; showRoute(S.route); } });
+    }
+  }
+  // 橋の hello には、聞いていないときもページが答える（送り手が、ページが居るかを知るため）。聞いている間は橋の入口が答える
+  window.addEventListener('message', function (ev) {
+    let m = null;
+    try { m = INTAKE.bridgeMessage(ev && ev.data); } catch (e) { m = null; }
+    // 拡張に画面共有を頼んで待っている間の誤り（選ぶ画面で取り消した・音が共有されていない など）。記録はまだ開いていない
+    if (m && m.kind === 'status' && m.state === 'error' && S.awaitCapture) { captureFailed(m.text); return; }
+    if (!m || m.kind !== 'hello') return;
+    if (S.listening && S.intake && S.intake.kind === 'bridge' && S.intake.status().state === 'listening') return;
+    const to = ev.source && typeof ev.source.postMessage === 'function' ? ev.source : window;
+    try { to.postMessage({ source: INTAKE.BRIDGE_REPLY_SOURCE, v: INTAKE.BRIDGE_VERSION, kind: 'hello', listening: false, received: 0 }, '*'); } catch (e) { /* 返せなくても困らない */ }
+  });
+  // 表の一言。枠の中では何も選ばずに始められる。ファイルとして開いたときは、初めに整理する AI と音の入り方を選ぶ
+  $('hero-lead').textContent = FRAME
+    ? 'PC で流れている会議の音を聞き取り、話の構造を時刻の順に組み上げます。名前も設定も要りません（記録は始めた日時の名前で残ります）。'
+    : '会議の発言を受け取り、話の構造を時刻の順に組み上げます。初めてのときは「設定と記録」で、整理する AI と音の入り方を選びます。';
   showIntake($('intake').value);
   showRoute($('route').value);
   setButtons();
@@ -1494,5 +2312,5 @@
   try { cleared = sessionStorage.getItem(CLEARED_KEY) || ''; sessionStorage.removeItem(CLEARED_KEY); } catch (e) { cleared = ''; }
   const clearedText = cleared ? '「' + cleared + '」の記録を消した。' : '';
   if (clearedText) msg('recmsg', clearedText);
-  REC.listNames().then(function (names) { if (names.length) msg('recmsg', clearedText + 'このブラウザに残っている記録：' + names.join('、')); });
+  refreshPast();
 })();

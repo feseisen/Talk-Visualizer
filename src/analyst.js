@@ -15,6 +15,8 @@
  *   中身の正しさ（時刻・id・上限）は verify.js（rt.py）が落とす。
  *   誤りの文は 2 つ持つ: 分析役に返す機械向けの文（parseReply の error、投げた Error の message。項目名をそのまま使う）と、
  *   画面に出す日本語の文（parseReply の msg、投げた Error の screen。英字の項目名を出さない）。
+ *   投げた Error に fatal:true が付いていれば、もう一度呼んでも同じに落ちる誤り（この画面に口が無い・閲覧者が許していない）。
+ *   app 側は 3 回の再試行をせずに止めてよい。付いていなければ再試行できる。
  *
  * 返事 → 追記（記録の形）:
  *   const batch = toBatch(reply, window);     // window = {n, lines:[i,j], t:[a,b]}（道具が決めた窓。n は書くステップ番号）
@@ -27,19 +29,37 @@
  *   'anthropic'  L1。fetch で https://api.anthropic.com/v1/messages を直に叩く
  *   'openai'     L1。OpenAI 互換の <base>/chat/completions を直に叩く（Azure 等）
  *   'manual'     L3。プロンプトを1つの文字列にして人に渡し、貼られた返事を読む（cfg.ask を通す）
+ *   'claude'     この画面を開いている Claude に問う（claude.ai のアーティファクトの枠の中だけ。鍵は要らず、閲覧者の使用量を使う）。
+ *                口は 2 つあり、最初の analyze で 1 回だけ決めて覚える:
+ *                  (1) claude.use が関数 → sample = await claude.use('sample')。null なら、この画面では問えない（fatal）
+ *                  (2) use が無く claude.complete が関数 → 古い形（チャットで作るアーティファクト）。complete(prompt) → 文字列
+ *                  (3) どちらも無い → この画面には口が無い（枠の外で開いている。fatal）
+ *                問いは makePrompt（手動の輪と同じ 1 本の文字列）。返事は parseReply で読む（囲みは 1 回だけ外す）。
+ *                返事の形・誤りの種類は、束ねた型定義（artifact-capabilities の sample.d.ts）に合わせてある:
+ *                  sample(prompt, {modelTier, cache:false, signal}) → {text, truncated, modelTierApplied}
+ *                  失敗は {code, message, text?} の素のオブジェクトで来る（Error ではない）。code で分ける（message では分けない）
+ *                sample は閲覧者の同意を最初の呼び出しで求める（呼び出しは閲覧者が決めるまで待つ。こちらから時間切れにしない）
  *   'mock'       試験用。tests/fixtures/meeting10.jsonl のバッチを step 番号順に返す
  *
  * cfg の欄:
- *   kind       上の4つのどれか
+ *   kind       上の5つのどれか
+ *   claude     claude: 口のあるオブジェクト（試験では偽物を渡す）。省略すると globalThis.claude
+ *   tier       claude: 'quick' | 'default' | 'complex'（既定 'default'。知らない値も 'default'）
  *   key        API の鍵（anthropic / openai）。設定の書き出しには含めない
  *   model      モデル名（anthropic の既定 'claude-opus-5-5'。openai は必須）
  *   base       openai: 'https://api.openai.com/v1' のような土台の URL（末尾の / は無くてよい）
  *   effort     anthropic: output_config.effort（'low'|'medium'|'high'|'xhigh'|'max'）。省略したとき、モデルが既定
  *              （DEFAULT_MODEL）なら 'medium' を送り、ほかのモデルなら送らない（effort を受けないモデルがあるため）
+ *              claude: 'low'|'medium'|'high' のときだけ sample に渡す（それ以外の値は渡さない。sample は 3 つしか受けない）
  *   think      anthropic: 'summarized' を指定したときだけ thinking:{type:'adaptive',display:'summarized'} を送る。
  *              既定は送らない（Opus 5.5 は思考を切れないので、思考の量は effort で決まる）
  *   maxTokens  返事の上限（既定 16000。思考も含めた上限なので、返事の JSON だけの長さより大きく取る）
- *   timeoutMs  1回の呼び出しの打ち切り（既定 120000）
+ *   timeoutMs  1回の呼び出しの打ち切り（anthropic / openai の既定 120000）。
+ *              claude の sample には、指定したときだけ効く（signal を切る）。既定は置かない——型定義が「時間切れを自分で作るな。
+ *              仕組みの側が長すぎる呼び出しを終える。ページ側の時計は、閲覧者が同意の画面を読む時間も数えてしまう」と言い、
+ *              既定の段では長い指示文で書き始めるまでに 2 分近くかかることがある（1 回の問いは約 5 分で仕組みが打ち切る）。
+ *              120 秒で切ると、考えている最中に切って同じ窓を 3 回払い直したうえ空振りになる。
+ *              古い形の complete には signal が無いので、指定が無ければ 120000 で待つのをやめる（永久に待たないため）
  *   schema     format/schema.json の中身（構造化出力に渡す。file:// では fetch できないので組み立て時に埋め込む）
  *   ask        manual: (promptText) => Promise<string>。人にプロンプトを見せ、貼られた返事の文字列を返す
  *   script     mock: 判断ログのイベントの配列（meeting10.jsonl を読んだもの）
@@ -443,6 +463,120 @@
     return { step: p.step, events: p.events, note: p.note, raw: String(text), usage: null, think: null };
   }
 
+  // ---- この画面を開いている Claude（アーティファクトの枠の中） ----
+
+  const CLAUDE_WHO = 'この画面の Claude';
+  const TIERS = ['quick', 'default', 'complex'];
+  const SAMPLE_EFFORTS = ['low', 'medium', 'high'];
+  // もう一度呼んでも同じに落ちる誤りの種類（sample.d.ts「Hide the feature for this view — permanent」の群）。
+  // 依頼では not_granted だけを致命としていたが、型定義が同じ群に置く 4 つも同じ扱いにする（3 回呼び直しても同じ答えしか来ない）
+  const FATAL_CODES = {
+    not_granted: ['閲覧者がこの画面に Claude を使うことを許していません（not_granted）', '画面を開いている人が、この画面から問うことを許していない'],
+    sampling_disabled: ['この利用者（または組織）では Claude に問えません（sampling_disabled）', 'この利用者の設定では、この画面から問えない'],
+    not_declared: ['この画面は Claude に問う能力を宣言していません（not_declared）', 'この画面は問う能力を持っていない（作り直しが要る）'],
+    capability_disabled: ['この画面では Claude に問う能力が止められています（capability_disabled）', 'この画面では問う能力が止められている'],
+    capability_removed: ['この閲覧の仕組みには Claude に問う口がありません（capability_removed）', 'この閲覧の仕組みには問う口が無い（古い閲覧の仕組み）']
+  };
+
+  function fatalError(message, screen) { const e = screened(new Error(message), screen); e.fatal = true; return e; }
+
+  // 口を決める（1 回だけ呼ぶ）。→ {sample} か {complete}。無ければ fatal の Error を投げる
+  async function claudeMouth(cfg) {
+    const c = (cfg && cfg.claude) || globalThis.claude;
+    if (c && typeof c.use === 'function') {
+      let s = null, why = '';
+      // use は null を返す約束（例外を投げない）だが、投げても同じ「無い」として扱う
+      try { s = await c.use('sample'); } catch (e) { s = null; why = ': ' + String(e && e.message || e); }
+      if (typeof s !== 'function') throw fatalError('この画面では Claude に問えない（sample の能力が無い）' + why, 'この画面では、画面を開いている相手に問えない（問う能力が与えられていない）');
+      return { sample: s };
+    }
+    if (c && typeof c.complete === 'function') return { complete: function (p) { return c.complete(p); } };
+    throw fatalError('この画面には Claude の口が無い（アーティファクトの枠の外）', 'この画面には、画面を開いている相手への口が無い（枠の外で開いている）');
+  }
+
+  // sample が投げる {code, message, text?}（素のオブジェクト。Error のこともある）を、この口の Error に直す。
+  // timedOut は、こちらの打ち切りで signal を切った後に来た cancelled を時間切れとして読むため
+  function claudeError(e, timedOut) {
+    const code = e && typeof e.code === 'string' ? e.code : null;
+    const detail = e && typeof e.message === 'string' && e.message ? ': ' + e.message : '';
+    let err;
+    if (!code) err = screened(new Error(CLAUDE_WHO + ' の呼び出しに失敗しました' + detail), '分析役の呼び出しに失敗した');
+    else if (FATAL_CODES[code]) err = fatalError(FATAL_CODES[code][0] + detail, FATAL_CODES[code][1]);
+    else if (code === 'cancelled') {
+      err = timedOut ? screened(new Error(CLAUDE_WHO + ' への呼び出しが時間切れになりました'), '分析役の呼び出しが時間切れになった')
+        : screened(new Error(CLAUDE_WHO + ' への呼び出しが中止されました' + detail), '分析役の呼び出しが中止された');
+    }
+    else if (code === 'rate_limited') err = screened(new Error(CLAUDE_WHO + ' が混んでいるか、閲覧者の使用量の上限に当たりました（rate_limited）。少し待ってもう一度' + detail), '分析役が混んでいるか、使える量の上限に当たった。少し待ってもう一度');
+    else if (code === 'refused') err = screened(new Error('分析役が返事を断りました（refused）' + detail), '分析役が返事を断った');
+    else if (code === 'empty_completion') err = screened(new Error('分析役が何も書きませんでした（empty_completion）' + detail), '分析役が何も書かなかった');
+    else if (code === 'prompt_too_large') err = screened(new Error('問いが大きすぎます（prompt_too_large。256 KiB まで）' + detail), '問いが大きすぎる（窓を小さくする）');
+    else if (code === 'session_expired') err = screened(new Error('閲覧者のサインインが切れています（session_expired）' + detail), '画面を開いている人のサインインが切れている（入り直してもう一度）');
+    else err = screened(new Error(CLAUDE_WHO + ' が誤りを返しました（' + code + '）' + detail), '分析役が誤りを返した');
+    err.code = code;
+    if (e && typeof e.text === 'string') err.raw = e.text;
+    return err;
+  }
+
+  // こちらで打ち切るまでの時間（ms）。null なら打ち切らない（仕組みの側に任せる）
+  //   sample:   cfg.timeoutMs が正の数のときだけ。既定は null（型定義「時間切れを自分で作るな」。閲覧者が同意の画面を読む間も
+  //             呼び出しは待つし、既定の段では書き始めるまで 2 分近くかかることがある。1 回の問いは約 5 分で仕組みが打ち切る）
+  //   complete: cfg.timeoutMs か DEFAULT_TIMEOUT（古い形には signal が無く、仕組みの打ち切りも分からないので、待つのをやめる）
+  function claudeTimeoutMs(cfg, mouth) {
+    const given = cfg && typeof cfg.timeoutMs === 'number' && isFinite(cfg.timeoutMs) && cfg.timeoutMs > 0 ? cfg.timeoutMs : null;
+    if (mouth && mouth.sample) return given;
+    return given || DEFAULT_TIMEOUT;
+  }
+
+  // 口に 1 本の文字列を投げて、返事の文字列を受け取る。→ {text, truncated, tier}
+  //   打ち切り: claudeTimeoutMs のとおり。切るときは sample の signal を切り、どちらの口も待つのをやめる
+  //   （signal を見ない口でも、こちらは時間切れで返る）
+  async function claudeAsk(mouth, cfg, prompt, opts) {
+    opts = opts || {};
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const limit = claudeTimeoutMs(cfg, mouth);
+    let timer = null, timedOut = false;
+    const gate = limit == null ? null : new Promise(function (resolve, reject) {
+      timer = setTimeout(function () {
+        timedOut = true;
+        if (ctl) ctl.abort();
+        reject({ code: 'cancelled', message: 'timeout' });
+      }, limit);
+    });
+    let run;
+    if (mouth.sample) {
+      const o = { modelTier: TIERS.indexOf(opts.tier || cfg.tier) >= 0 ? (opts.tier || cfg.tier) : 'default', cache: false };
+      if (ctl) o.signal = ctl.signal;
+      if (SAMPLE_EFFORTS.indexOf(cfg.effort) >= 0) o.effort = cfg.effort;
+      // sample は同期には投げない約束だが、投げても同じ失敗として扱う
+      run = Promise.resolve().then(function () { return mouth.sample(prompt, o); });
+    } else {
+      run = Promise.resolve().then(function () { return mouth.complete(prompt); });
+    }
+    let r;
+    try { r = await (gate ? Promise.race([run, gate]) : run); }
+    catch (e) { if (timer) clearTimeout(timer); throw claudeError(e, timedOut); }
+    if (timer) clearTimeout(timer);
+    if (mouth.sample) {
+      if (!r || typeof r.text !== 'string') throw screened(new Error(CLAUDE_WHO + ' の返事が {text, truncated} の形ではありません'), '分析役の返事が、決まった形で来なかった');
+      return { text: r.text, truncated: r.truncated === true, tier: typeof r.modelTierApplied === 'string' ? r.modelTierApplied : null };
+    }
+    if (typeof r !== 'string') throw screened(new Error(CLAUDE_WHO + '（古い形）の返事が文字列ではありません'), '分析役の返事が文字になっていない');
+    return { text: r, truncated: false, tier: null };
+  }
+
+  async function analyzeClaude(mouth, cfg, pack, prefix) {
+    const m = await mouth();   // 1 回目で決めて覚える。決められなければ fatal の Error（2 回目も同じ Error）
+    const prompt = makePrompt(prefix, pack);
+    const got = await claudeAsk(m, cfg, prompt);
+    if (got.truncated) throw withUsage(screened(new Error('返事が途中で切れました（長さか時間の上限。truncated）'), '返事が途中で切れた（長さか時間の上限）'), null, got.text);
+    const p = parseReply(got.text);
+    if (!p.ok) throw withUsage(screened(new Error(p.error), p.msg), null, got.text);
+    return { step: p.step, events: p.events, note: p.note, raw: got.text, usage: null, think: null, tier: got.tier };
+  }
+
+  // 1 回だけ呼んで結果（成功も失敗も）を覚える
+  function once(fn) { let p = null; return function () { if (!p) p = fn(); return p; }; }
+
   // ---- mock（試験用） ----
 
   // 判断ログ（イベントの配列）を step 番号 → 返事 に直す。
@@ -502,13 +636,18 @@
       case 'anthropic': fn = function (pack, prefix) { return analyzeAnthropic(cfg, pack, prefix); }; break;
       case 'openai': fn = function (pack, prefix) { return analyzeOpenAI(cfg, pack, prefix); }; break;
       case 'manual': fn = function (pack, prefix) { return analyzeManual(cfg, pack, prefix); }; break;
+      case 'claude': {
+        const mouth = once(function () { return claudeMouth(cfg); });
+        fn = function (pack, prefix) { return analyzeClaude(mouth, cfg, pack, prefix); };
+        break;
+      }
       case 'mock': fn = makeMock(cfg); break;
       default: throw new Error('分析役の種類（cfg.kind）が分かりません: ' + JSON.stringify(cfg.kind));
     }
     return { kind: cfg.kind, analyze: fn, label: LABEL[cfg.kind] };
   }
 
-  const LABEL = { anthropic: 'API（Anthropic）', openai: 'API（OpenAI 互換）', manual: '手動（遅い）', mock: '試験用の台本' };
+  const LABEL = { anthropic: 'API（Anthropic）', openai: 'API（OpenAI 互換）', manual: '手動（遅い）', claude: 'この画面の Claude（枠の中）', mock: '試験用の台本' };
 
   function analyze(pack, prefix, cfg) { return makeAnalyst(cfg).analyze(pack, prefix); }
 
@@ -519,10 +658,24 @@
   // → {ok, reached, authed, status, usage, cache_read, model, error}
   //   reached  API に届いた（HTTP の返事があった）
   //   authed   鍵が通った（200）
+  // kind 'claude' のとき: 口を決めて（reached）、短い問いを sample（tier quick）か complete に投げ、返事が来れば ok（authed は
+  //   閲覧者が許した印）。status・usage・cache_read は無い（0・null のまま）。model には答えた段（modelTierApplied）を入れる。
+  //   prefix は送らない（枠の中の Claude はキャッシュを持たないので、接頭辞ごと送って見るものが無い）
   async function testConnection(cfg, prefix, opts) {
     cfg = cfg || {};
     opts = opts || {};
     const out = { ok: false, reached: false, authed: false, status: 0, usage: null, cache_read: null, model: cfg.model || null, error: null };
+    if (cfg.kind === 'claude') {
+      try {
+        const m = await claudeMouth(cfg);
+        out.reached = true;
+        const got = await claudeAsk(m, cfg, '「了解」とだけ答えてください。', { tier: 'quick' });
+        out.authed = true;
+        if (got.tier) out.model = got.tier;
+        out.ok = true;
+      } catch (e) { out.error = (e && e.screen) || String(e && e.message || e); }
+      return out;
+    }
     if (cfg.kind !== 'anthropic' && cfg.kind !== 'openai') { out.error = '接続テストは API の分析役にだけ使えます'; return out; }
     if (!cfg.key) { out.error = '鍵がありません'; return out; }
     const sys = prefix ? String(prefix) : '返事は短くしてください。';
@@ -612,11 +765,11 @@
     }
   };
 
-  // 設定の書き出し。鍵（key）と関数（ask）と台本（script）とスキーマ（schema）は含めない
+  // 設定の書き出し。鍵（key）と関数（ask）と台本（script）とスキーマ（schema）と口のオブジェクト（claude）は含めない
   function exportSettings(cfg) {
     const out = Object.create(null); // 読み込んだ設定の鍵をそのまま使うので、素の表にする
     Object.keys(cfg || {}).forEach(function (k) {
-      if (k === 'key' || k === 'ask' || k === 'script' || k === 'schema') return;
+      if (k === 'key' || k === 'ask' || k === 'script' || k === 'schema' || k === 'claude') return;
       if (typeof cfg[k] === 'function') return;
       out[k] = cfg[k];
     });
@@ -628,7 +781,7 @@
     makePrompt: makePrompt, parseReply: parseReply, shapeReply: shapeReply, toBatch: toBatch, prepareSchema: prepareSchema,
     scriptFromLog: scriptFromLog, keys: keys, exportSettings: exportSettings,
     ANTHROPIC_URL: ANTHROPIC_URL, ANTHROPIC_VERSION: ANTHROPIC_VERSION, DEFAULT_MODEL: DEFAULT_MODEL,
-    _internal: { anthropicBody: anthropicBody, openaiBody: openaiBody, openaiUrl: openaiUrl, anthropicHeaders: anthropicHeaders, openaiHeaders: openaiHeaders, usageAnthropic: usageAnthropic, usageOpenAI: usageOpenAI }
+    _internal: { anthropicBody: anthropicBody, openaiBody: openaiBody, openaiUrl: openaiUrl, anthropicHeaders: anthropicHeaders, openaiHeaders: openaiHeaders, usageAnthropic: usageAnthropic, usageOpenAI: usageOpenAI, claudeError: claudeError, claudeMouth: claudeMouth, claudeTimeoutMs: claudeTimeoutMs }
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else globalThis.TSV_ANALYST = api;
