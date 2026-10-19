@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 /*
- * run_bridge_node.js — 橋の入口（src/intake.js の makeBridgeIntake・bridgeMessage）の試験（node。本物の窓は使わない）
+ * run_bridge_node.js — ブリッジの入口（src/intake.js の makeBridgeIntake・bridgeMessage）のテスト（node。本物のウィンドウは使わない）
  *
  *   node tests/run_bridge_node.js
  *
- * 偽の窓（addEventListener／removeEventListener／postMessage を持つだけのもの）に message を流して確かめる:
- *   読み:   橋の言葉でないもの・版違い・形違いは null。文字列は打つ入口と同じ読み方（話者の切り出し・1 列目の時刻を落とす・
+ * モックのウィンドウ（addEventListener／removeEventListener／postMessage を持つだけのもの）に message を流して確かめる:
+ *   読み:   ブリッジの言葉でないもの・バージョン違い・形違いは null。文字列は打つ入口と同じ読み方（話者の切り出し・1 列目の時刻を落とす・
  *           改行で分ける）。{who, text} はそのまま。それ以外の要素は落として数える
  *   受け:   始める前・止めた後は受けない。受けた発話は打つ入口と同じ形 {who, text, t} で emit.line に届き、t は届いた時刻
  *           （送り手の時刻は使わない）で単調。setFloor で下限を足せる
- *   hello:  {source:'kiku', v:2, kind:'hello', listening, received} を送り手（ev.source。親ページなど自分の窓と違う窓でも）に返す。
- *           ev.source が無い・postMessage を持たないときは自分の窓に返す。始める前は返さない（ページ側が答える）
- *   status: 橋の {kind:'status', state:'listening'|'stopped'|'error', text} を読む（state が 3 つ以外・text が文字列でなければ null）。
- *           聞いている間に届いたものは札の後ろに「。」でつなぐ（listening はその文、stopped は「橋は止めた（文）」、error は
- *           「橋は誤りで止まった（文）」）。error は知らせ「橋が止まった: 文」も 1 回（同じ文が続いても 1 回）。聞いていないときは捨てる。
- *           status() に bridge: {state, text}（無ければ null）が乗る。枠の聞いている状態は変えない（emit.stopped を呼ばない）
- *   状態:   status() の state が stopped → listening → stopped と動き、received・messages・dropped が数える。札（emit.status）に件数が出る
- *   守り:   data が無い・例外を投げる source・addEventListener の無い窓、でも投げない
+ *   hello:  {source:'kiku', v:2, kind:'hello', listening, received} を送り手（ev.source。親ページなど自分のウィンドウと違うウィンドウでも）に返す。
+ *           ev.source が無い・postMessage を持たないときは自分のウィンドウに返す。始める前は返さない（ページ側が答える）
+ *   status: ブリッジの {kind:'status', state:'listening'|'stopped'|'error', text} を読む（state が 3 つ以外・text が文字列でなければ null）。
+ *           聞いている間に届いたものはラベルの後ろに「。」でつなぐ（listening はその文、stopped は「ブリッジは停止した（文）」、error は
+ *           「ブリッジはエラーで止まった（文）」）。error は知らせ「ブリッジが止まった: 文」も 1 回（同じ文が続いても 1 回）。聞いていないときは捨てる。
+ *           status() に bridge: {state, text}（無ければ null）が乗る。アーティファクトの聞いている状態は変えない（emit.stopped を呼ばない）
+ *   状態:   status() の state が stopped → listening → stopped と動き、received・messages・dropped が数える。ラベル（emit.status）に件数が出る
+ *   守り:   data が無い・例外を投げる source・addEventListener の無いウィンドウ、でも投げない
  */
 'use strict';
 const path = require('path');
@@ -27,7 +27,7 @@ const results = [];
 function t(group, name, ok, detail) { results.push({ group: group, name: name, ok: !!ok, detail: detail || '' }); }
 function deepEq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
-// 偽の窓。message の聞き手を持ち、post(data, source) で届ける
+// モックのウィンドウ。message の聞き手を持ち、post(data, source) で届ける
 function fakeWin() {
   const listeners = [];
   const posted = [];
@@ -57,8 +57,8 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
 (function () {
   const G = '読み';
   const B = INTAKE.bridgeMessage;
-  t(G, '橋の言葉でないもの（source が違う）は null', B({ source: 'other', v: 2, kind: 'lines', lines: ['a'] }) === null);
-  t(G, '版が違えば null', B({ source: 'kiku-bridge', v: 1, kind: 'lines', lines: ['a'] }) === null);
+  t(G, 'ブリッジの言葉でないもの（source が違う）は null', B({ source: 'other', v: 2, kind: 'lines', lines: ['a'] }) === null);
+  t(G, 'バージョンが違えば null', B({ source: 'kiku-bridge', v: 1, kind: 'lines', lines: ['a'] }) === null);
   t(G, 'data が無い・文字列・配列は null', B(null) === null && B(undefined) === null && B('x') === null && B([]) === null);
   t(G, 'kind が知らないものは null', B({ source: 'kiku-bridge', v: 2, kind: 'bye' }) === null);
   t(G, 'lines が配列でなければ null', B({ source: 'kiku-bridge', v: 2, kind: 'lines', lines: 'a' }) === null);
@@ -76,9 +76,9 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   t(G, '送り手の時刻の欄（t）は読まない', r4.lines[0].t === undefined && Object.keys(r4.lines[0]).join(',') === 'who,text', JSON.stringify(r4.lines[0]));
   t(G, 'timecol は 1 列目が時刻らしい行が無ければ false', r2.timecol === false && r3.timecol === false);
   t(G, '空の lines は受理して 0 件', deepEq(B(msg([])), { kind: 'lines', lines: [], dropped: 0, timecol: false }));
-  t(G, '印が出ている', INTAKE.BRIDGE_SOURCE === 'kiku-bridge' && INTAKE.BRIDGE_REPLY_SOURCE === 'kiku' && INTAKE.BRIDGE_VERSION === 2);
+  t(G, '目印とバージョンの定数が出ている', INTAKE.BRIDGE_SOURCE === 'kiku-bridge' && INTAKE.BRIDGE_REPLY_SOURCE === 'kiku' && INTAKE.BRIDGE_VERSION === 2);
   function S(state, text) { return { source: 'kiku-bridge', v: 2, kind: 'status', state: state, text: text }; }
-  t(G, 'status（listening）は {kind:status, state, text}', deepEq(B(S('listening', '橋が聞き始めた（画面全体。この PC の中で文字にする）')), { kind: 'status', state: 'listening', text: '橋が聞き始めた（画面全体。この PC の中で文字にする）' }));
+  t(G, 'status（listening）は {kind:status, state, text}', deepEq(B(S('listening', 'ブリッジが聞き始めた（画面全体。この PC の中で文字にする）')), { kind: 'status', state: 'listening', text: 'ブリッジが聞き始めた（画面全体。この PC の中で文字にする）' }));
   t(G, 'status（stopped・error）も読む', deepEq(B(S('stopped', '止めた')), { kind: 'status', state: 'stopped', text: '止めた' }) && deepEq(B(S('error', '共有が止められた')), { kind: 'status', state: 'error', text: '共有が止められた' }));
   t(G, 'status の text は空の文字列でもよい', deepEq(B(S('listening', '')), { kind: 'status', state: 'listening', text: '' }));
   t(G, 'status の state が 3 つ以外なら null', B(S('paused', 'x')) === null && B(S('', 'x')) === null && B(S(undefined, 'x')) === null && B(S(1, 'x')) === null && B(S('toString', 'x')) === null);
@@ -86,56 +86,56 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   t(G, 'status に余計な欄があっても state と text だけを返す', deepEq(B({ source: 'kiku-bridge', v: 2, kind: 'status', state: 'stopped', text: 't', extra: 1 }), { kind: 'status', state: 'stopped', text: 't' }));
 })();
 
-// ---- status（橋の状態の知らせ） ----
+// ---- status（ブリッジの状態の知らせ） ----
 (function () {
   const G = 'status';
   function S(state, text) { return { source: 'kiku-bridge', v: 2, kind: 'status', state: state, text: text }; }
   function last(e) { return e.statuses[e.statuses.length - 1]; }
   const w = fakeWin(); const e = fakeEmit();
   const it = INTAKE.makeBridgeIntake(e, function () { return 0; }, { win: w });
-  w.post(S('error', '始める前の誤り'));
-  t(G, '聞いていない（始める前）に届いた status は捨てる（札も知らせも出ず、status().bridge は null）', e.statuses.length === 0 && e.notices.length === 0 && it.status().bridge === null);
+  w.post(S('error', '始める前のエラー'));
+  t(G, '聞いていない（始める前）に届いた status は捨てる（ラベルも知らせも出ず、status().bridge は null）', e.statuses.length === 0 && e.notices.length === 0 && it.status().bridge === null);
   it.start();
   const base = last(e);
-  t(G, 'start 直後の札は今までどおり「橋から受けている（届いた発話 0 件）」', base === '橋から受けている（届いた発話 0 件）', base);
-  const LISTEN = '橋が聞き始めた（画面全体。この PC の中で文字にする）';
+  t(G, 'start 直後のラベルは今までどおり「ブリッジから受け取っている（届いた発言 0 件）」', base === 'ブリッジから受け取っている（届いた発言 0 件）', base);
+  const LISTEN = 'ブリッジが聞き始めた（画面全体。この PC の中で文字にする）';
   w.post(S('listening', LISTEN));
-  t(G, 'listening の status で、札の後ろにその文が「。」で続く（共有した画面の名前が見える）', last(e) === '橋から受けている（届いた発話 0 件）。' + LISTEN, last(e));
+  t(G, 'listening の status で、ラベルの後ろにその文が「。」で続く（共有した画面の名前が見える）', last(e) === 'ブリッジから受け取っている（届いた発言 0 件）。' + LISTEN, last(e));
   t(G, 'status() に bridge: {state, text} が乗る', deepEq(it.status().bridge, { state: 'listening', text: LISTEN }), JSON.stringify(it.status().bridge));
   t(G, 'status は受けた発話・message の数に入らない', it.status().received === 0 && it.status().messages === 0 && it.status().dropped === 0);
   t(G, 'listening では知らせを出さない', e.notices.length === 0);
   w.post(msg(['甲: 一つ目', 5]));
-  t(G, '発話が届いた後の札にも、橋の状態の文が残る', last(e) === '橋から受けている（届いた発話 1 件。形の違いで落としたもの 1 件）。' + LISTEN, last(e));
+  t(G, '発話が届いた後のラベルにも、ブリッジの状態の文が残る', last(e) === 'ブリッジから受け取っている（届いた発言 1 件。形式の違いで捨てたもの 1 件）。' + LISTEN, last(e));
   w.post(S('error', '画面共有が止められた'));
-  t(G, 'error の status で、札の後ろが「橋は誤りで止まった（文）」になる', last(e) === '橋から受けている（届いた発話 1 件。形の違いで落としたもの 1 件）。橋は誤りで止まった（画面共有が止められた）', last(e));
-  t(G, 'error で知らせ「橋が止まった: 文」が 1 回出る', e.notices.length === 1 && deepEq(e.notices[0], ['橋が止まった: 画面共有が止められた']), JSON.stringify(e.notices));
-  t(G, 'error でも枠の聞いている状態は変わらない（state は listening のまま。emit.stopped は呼ばない）', it.status().state === 'listening' && e.stoppedCalls === 0, JSON.stringify(it.status()));
+  t(G, 'error の status で、ラベルの後ろが「ブリッジはエラーで止まった（文）」になる', last(e) === 'ブリッジから受け取っている（届いた発言 1 件。形式の違いで捨てたもの 1 件）。ブリッジはエラーで止まった（画面共有が止められた）', last(e));
+  t(G, 'error で知らせ「ブリッジが止まった: 文」が 1 回出る', e.notices.length === 1 && deepEq(e.notices[0], ['ブリッジが止まった: 画面共有が止められた']), JSON.stringify(e.notices));
+  t(G, 'error でもアーティファクトの聞いている状態は変わらない（state は listening のまま。emit.stopped は呼ばない）', it.status().state === 'listening' && e.stoppedCalls === 0, JSON.stringify(it.status()));
   w.post(S('error', '画面共有が止められた'));
-  t(G, '同じ text の error が続いても知らせは 1 回（札は出し直す）', e.notices.length === 1 && last(e) === '橋から受けている（届いた発話 1 件。形の違いで落としたもの 1 件）。橋は誤りで止まった（画面共有が止められた）', JSON.stringify(e.notices));
+  t(G, '同じ text の error が続いても知らせは 1 回（ラベルは出し直す）', e.notices.length === 1 && last(e) === 'ブリッジから受け取っている（届いた発言 1 件。形式の違いで捨てたもの 1 件）。ブリッジはエラーで止まった（画面共有が止められた）', JSON.stringify(e.notices));
   w.post(S('error', '音声認識が使えない'));
-  t(G, '違う text の error は、また知らせる', e.notices.length === 2 && deepEq(e.notices[1], ['橋が止まった: 音声認識が使えない']), JSON.stringify(e.notices));
-  w.post(S('listening', '橋が聞き始めた（画面全体。音声は提供元のサーバーへ送られる）'));
+  t(G, '違う text の error は、また知らせる', e.notices.length === 2 && deepEq(e.notices[1], ['ブリッジが止まった: 音声認識が使えない']), JSON.stringify(e.notices));
+  w.post(S('listening', 'ブリッジが聞き始めた（画面全体。音声は提供元のサーバーへ送られる）'));
   w.post(S('error', '音声認識が使えない'));
-  t(G, '間に listening が届けば、同じ text の error をまた知らせる（続きの誤り）', e.notices.length === 3, JSON.stringify(e.notices));
+  t(G, '間に listening が届けば、同じ text の error をまた知らせる（続きのエラー）', e.notices.length === 3, JSON.stringify(e.notices));
   w.post(S('stopped', '利用者が止めた'));
-  t(G, 'stopped の status で、札の後ろが「橋は止めた（文）」になり、知らせは出ない', last(e) === '橋から受けている（届いた発話 1 件。形の違いで落としたもの 1 件）。橋は止めた（利用者が止めた）' && e.notices.length === 3, last(e));
+  t(G, 'stopped の status で、ラベルの後ろが「ブリッジは停止した（文）」になり、知らせは出ない', last(e) === 'ブリッジから受け取っている（届いた発言 1 件。形式の違いで捨てたもの 1 件）。ブリッジは停止した（利用者が止めた）' && e.notices.length === 3, last(e));
   t(G, 'status().bridge は最後に届いたもの', deepEq(it.status().bridge, { state: 'stopped', text: '利用者が止めた' }));
   w.post(S('listening', ''));
-  t(G, 'text が空の listening は「橋が聞き始めた」とだけ出す（「。」で終わらない）', last(e) === '橋から受けている（届いた発話 1 件。形の違いで落としたもの 1 件）。橋が聞き始めた', last(e));
+  t(G, 'text が空の listening は「ブリッジが聞き始めた」とだけ出す（「。」で終わらない）', last(e) === 'ブリッジから受け取っている（届いた発言 1 件。形式の違いで捨てたもの 1 件）。ブリッジが聞き始めた', last(e));
   w.post(S('stopped', ' '));
-  t(G, 'text が空白だけの stopped は「橋は止めた」とだけ出す（空のかっこを付けない）', /。橋は止めた$/.test(last(e)), last(e));
+  t(G, 'text が空白だけの stopped は「ブリッジは停止した」とだけ出す（空のかっこを付けない）', /。ブリッジは停止した$/.test(last(e)), last(e));
   w.post(S('error', ''));
-  t(G, 'text が空の error は「橋は誤りで止まった」とだけ出し、知らせは「橋が止まった: 」', /。橋は誤りで止まった$/.test(last(e)) && e.notices.length === 4 && e.notices[3][0] === '橋が止まった: ', last(e) + ' / ' + JSON.stringify(e.notices[3]));
-  t(G, 'status の後の札も、こちらが足す部分は日本語だけ（英字の項目名が無い。橋の text はそのまま載せる）', e.statuses.every(function (x) { return !/[A-Za-z]/.test(x.split('（画面全体。この PC の中で文字にする）').join('')); }), e.statuses.join(' | '));
-  t(G, 'status() の bridge は写し（書き換えても中は変わらない）', (function () { const b = it.status().bridge; b.text = 'x'; return it.status().bridge.text === ''; })());
+  t(G, 'text が空の error は「ブリッジはエラーで止まった」とだけ出し、知らせは「ブリッジが止まった: 」', /。ブリッジはエラーで止まった$/.test(last(e)) && e.notices.length === 4 && e.notices[3][0] === 'ブリッジが止まった: ', last(e) + ' / ' + JSON.stringify(e.notices[3]));
+  t(G, 'status の後のラベルも、こちらが足す部分は日本語だけ（英字の項目名が無い。ブリッジの text はそのまま載せる）', e.statuses.every(function (x) { return !/[A-Za-z]/.test(x.split('（画面全体。この PC の中で文字にする）').join('')); }), e.statuses.join(' | '));
+  t(G, 'status() の bridge はコピー（書き換えても中は変わらない）', (function () { const b = it.status().bridge; b.text = 'x'; return it.status().bridge.text === ''; })());
   w.post({ source: 'kiku-bridge', v: 2, kind: 'status', state: 'paused', text: 'x' });
   t(G, '形の違う status（state が 3 つ以外）は捨てる（bridge は変わらず、dropped にも数えない）', it.status().bridge.state === 'error' && it.status().dropped === 1);
   it.stop();
-  t(G, 'stop の札は今までどおり「止めた（橋）」', last(e) === '止めた（橋）');
+  t(G, 'stop のラベルは今までどおり「止めた（ブリッジ）」', last(e) === '止めた（ブリッジ）');
   w.post(S('listening', '止めた後'));
-  t(G, '止めた後に届いた status は捨てる', e.statuses[e.statuses.length - 1] === '止めた（橋）' && it.status().bridge.text === '');
+  t(G, '止めた後に届いた status は捨てる', e.statuses[e.statuses.length - 1] === '止めた（ブリッジ）' && it.status().bridge.text === '');
   it.start();
-  t(G, 'start し直すと橋の状態は忘れる（bridge は null、札は件数だけ）', it.status().bridge === null && last(e) === '橋から受けている（届いた発話 1 件。形の違いで落としたもの 1 件）', last(e));
+  t(G, 'start し直すとブリッジの状態は忘れる（bridge は null、ラベルは件数だけ）', it.status().bridge === null && last(e) === 'ブリッジから受け取っている（届いた発言 1 件。形式の違いで捨てたもの 1 件）', last(e));
   w.post(S('error', '音声認識が使えない'));
   t(G, 'start し直した後の error はまた知らせる', e.notices.length === 5);
   it.stop();
@@ -148,12 +148,12 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   w2.post({ source: 'kiku-bridge', v: 2, kind: 'hello' }, src);
   t(G, 'status を受けた後も hello の返事は {source:kiku, v:2, kind:hello, listening, received} のまま（bridge は乗らない）', src.posted.length === 1 && deepEq(src.posted[0], { source: 'kiku', v: 2, kind: 'hello', listening: true, received: 0 }), JSON.stringify(src.posted));
   it2.stop();
-  // emit.notice の無い受け取り側: error の知らせは札に出る
+  // emit.notice の無い受け取り側: error の知らせはラベルに出る
   const w3 = fakeWin(); const e3 = fakeEmit(); delete e3.notice;
   const it3 = INTAKE.makeBridgeIntake(e3, function () { return 0; }, { win: w3 });
   it3.start();
   w3.post(S('error', '壊れた'));
-  t(G, 'emit.notice が無ければ、error の知らせは札に出る', e3.statuses.some(function (s) { return s === '橋が止まった: 壊れた'; }), e3.statuses.join(' | '));
+  t(G, 'emit.notice が無ければ、error の知らせはラベルに出る', e3.statuses.some(function (s) { return s === 'ブリッジが止まった: 壊れた'; }), e3.statuses.join(' | '));
   it3.stop();
 })();
 
@@ -202,14 +202,14 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   w.post(msg(['甲: a', '乙: b']));
   w.post({ source: 'kiku-bridge', v: 2, kind: 'hello' }, src);
   t(G, '受けた数が hello の返事に乗る', src.posted[1].received === 2, JSON.stringify(src.posted[1]));
-  // 送り手が親ページ（自分の窓と違う窓）のとき。返事は ev.source にだけ届き、自分の窓には届かない（自分の窓に送ると親には届かない）
+  // 送り手が親ページ（自分のウィンドウと違うウィンドウ）のとき。返事は ev.source にだけ届き、自分のウィンドウには届かない（自分のウィンドウに送ると親には届かない）
   const parent = fakeWin();
   w.post({ source: 'kiku-bridge', v: 2, kind: 'hello' }, parent);
-  t(G, 'ev.source が自分の窓と違う窓なら、返事はそちらにだけ届く', parent.posted.length === 1 && deepEq(parent.posted[0], { source: 'kiku', v: 2, kind: 'hello', listening: true, received: 2 }) && w.posted.length === 0, JSON.stringify(parent.posted) + ' / 自分の窓 ' + w.posted.length);
+  t(G, 'ev.source が自分のウィンドウと違うウィンドウなら、返事はそちらにだけ届く', parent.posted.length === 1 && deepEq(parent.posted[0], { source: 'kiku', v: 2, kind: 'hello', listening: true, received: 2 }) && w.posted.length === 0, JSON.stringify(parent.posted) + ' / 自分のウィンドウ ' + w.posted.length);
   w.post({ source: 'kiku-bridge', v: 2, kind: 'hello' }, null);
-  t(G, 'source が無ければ窓に返す', w.posted.length === 1 && w.posted[0].kind === 'hello', JSON.stringify(w.posted));
+  t(G, 'source が無ければウィンドウに返す', w.posted.length === 1 && w.posted[0].kind === 'hello', JSON.stringify(w.posted));
   w.post({ source: 'kiku-bridge', v: 2, kind: 'hello' }, { nothing: true });
-  t(G, 'ev.source に postMessage が無ければ自分の窓に返す', w.posted.length === 2 && w.posted[1].kind === 'hello' && parent.posted.length === 1, JSON.stringify(w.posted));
+  t(G, 'ev.source に postMessage が無ければ自分のウィンドウに返す', w.posted.length === 2 && w.posted[1].kind === 'hello' && parent.posted.length === 1, JSON.stringify(w.posted));
   const bad = { postMessage: function () { throw new Error('返せない'); } };
   let threw = false;
   try { w.post({ source: 'kiku-bridge', v: 2, kind: 'hello' }, bad); } catch (x) { threw = true; }
@@ -225,19 +225,19 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   const it = INTAKE.makeBridgeIntake(e, function () { return 0; }, { win: w });
   t(G, '作った直後は stopped・0 件', deepEq(it.status(), { state: 'stopped', received: 0, messages: 0, dropped: 0, error: null, bridge: null }), JSON.stringify(it.status()));
   it.start();
-  t(G, 'start で listening、札に「届いた発話 0 件」', it.status().state === 'listening' && /届いた発話 0 件/.test(e.statuses[e.statuses.length - 1]), e.statuses.join(' | '));
+  t(G, 'start で listening、ラベルに「届いた発言 0 件」', it.status().state === 'listening' && /届いた発言 0 件/.test(e.statuses[e.statuses.length - 1]), e.statuses.join(' | '));
   w.post(msg(['甲: a', 5, { who: 'b', text: 'c' }]));
   const s = it.status();
   t(G, 'received・messages・dropped が数える', s.received === 2 && s.messages === 1 && s.dropped === 1, JSON.stringify(s));
-  t(G, '札に件数と落とした数が出る', /届いた発話 2 件/.test(e.statuses[e.statuses.length - 1]) && /落としたもの 1 件/.test(e.statuses[e.statuses.length - 1]), e.statuses[e.statuses.length - 1]);
-  t(G, '札は日本語だけ（英字の項目名が無い）', e.statuses.every(function (x) { return !/[A-Za-z]/.test(x); }), e.statuses.join(' | '));
+  t(G, 'ラベルに件数と落とした数が出る', /届いた発言 2 件/.test(e.statuses[e.statuses.length - 1]) && /捨てたもの 1 件/.test(e.statuses[e.statuses.length - 1]), e.statuses[e.statuses.length - 1]);
+  t(G, 'ラベルは日本語だけ（英字の項目名が無い）', e.statuses.every(function (x) { return !/[A-Za-z]/.test(x); }), e.statuses.join(' | '));
   w.post(msg(['0:01\t甲\t時刻つき']));
   t(G, '1 列目の時刻を落とした行が初めて来たら、知らせを 1 回だけ出す（noticed().timecol）', e.notices.length === 1 && e.notices[0][0] === INTAKE.TIMECOL_TEXT && it.noticed().timecol === true, JSON.stringify(e.notices));
   w.post(msg(['0:02\t甲\tもう一度']));
   t(G, '二度目は知らせない', e.notices.length === 1);
   it.stop();
-  t(G, 'stop で stopped、札は「止めた（橋）」', it.status().state === 'stopped' && e.statuses[e.statuses.length - 1] === '止めた（橋）');
-  t(G, 'status() は写し（書き換えても中は変わらない）', (function () { const x = it.status(); const was = x.received; x.received = 99; return it.status().received === was && was === 4; })());
+  t(G, 'stop で stopped、ラベルは「止めた（ブリッジ）」', it.status().state === 'stopped' && e.statuses[e.statuses.length - 1] === '止めた（ブリッジ）');
+  t(G, 'status() はコピー（書き換えても中は変わらない）', (function () { const x = it.status(); const was = x.received; x.received = 99; return it.status().received === was && was === 4; })());
 })();
 
 // ---- 守り ----
@@ -256,22 +256,22 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   const w2 = { postMessage: function () {} };
   const e2 = fakeEmit();
   const it2 = INTAKE.makeBridgeIntake(e2, function () { return 0; }, { win: w2 });
-  t(G, 'addEventListener の無い窓では start が false で state は error', it2.start() === false && it2.status().state === 'error' && typeof it2.status().error === 'string', JSON.stringify(it2.status()));
-  t(G, 'その札も日本語', /橋を開けない/.test(e2.statuses[0]) && !/[A-Za-z]/.test(e2.statuses[0]), e2.statuses[0]);
+  t(G, 'addEventListener の無いウィンドウでは start が false で state は error', it2.start() === false && it2.status().state === 'error' && typeof it2.status().error === 'string', JSON.stringify(it2.status()));
+  t(G, 'そのラベルも日本語', /ブリッジを始められない/.test(e2.statuses[0]) && !/[A-Za-z]/.test(e2.statuses[0]), e2.statuses[0]);
   let threw2 = false;
   try { it2.stop(); } catch (x) { threw2 = true; }
-  t(G, 'removeEventListener の無い窓でも stop は投げない', !threw2 && it2.status().state === 'stopped');
+  t(G, 'removeEventListener の無いウィンドウでも stop は投げない', !threw2 && it2.status().state === 'stopped');
   t(G, 'flush は何もしない', (it.flush(), true));
-  // emit.notice の無い受け取り側: 知らせは札に出る
+  // emit.notice の無い受け取り側: 知らせはラベルに出る
   const w3 = fakeWin(); const e3 = fakeEmit(); delete e3.notice;
   const it3 = INTAKE.makeBridgeIntake(e3, function () { return 0; }, { win: w3 });
   it3.start();
   w3.post(msg(['0:01\t甲\tx']));
-  t(G, 'emit.notice が無ければ、1 列目の時刻の知らせは札に出る', e3.statuses.some(function (s) { return s === INTAKE.TIMECOL_TEXT; }), e3.statuses.join(' | '));
+  t(G, 'emit.notice が無ければ、1 列目の時刻の知らせはラベルに出る', e3.statuses.some(function (s) { return s === INTAKE.TIMECOL_TEXT; }), e3.statuses.join(' | '));
   it.stop(); it3.stop();
 })();
 
-// ---- つなぎ（makeBridgeLink: 枠の側から拡張を探し、指図を送る） ----
+// ---- つなぎ（makeBridgeLink: アーティファクトの側から拡張機能を探し、指図を送る） ----
 (function () {
   const G = 'つなぎ';
   let now = 0, tid = 0, timers = [];
@@ -287,7 +287,7 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
     }
     now = end;
   }
-  // 枠の窓（自分）と親の窓。親は届いたものを記録する。top は親と同じ
+  // アーティファクトのウィンドウ（自分）と親のウィンドウ。親は届いたものを記録する。top は親と同じ
   const parent = { got: [], postMessage: function (b, o) { this.got.push({ body: JSON.parse(JSON.stringify(b)), origin: o }); } };
   const self = fakeWin();
   self.parent = parent; self.top = parent;
@@ -295,12 +295,12 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   const L = INTAKE.makeBridgeLink({ win: self, setTimeout: setT, clearTimeout: clearT, now: function () { return now; }, onChange: function (st) { changes.push(st); } });
   t(G, '始める前は「まだ分からない」', deepEq(L.state(), { present: null, where: null, capturing: false, ver: null }), JSON.stringify(L.state()));
   L.start();
-  t(G, '始めるとすぐ親に ping を 1 回（宛先は *、中身は印と種類だけ）', parent.got.length === 1 && deepEq(parent.got[0], { body: { source: 'kiku', v: 2, kind: 'ping' }, origin: '*' }), JSON.stringify(parent.got));
+  t(G, '始めるとすぐ親に ping を 1 回（宛先は *、中身は目印・バージョン・種類だけ）', parent.got.length === 1 && deepEq(parent.got[0], { body: { source: 'kiku', v: 2, kind: 'ping' }, origin: '*' }), JSON.stringify(parent.got));
   advance(INTAKE.LINK_FIRST_WAIT_MS - 1);
   t(G, '待つ間は「まだ分からない」のまま', L.state().present === null);
   advance(1);
   t(G, '返事が無いまま待ちを過ぎると「居ない」になり、知らせが 1 回', L.state().present === false && changes.length === 1 && changes[0].present === false, JSON.stringify(changes));
-  t(G, '居なくても ping は続ける（後から入れた拡張に気づくため）', parent.got.filter(function (m) { return m.body.kind === 'ping'; }).length === 2, String(parent.got.length));
+  t(G, '居なくても ping は続ける（後から入れた拡張機能に気づくため）', parent.got.filter(function (m) { return m.body.kind === 'ping'; }).length === 2, String(parent.got.length));
   self.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'available', capturing: false }, parent);
   t(G, 'here が届くと「居る」になり、where を覚える', deepEq(L.state(), { present: true, where: 'available', capturing: false, ver: null }) && changes.length === 2, JSON.stringify(L.state()));
   self.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'available', capturing: false }, parent);
@@ -309,39 +309,39 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   t(G, '知らない where は none、capturing は true のときだけ真', deepEq(L.state(), { present: true, where: 'none', capturing: false, ver: null }), JSON.stringify(L.state()));
   const c0 = changes.length;
   self.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'none', capturing: false, ver: '0.2.0' }, parent);
-  t(G, 'here の ver（拡張の版）を覚え、版が変わったら知らせる', L.state().ver === '0.2.0' && changes.length === c0 + 1, JSON.stringify(L.state()));
+  t(G, 'here の ver（拡張機能のバージョン）を覚え、バージョンが変わったら知らせる', L.state().ver === '0.2.0' && changes.length === c0 + 1, JSON.stringify(L.state()));
   self.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'none', capturing: false, ver: '0.2.0; drop table' }, parent);
-  t(G, '版の形でない ver は null（画面に出す前に弾く）', L.state().ver === null, JSON.stringify(L.state()));
+  t(G, 'バージョンの形でない ver は null（画面に出す前に弾く）', L.state().ver === null, JSON.stringify(L.state()));
   self.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'none', capturing: false, ver: 2 }, parent);
   t(G, '文字でない ver も null', L.state().ver === null);
   self.post({ source: 'other', v: 2, kind: 'here', where: 'available' }, parent);
   self.post({ source: 'kiku-bridge', v: 1, kind: 'here', where: 'available' }, parent);
   self.post({ source: 'kiku-bridge', v: 2, kind: 'lines', lines: ['x'] }, parent);
-  t(G, '印・版・種類が違う知らせでは変わらない', L.state().where === 'none', JSON.stringify(L.state()));
+  t(G, '目印・バージョン・種類が違う知らせでは変わらない', L.state().where === 'none', JSON.stringify(L.state()));
   const before = parent.got.length;
   t(G, 'capture(true) は start を local:true で送り、送れた宛先の数（1）を返す', L.capture(true) === 1 && deepEq(parent.got[before].body, { source: 'kiku', v: 2, kind: 'start', local: true }), JSON.stringify(parent.got[before]));
   L.capture(false); L.capture('yes');
   t(G, 'capture(false) と真偽でない値は local:false', parent.got[before + 1].body.local === false && parent.got[before + 2].body.local === false);
   t(G, 'release は stop、install は install', L.release() === 1 && L.install() === 1 && parent.got[before + 3].body.kind === 'stop' && parent.got[before + 4].body.kind === 'install');
   advance(INTAKE.LINK_LOST_MS + INTAKE.LINK_PING_MS);
-  t(G, 'here が途切れると「居なくなった」になり、取り込みの途中の印も下ろす', L.state().present === false && L.state().capturing === false, JSON.stringify(L.state()));
+  t(G, 'here が途切れると「居なくなった」になり、取り込み中のフラグも下ろす', L.state().present === false && L.state().capturing === false, JSON.stringify(L.state()));
   L.stop();
   const n = parent.got.length;
   advance(10000);
   t(G, '止めた後は ping を送らず、here も受けない', parent.got.length === n && (self.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'available' }, parent), L.state().present === false), String(parent.got.length - n));
-  // 枠の外で開いたページ（parent も top も自分）: 宛先が無い
+  // アーティファクトの外で開いたページ（parent も top も自分）: 宛先が無い
   const lone = fakeWin(); lone.parent = lone; lone.top = lone;
   const L2 = INTAKE.makeBridgeLink({ win: lone, setTimeout: setT, clearTimeout: clearT, now: function () { return now; } });
   L2.start();
-  t(G, '枠の外で開いたページでは送る先が無く、capture は 0 を返す', L2.capture(true) === 0 && lone.posted.length === 0);
+  t(G, 'アーティファクトの外で開いたページでは送る先が無く、capture は 0 を返す', L2.capture(true) === 0 && lone.posted.length === 0);
   advance(INTAKE.LINK_FIRST_WAIT_MS);
   t(G, 'そのページでは「居ない」になる', L2.state().present === false);
   L2.stop();
-  // parent と top が違う（入れ子の枠）: 両方に送る
+  // parent と top が違う（アーティファクトが入れ子の iframe の中にある）: 両方に送る
   const p2 = { got: [], postMessage: function (b) { this.got.push(b); } }, t2 = { got: [], postMessage: function (b) { this.got.push(b); } };
   const nest = fakeWin(); nest.parent = p2; nest.top = t2;
   const L3 = INTAKE.makeBridgeLink({ win: nest, setTimeout: setT, clearTimeout: clearT, now: function () { return now; } });
-  t(G, '入れ子の枠では parent と top の両方に送る', L3.capture(true) === 2 && p2.got.length === 1 && t2.got.length === 1);
+  t(G, 'アーティファクトが入れ子の iframe の中にあるときは parent と top の両方に送る', L3.capture(true) === 2 && p2.got.length === 1 && t2.got.length === 1);
   // 例外を投げる受け手でも止まらない
   const w4 = fakeWin(); w4.parent = parent; w4.top = parent;
   const L4 = INTAKE.makeBridgeLink({ win: w4, setTimeout: setT, clearTimeout: clearT, now: function () { return now; }, onChange: function () { throw new Error('x'); } });
@@ -350,7 +350,7 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   try { w4.post({ source: 'kiku-bridge', v: 2, kind: 'here', where: 'available' }, parent); } catch (e) { threw = true; }
   t(G, '知らせの受け手が投げても、つなぎは投げずに状態を変える', !threw && L4.state().present === true);
   L4.stop();
-  // 音の診断（拡張 0.2.1）: probe を送り、probe の知らせを読んで onProbe に渡す
+  // 音の診断（拡張機能 0.2.1）: probe を送り、probe の知らせを読んで onProbe に渡す
   const w5 = fakeWin(); const p5 = { got: [], postMessage: function (b, o) { this.got.push({ body: JSON.parse(JSON.stringify(b)), origin: o }); } };
   w5.parent = p5; w5.top = p5;
   const notes = [];
@@ -359,11 +359,11 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   t(G, 'probe() は kind:probe を送り、送れた宛先の数を返す', L5.probe() === 1 && deepEq(p5.got[p5.got.length - 1].body, { source: 'kiku', v: 2, kind: 'probe' }), JSON.stringify(p5.got));
   w5.post({ source: 'kiku-bridge', v: 2, kind: 'probe', state: 'running', text: '測っている' }, p5);
   w5.post({ source: 'kiku-bridge', v: 2, kind: 'probe', state: 'done', text: '終わった', summary: ['a', 3, 'b'], report: { phases: [1, 2] } }, p5);
-  t(G, 'probe の知らせを読んで渡す（summary は文字列だけ、report は写し）', notes.length === 2 && deepEq(notes[0], { state: 'running', text: '測っている', summary: [], report: null }) && deepEq(notes[1], { state: 'done', text: '終わった', summary: ['a', 'b'], report: { phases: [1, 2] } }), JSON.stringify(notes));
+  t(G, 'probe の知らせを読んで渡す（summary は文字列だけ、report はコピー）', notes.length === 2 && deepEq(notes[0], { state: 'running', text: '測っている', summary: [], report: null }) && deepEq(notes[1], { state: 'done', text: '終わった', summary: ['a', 'b'], report: { phases: [1, 2] } }), JSON.stringify(notes));
   w5.post({ source: 'kiku-bridge', v: 2, kind: 'probe', state: 'odd', text: 'x' }, p5);
   w5.post({ source: 'kiku-bridge', v: 2, kind: 'probe', state: 'done', text: 5 }, p5);
   w5.post({ source: 'kiku-bridge', v: 1, kind: 'probe', state: 'done', text: 'x' }, p5);
-  t(G, '形の違う probe の知らせ（知らない state・文字でない text・違う版）は渡さない', notes.length === 2, JSON.stringify(notes.slice(2)));
+  t(G, '形の違う probe の知らせ（知らない state・文字でない text・違うバージョン）は渡さない', notes.length === 2, JSON.stringify(notes.slice(2)));
   w5.post({ source: 'kiku-bridge', v: 2, kind: 'probe', state: 'done', text: 'x', report: { big: 'x'.repeat(INTAKE.PROBE_REPORT_MAX) } }, p5);
   t(G, '大きすぎる report は null にして、文は渡す', notes.length === 3 && notes[2].report === null && notes[2].text === 'x');
   t(G, 'probe の知らせでは居る・居ないの状態を変えない（here だけが変える）', L5.state().present === null, JSON.stringify(L5.state()));
@@ -401,16 +401,16 @@ function msg(lines) { return { source: 'kiku-bridge', v: 2, kind: 'lines', lines
   t(G, 'looksTimed: 表は真、文章は偽', INTAKE.looksTimed(timed) === true && INTAKE.looksTimed(mixed) === false);
 })();
 
-// ---- 版（versionLess: 拡張の版が枠の持つ版より古いか） ----
+// ---- バージョン（versionLess: 拡張機能のバージョンがアーティファクトの持つバージョンより古いか） ----
 (function () {
-  const G = '版';
+  const G = 'バージョン';
   const V = INTAKE.versionLess;
   t(G, '0.1.0 は 0.2.0 より古い', V('0.1.0', '0.2.0') === true);
-  t(G, '同じ版は古くない', V('0.2.0', '0.2.0') === false);
-  t(G, '新しい版は古くない', V('0.3.0', '0.2.0') === false);
+  t(G, '同じバージョンは古くない', V('0.2.0', '0.2.0') === false);
+  t(G, '新しいバージョンは古くない', V('0.3.0', '0.2.0') === false);
   t(G, '文字ではなく数で比べる（0.10.0 は 0.9.9 より新しい）', V('0.10.0', '0.9.9') === false && V('0.9.9', '0.10.0') === true);
   t(G, '桁の数が違っても足りない所は 0（0.2 と 0.2.0 は同じ、0.2 は 0.2.1 より古い）', V('0.2', '0.2.0') === false && V('0.2', '0.2.1') === true);
-  t(G, '読めない版は「古い」と言わない', V(null, '0.2.0') === false && V('x', '0.2.0') === false && V('0.2.0', undefined) === false && V('1.2.3.4.5', '9') === false);
+  t(G, '読めないバージョンは「古い」と言わない', V(null, '0.2.0') === false && V('x', '0.2.0') === false && V('0.2.0', undefined) === false && V('1.2.3.4.5', '9') === false);
 })();
 
 report();

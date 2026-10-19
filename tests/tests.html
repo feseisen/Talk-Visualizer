@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>検査器と畳み込みの試験</title>
+<title>検査器と畳み込みのテスト</title>
 <!--
-  開くだけで走る試験ページ（file:// のまま、外部参照なし、node 不要）。
-  試験用の素の見た目で、色や書体は凝らない。
+  開くだけで動くテストページ（file:// のまま、外部参照なし、node 不要）。
+  テスト用の素の見た目で、色やフォントには凝らない。
   読むもの: ../src/verify.js、../src/fold.js、_runner.js、_data.js（tools/make_test_data.py が作る）
 -->
 <style>
@@ -26,15 +26,15 @@
 </style>
 </head>
 <body>
-<h1>検査器（verify.js）と畳み込み（fold.js）の試験</h1>
-<p id="total">走らせています…</p>
+<h1>検査器（verify.js）と畳み込み（fold.js）のテスト</h1>
+<p id="total">実行しています…</p>
 <p>
   <label><input type="checkbox" id="onlyNg"> 不合格だけ見る</label>
   <span id="src"></span>
 </p>
 <table>
   <colgroup><col class="c1"><col class="c2"><col><col></colgroup>
-  <thead><tr><th>結果</th><th>群</th><th>試験</th><th>中身</th></tr></thead>
+  <thead><tr><th>結果</th><th>グループ</th><th>テスト</th><th>中身</th></tr></thead>
   <tbody id="rows"></tbody>
 </table>
 
@@ -49,7 +49,7 @@
   const rows = document.getElementById('rows');
   const onlyNg = document.getElementById('onlyNg');
   if (!globalThis.TSV_TEST_DATA) {
-    total.textContent = '_data.js がありません。この道具の根（kiku.html のあるフォルダ）で python3 tools/make_test_data.py（Windows ではたいてい py -3 tools/make_test_data.py）を走らせてから開いてください。';
+    total.textContent = '_data.js がありません。このツールのルートフォルダ（kiku.html のあるフォルダ）で python3 tools/make_test_data.py（Windows ではたいてい py -3 tools/make_test_data.py）を実行してから開いてください。';
     total.className = 'bad';
     return;
   }
@@ -61,7 +61,7 @@
   try {
     results = globalThis.TSV_TESTS.runAll({ makeVerifier: globalThis.makeVerifier, verifyApi: globalThis.TSV_VERIFY, fold: globalThis.TSV_FOLD }, data);
   } catch (err) {
-    total.textContent = '試験そのものが例外で止まりました: ' + (err && err.stack || err);
+    total.textContent = 'テストそのものが例外で止まりました: ' + (err && err.stack || err);
     total.className = 'bad';
     return;
   }
@@ -83,7 +83,7 @@
   total.textContent = '合計 ' + results.length + ' 件、不合格 ' + ng + ' 件 ／ ' +
     Object.keys(groups).map(function (g) { return g + ' ' + groups[g].ok + '/' + (groups[g].ok + groups[g].ng); }).join('、');
   total.className = ng ? 'bad' : '';
-  document.title = (ng ? '不合格 ' + ng + ' 件 — ' : '全部合格 — ') + '検査器と畳み込みの試験';
+  document.title = (ng ? '不合格 ' + ng + ' 件 — ' : '全部合格 — ') + '検査器と畳み込みのテスト';
   onlyNg.addEventListener('change', function () {
     Array.prototype.forEach.call(rows.children, function (tr) { tr.hidden = onlyNg.checked && tr.className === 'ok'; });
   });

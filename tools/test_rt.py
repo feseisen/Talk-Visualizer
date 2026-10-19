@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rt.py の試験。どこからでも動く（例: 道具の根で `python tools/test_rt.py`。場所は自分で解決する）。
+"""rt.py のテスト。どこからでも動く（例: ツールのルートフォルダ（kiku.html のあるフォルダ）で `python tools/test_rt.py`。場所は自分で解決する）。
 
 (a) tests/cases/*.json と、このファイルの中の追加ケースを全部通す。受理／拒否が期待どおりで、
     拒否のときはログが一字も動かない。
@@ -8,10 +8,10 @@
 (b) tests/fixtures/meeting10.jsonl を next / append で窓ごとに組み直し、元と同じになる
     （壁時計は記録の at を --now で渡す）。
     さらに、分析役の返事の形（schema.json）でも作り直し、ステップ 6 は壊れた返事を3回渡して
-    道具が未確定の窓の最小バッチを書くところまで確かめる
+    ツールが未確定の窓の最小バッチを書くところまで確かめる
 (c) v1 の回帰は、架空の小さな v1 の記録 tests/fixtures/v1_small.jsonl（素材は v1_small.txt）で行う
     （作り直して一致、違反の拒否、v が 1 の open の受理、知らない版の拒否）
-(d) live の小さな試験（メモの行に watch が届いた時刻を押し、メモ帳に打った時刻は使わない。改行で終わらない行は --once では読まない）と、
+(d) live の小さなテスト（メモの行に watch が届いた時刻を押し、メモ帳に打った時刻は使わない。改行で終わらない行は --once では読まない）と、
     「素材のある記録では next を経ないと append できない」こと、未来の --now を受けないこと
 (e) audit_r2b.py が fixture を通し、壊したログを落とし、知らない版を落とす
 (f) 覚え書きを信じきらない: 手で書いた覚え書き・素材と合わない覚え書きは P07（live でも file でも）
@@ -25,14 +25,14 @@
 (n) 素材ファイルの読み: 共通の期待値 tests/fixtures/materials.json（alone・tsv・inline・vtt・混ざった書き方・最後の発話の
     後ろ・発話無し）と、書き方・発話の列・知らせ・窓とその窓の知らせの文が一字違わず同じ。読めないバイトで落ちない
 (o) 時刻を単調にする（打ち間違い・巻き戻り）と、1 つの窓は 40 件まで（超えた分は次の窓）
-(p) 1 つの素材に 1 つのログ: 別のログの open・next・append を断る（v1 の記録も）。消えたログの印は引き継ぐ。
-    監査は印が別のログを指す記録を数える
+(p) 1 つの素材に 1 つのログ: 別のログの open・next・append を断る（v1 の記録も）。消えたログのロックファイルは引き継ぐ。
+    監査はロックファイルが別のログを指す記録を数える
 (q) file の記録で、open.src と別の素材を --transcript に渡すと P07。known の比較は句読点・空白をはさんでも同じ
-(r) 値: --now の全角・24 時・2 月 30 日は使い方の誤り。桁の多い整数・e が配列の行も同じ窓の1回に数える。
+(r) 値: --now の全角・24 時・2 月 30 日は使い方のエラー。桁の多い整数・e が配列の行も同じ窓の1回に数える。
     返事の think は捨てる。append は open を受けない（v1 の新しい記録も始められない）
 (s) watch（実時計）: メモ帳の行に届いた時刻を押す。2 つ目の watch は断る。watch が止まっていて新しい行があれば
     next は窓を出さない。end は渡していない発話があれば断り、next --last が改行の無い最後の行の 2 秒の確定を待って
-    最後の窓を出す。end で watch が止まる（数秒だけ実時間で回して止める）
+    最後の窓を出す。end で watch が止まる（数秒だけ実時間で実行して止める）
 (t) watch: 読み終えた行の書き換え・消去・挿入を拾わずに知らせ、末尾の新しい行は落とさず二度足さない
     （K18。書き換えは「消えた」と「間の行」の 2 つの知らせ、末尾へ動かした行は元の場所が消去で末尾が戻した行、
     半分以上が一度に消えたら残った行を名指す）。保存の途中に見えたメモ帳では何もしない
@@ -43,7 +43,7 @@
 (x) 返事の形: events の無い返事・step の無い返事・events の中の note・``` の囲み・2 つの返事・空の src・整数でない窓の幅
 (y) 壊れた step の欄・深すぎる入れ子を、落ちずに拒み、同じ窓の1回に数える
 (z) 4 回目の反証の再現（台本を小さくした形）:
-    z1 捨てるログの素材に、本番の素材ログ・判断ログ・印・覚え書きを名指せない（P30・P07。監査も数える）
+    z1 捨てるログの素材に、本番の素材ログ・判断ログ・ロックファイル・状態ファイル・覚え書きを名指せない（P30・P07。監査も数える）
     z2 メモ帳の時刻を打ち間違えても、そのあとの発話の位置はずれない（時刻はいつも届いた時刻）
     z3 聞き終え方は next --last → append → end。end は渡していない発話があれば断る。改行の無い最後の行は 2 秒で確定
     z4 消して戻した行は二度足さない（K18。末尾でも間でも、消えた行と同じ中身なら戻した行として知らせる。新しい発話を受けても覚えは残る）
@@ -52,7 +52,7 @@
     z7 events:null・前後の空白の集まり・文字の入れ子の事前検査
     z8 open の window・chunk の型が違っても落ちない
 (z9) 5 回目の反証の再現:
-    判断ログの名前は小文字の .jsonl だけ・派生ファイルか大小文字だけ違う語幹があれば open は断る・名前の違う watch の印は断る
+    判断ログの名前は小文字の .jsonl だけ・派生ファイルか大小文字だけ違う語幹があれば open は断る・書かれた名前の違う watch の状態ファイルは断る
     append に end だけのバッチを渡しても rt.py end と同じ断り
     時刻の列だけの直しは記録に効かないと知らせる・時刻らしい列を落とす・話者の列の終わりの「:」を落とす
     同じ位置で続けて消えた行は 1 文にまとめる
@@ -65,7 +65,7 @@
     K18w 突き合わせの知らせは next の窓と next --last の最後の窓に出る。最後の発話より後ろの出来事は最後の窓
     K20 判断ログのパス: 「..」を断る・リンクを解いて照らす・フォルダは 1 つだけ作る・status・digest・監査も照らす
     K23 end -h の文・live の end の t は聞き終えた時計まで・next --last の終わりは時計と「始まり＋幅×3」の早いほう・
-        watch の印の読み書きのやり直し・.gitignore が印の一時ファイルを外す
+        watch の状態ファイルの読み書きのやり直し・.gitignore が状態ファイルの一時ファイルを外す
 """
 import json
 import os
@@ -90,19 +90,19 @@ V1_LOG = FX / "v1_small.jsonl"
 V1_TXT = FX / "v1_small.txt"
 
 
-TEST_ENV = dict(os.environ, KIKU_TEST_CLOCK="1")   # live の記録で --now を使う試験の環境
+TEST_ENV = dict(os.environ, KIKU_TEST_CLOCK="1")   # live の記録で --now を使うテストの環境
 REAL_ENV = {k: v for k, v in os.environ.items() if k != "KIKU_TEST_CLOCK"}   # 本番と同じ環境
 
 
 def run(args, stdin=None, tool=RT, env=None):
-    """道具を呼ぶ。既定は試験の環境（live でも --now を受ける）。env=REAL_ENV で本番と同じ環境。"""
+    """ツールを呼ぶ。既定はテストの環境（live でも --now を受ける）。env=REAL_ENV で本番と同じ環境。"""
     r = subprocess.run([sys.executable, str(tool)] + [str(x) for x in args], input=stdin,
                        capture_output=True, text=True, encoding="utf-8", env=env or TEST_ENV)
     return r.returncode, r.stdout + r.stderr
 
 
 def watch_once(log, now):
-    """watch を 1 回だけ回す（試験用）。メモ帳の新しい行に now の時刻を押して素材ログに足す。"""
+    """watch を 1 回だけ実行する（テスト用）。メモ帳の新しい行に now の時刻を押して素材ログに足す。"""
     code, out = run(["watch", log, "--once", "--now", now])
     assert code == 0, f"watch --once が落ちた:\n{out}"
     return out
@@ -158,10 +158,10 @@ def _case(name, prefix, batch, expect, clock=_CLOCK2, **kw):
 
 
 INLINE_CASES = [
-    # 2. fix(span) の起点が括りの印より後 → P14
-    _case("拒否：fix(span) の起点が括りの印より後", _PREFIX,
+    # 2. fix(span) の起点が括りのマーカーより後 → P14
+    _case("拒否：fix(span) の起点が括りのマーカーより後", _PREFIX,
           [_STEP2, {"e": "fix", "id": "A", "t": 40, "field": "span", "now": [12, 40]}, _NOTE2], "reject", expect_rule="P14"),
-    _case("受理：fix(span) の起点が括りの印と同じ", _PREFIX,
+    _case("受理：fix(span) の起点が括りのマーカーと同じ", _PREFIX,
           [_STEP2, {"e": "fix", "id": "A", "t": 40, "field": "span", "now": [10, 40]}, _NOTE2], "accept"),
     # 3. fix(items) の各項目に字数の上限 → P14
     _case("拒否：fix(items) の項目が 51 字", _PREFIX,
@@ -499,7 +499,7 @@ def test_rebuild_fixture_as_replies(tmp):
         assert pack["next_ids"] and pack["new"] is None
     assert gap_done
     got = log.read_text(encoding="utf-8").splitlines()
-    # 未確定の窓の所感（違反文を並べたもの）だけは、違反の id と並びで比べる（違反文の言い回しは道具の版で変わる）
+    # 未確定の窓の所感（違反文を並べたもの）だけは、違反の id と並びで比べる（違反文の言い回しはツールのバージョンで変わる）
     k = next(i for i, l in enumerate(lines) if '"kind":"gap"' in l) + 1
 
     def ids(line):
@@ -598,7 +598,7 @@ def test_live(tmp):
     code, out = run(["open", log, "--live", "--name", "試し", "--transcript", memo, "--now", "2026-10-07T01:00:00Z"])
     assert code == 0, out
     memo.write_text("最初の発話です。\n0:12\t甲\t時刻つきの発話です。\n途中の行", encoding="utf-8")
-    # watch が回っていないのにメモ帳に新しい行があれば、next は窓を出さない（next の時刻で行を押さない）
+    # watch が実行中でないのにメモ帳に新しい行があれば、next は窓を出さない（next の時刻で行を押さない）
     code, out = run(["next", log, "--now", "2026-10-07T01:00:20Z"])
     assert code == 1 and "watch" in out and not (d / "live" / "k.src.jsonl").exists(), out
     out = watch_once(log, "2026-10-07T01:00:20Z")   # 行が 1:00:20 に届いた
@@ -617,7 +617,7 @@ def test_live(tmp):
     utts = [u for u in src if "i" in u]
     assert len(utts) == 2 and all("at" in u for u in utts), "素材ログに壁時計が無い"
     assert [u["t"] for u in utts] == [20, 20], "素材ログに届いた時刻でない時刻がある"
-    assert [r for r in src if r.get("ev") == "timecol"], "メモ帳の時刻を捨てた印が素材ログに無い"
+    assert [r for r in src if r.get("ev") == "timecol"], "メモ帳の時刻を捨てたという記録が素材ログに無い"
     reply = {"step": {"t": [0, 30]},
              "events": [{"e": "card", "id": "C1", "t": 20, "d": 0, "role": "claim", "who": "甲",
                          "src": [1, 2], "li": None, "ti": "試しの発話", "b": ""}],
@@ -690,7 +690,7 @@ def test_live_requires_next(tmp):
     code, out = run(["append", log, bf, "--now", "2026-10-07T01:01:06Z"])
     assert code == 2 and "P07:" in out and "0:30〜1:00" in out, out
     assert log.read_text(encoding="utf-8") == before
-    # (4) 未来の --now は open・next・append・end・pause・watch のどれも受けない（live。試験の環境でも）
+    # (4) 未来の --now は open・next・append・end・pause・watch のどれも受けない（live。テストの環境でも）
     for args in (["watch", log, "--once", "--now", "2999-01-01T00:00:00Z"],
                  ["next", log, "--now", "2999-01-01T00:00:00Z"],
                  ["append", log, bf, "--now", "2999-01-01T00:00:00Z"],
@@ -701,7 +701,7 @@ def test_live_requires_next(tmp):
         assert code == 1 and "実時計より" in out, f"未来の --now が通った: {args[0]}\n{out}"
     assert log.read_text(encoding="utf-8") == before
     assert not (d / "live" / "k2.jsonl").exists()
-    # file の記録では --now は自由（過去の記録を作り直す試験のため）
+    # file の記録では --now は自由（過去の記録を作り直すテストのため）
     src = d / "src.txt"
     src.write_text("0:01\t甲\t最初の発話です。\n", encoding="utf-8")
     code, out = run(["open", d / "f.jsonl", "--src", src, "--now", "2999-01-01T00:00:00Z"])
@@ -755,7 +755,7 @@ def test_audit(tmp):
     assert code == 2 and "知らない版" in out, out
 
 
-# ------------------------------------------------------------ (f)〜(m) 窓の照らし直し・壁時計・値の厳しさ・壊れた返事・digest の上限・known の重なりの試験
+# ------------------------------------------------------------ (f)〜(m) 窓の照らし直し・壁時計・値の厳しさ・壊れた返事・digest の上限・known の重なりのテスト
 
 T0 = "2026-10-07T01:00:00Z"
 
@@ -912,7 +912,7 @@ def test_wall_clock(tmp):
         assert log.read_text(encoding="utf-8") == before
     code, out = run(["append", log, bf, "--now", at_plus(30)])
     assert code == 0, f"聞き終えたちょうどの壁時計が通らない:\n{out}"
-    # 監査も同じことを数える（道具を通さずに書いたログ）
+    # 監査も同じことを数える（ツールを通さずに書いたログ）
     evs = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines()]
     evs[1]["at"] = at_plus(12)
     p = d / "early.jsonl"
@@ -982,7 +982,7 @@ def test_values(tmp):
     bf.write_text('{"e":"step","n":2,"lines":[4,6],"t":[30,60],"x":1e999}\n', encoding="utf-8")
     code, out = run(["append", v1, bf])
     assert code == 2 and "F02:" in out, f"知らない欄の 1e999 が通った:\n{out}"
-    # NaN・Infinity の字句は JSON として読めない（道具が渡した窓が無いので、使い方の誤り）
+    # NaN・Infinity の字句は JSON として読めない（ツールが渡した窓が無いので、使い方のエラー）
     bf.write_text(step2 + '\n{"e":"note","t":NaN,"x":"所感"}\n', encoding="utf-8")
     code, out = run(["append", log, bf, "--now", _CLOCK2])
     assert code == 1 and "JSON として読み取れません" in out and "Traceback" not in out, out
@@ -1039,7 +1039,7 @@ def test_digest_limit(tmp):
     src = d / "src.tsv"
     rows = [(k * 15 - 5, "甲" if k % 2 else "乙", f"{k}番目の発話です") for k in range(1, 121)]
     write_tsv(src, rows)
-    # 道具を通した記録と同じ形のログを直に組み立てる（60 ステップ、各 1 枚。速さのため）
+    # ツールを通した記録と同じ形のログを直に組み立てる（60 ステップ、各 1 枚。速さのため）
     evs = [{"e": "open", "v": 2, "name": "三十分の会議", "t0": T0, "mode": "file", "window": 30, "known": "", "src": str(src)}]
     hid = 0
     for n in range(1, 61):
@@ -1098,7 +1098,7 @@ def test_last_and_known(tmp):
     assert code == 0 and "P28:" not in out, out
 
 
-# ------------------------------------------------------------ (n)〜(r) 素材の読み・単調化と上限・持ち主の印・素材の取り違え・値
+# ------------------------------------------------------------ (n)〜(r) 素材の読み・単調化と上限・ロックファイル・素材の取り違え・値
 
 def read_material(path):
     """素材を MaterialReader で読み切り、共通の期待値（tests/fixtures/*.expect.json）と同じ形にする。"""
@@ -1151,8 +1151,8 @@ def material_windows(d, src, width):
 
 def test_material_reading(tmp):
     """(n) 素材ファイルの読み（format/FORMAT.md「素材ファイルの形」）。共通の素材のどれも、ページの読み手と同じ期待値
-    （tests/fixtures/materials.json に並べた *.expect.json）に一字違わず合う。BOM を付けて CR LF にした写しと、
-    最後の改行を落とした写しも同じ。窓幅 30 秒の file の記録で出る窓と、その窓で出す知らせの文も同じ（K12）。"""
+    （tests/fixtures/materials.json に並べた *.expect.json）に一字違わず合う。BOM を付けて CR LF にしたコピーと、
+    最後の改行を落としたコピーも同じ。窓幅 30 秒の file の記録で出る窓と、その窓で出す知らせの文も同じ（K12）。"""
     index = json.loads((FX / "materials.json").read_text(encoding="utf-8"))
     keys = ("format", "utterances", "unreadable", "bad_bytes", "jumps", "time_head", "skipped_lines", "attach")
     for m in index["materials"]:
@@ -1170,11 +1170,11 @@ def test_material_reading(tmp):
             # 発話が 1 つも無い素材の断りの文（K21。ページの materialRefusal と同じ）
             no = RTM.material_refusal(src)
             assert dumps(no) == dumps(want["refuse"]), f"{m['name']}（{src.name}）の断りの文が期待と違う:\n{dumps(no)}\n{dumps(want['refuse'])}"
-        # 窓と知らせの文（素材は写しで回す。open は素材の隣に持ち主の印を書くので、fixtures の中では回さない）
+        # 窓と知らせの文（素材はコピーで回す。open は素材の隣にロックファイルを書くので、fixtures の中では回さない）
         src = d / m["file"]
         src.write_bytes(body)
         if want["refuse"]:
-            # file の open は記録を作らずに断る（判断ログも持ち主の印も書かない）
+            # file の open は記録を作らずに断る（判断ログもロックファイルも書かない）
             log = d / (src.stem + ".jsonl")
             code, out = run(["open", log, "--src", src, "--name", "試し", "--window", want["window"]])
             assert code == 1 and out.strip() == "\n".join(want["refuse"]), f"{m['name']} の open が断らない:\n{out}"
@@ -1272,8 +1272,8 @@ def test_owner(tmp):
     a = d / "a.jsonl"
     code, out = run(["open", a, "--src", src, "--name", "本番"])
     assert code == 0 and mark.exists(), out
-    assert mark.read_text(encoding="utf-8").strip() == "a.jsonl", "印が素材のフォルダからの相対で書かれていない"
-    # (1) 同じ素材に別のログを open すると断る（何も書かない。印も変えない）
+    assert mark.read_text(encoding="utf-8").strip() == "a.jsonl", "ロックファイルの中身が素材のフォルダからの相対で書かれていない"
+    # (1) 同じ素材に別のログを open すると断る（何も書かない。ロックファイルも変えない）
     b = d / "b.jsonl"
     code, out = run(["open", b, "--src", src, "--name", "捨て", "--window", 180])
     assert code == 2 and "P07:" in out and not b.exists(), out
@@ -1285,22 +1285,22 @@ def test_owner(tmp):
     write_jsonl(d / "x.jsonl", [{"e": "step", "n": 1, "lines": [1, 1], "t": [0, 30]}, {"e": "note", "t": 30, "x": "試し"}])
     code, out = run(["append", b, d / "x.jsonl"])
     assert code == 2 and "P07:" in out, out
-    # (3) v1 の形で手で書いたログでも、--transcript の素材に別のログの印があれば断る（v1 は印を書かない）
+    # (3) v1 の形で手で書いたログでも、--transcript の素材に別のログのロックファイルがあれば断る（v1 はロックファイルを書かない）
     c = d / "c.jsonl"
     write_jsonl(c, [{"e": "open", "name": "古い形", "chunk": 40}])
     for args in (["next", c, "--transcript", src], ["append", c, d / "x.jsonl", "--transcript", src]):
         code, out = run(args)
         assert code == 2 and "P07:" in out, f"v1 の形のログで別のログの素材を読めた（{args[0]}）:\n{out}"
-    # (4) 本番のログは読める。監査は印が自分を指していれば違反にしない
+    # (4) 本番のログは読める。監査はロックファイルが自分を指していれば違反にしない
     code, out = run(["next", a])
     assert code == 0 and "発話 1〜1" in out, out
     code, out = run([a], tool=AUDIT)
     assert code == 0 and "違反 0" in out, out
-    # (5) 同じ中身を別の名前に写したログは、監査が数える（印は元のログを指している）
-    shutil.copy(a, d / "写し.jsonl")
-    code, out = run([d / "写し.jsonl"], tool=AUDIT)
-    assert code == 2 and "持ち主の印" in out, f"監査が印の食い違いを数えない:\n{out}"
-    # (6) 印が指すログが消えていれば、新しいログが引き継ぐ
+    # (5) 同じ中身を別の名前に写したログは、監査が数える（ロックファイルは元のログを指している）
+    shutil.copy(a, d / "コピー.jsonl")
+    code, out = run([d / "コピー.jsonl"], tool=AUDIT)
+    assert code == 2 and "ロックファイル" in out, f"監査がロックファイルの食い違いを数えない:\n{out}"
+    # (6) ロックファイルが指すログが消えていれば、新しいログが引き継ぐ
     a.unlink()
     code, out = run(["open", b.with_name("e.jsonl"), "--src", src, "--name", "次"])
     assert code == 0 and mark.read_text(encoding="utf-8").strip() == "e.jsonl", out
@@ -1314,7 +1314,7 @@ def test_owner(tmp):
     for args in (["next", g], ["append", g, d / "x.jsonl"], ["end", g], ["pause", g]):
         code, out = run(args)
         assert code == 1 and "batch.jsonl" in out and not (d / "src4.tsv.owner").exists(), f"バッチの名前のログに {args[0]} が効いた:\n{out}"
-    # (8) open を通さずに置いた v2 のログ（印が無い素材）は、最初の next が印を書く
+    # (8) open を通さずに置いた v2 のログ（ロックファイルが無い素材）は、最初の next がロックファイルを書く
     src2 = d / "src2.tsv"
     shutil.copy(src, src2)
     f = d / "f.jsonl"
@@ -1359,7 +1359,7 @@ def test_transcript_and_known(tmp):
 def test_values_more(tmp):
     """(r) 値と入口の厳しさ。"""
     d = Path(tempfile.mkdtemp(dir=tmp))
-    # 壁時計: 全角の数字・24 時・2 月 30 日は使い方の誤り（ログを作らない）
+    # 壁時計: 全角の数字・24 時・2 月 30 日は使い方のエラー（ログを作らない）
     for now in ("２０２６-１０-０７T０９:００:００Z", "2026-10-06T24:00:00Z", "2026-02-30T09:00:00Z", "2026-10-07T09:00:60Z"):
         p = d / "w.jsonl"
         code, out = run(["open", p, "--live", "--transcript", d / "m.txt", "--now", now])
@@ -1396,7 +1396,7 @@ def test_values_more(tmp):
     put(d / "b.json", '{"step":{"t":[0,' + "9" * 5000 + ']},"events":[],"note":{"x":"試し"}}')
     code, out = run(["append", log, d / "b.json"])
     assert code == 3 and "Traceback" not in out and "F02:" in out, f"3 回目で未確定の窓に進まない:\n{out}"
-    # 返事の think は捨てる（道具が埋める欄）。片割れのサロゲートは F02 で、1 文字も書かない
+    # 返事の think は捨てる（ツールが埋める欄）。片割れのサロゲートは F02 で、1 文字も書かない
     log2 = d / "k2.jsonl"
     src3 = d / "src3.tsv"
     shutil.copy(src, src3)
@@ -1417,7 +1417,7 @@ def test_values_more(tmp):
 # ------------------------------------------------------------ (s)〜(y) watch・--now・読めない行・窓の縮め・返事の形・壊れた入力
 
 def test_watch_realtime(tmp):
-    """(s) watch を実時計で数秒だけ回す。"""
+    """(s) watch を実時計で数秒だけ実行する。"""
     import time
     d = Path(tempfile.mkdtemp(dir=tmp))
     log, memo = d / "live" / "k.jsonl", d / "live" / "k.txt"
@@ -1433,14 +1433,14 @@ def test_watch_realtime(tmp):
         arrived1 = time.time() - t0
         # 2 つ目の watch は断る（同じ行を二度足さないため）
         code, out = run(["watch", log, "--for", "1"], env=REAL_ENV)
-        assert code == 1 and "別の watch" in out, f"2 つ目の watch が回った:\n{out}"
+        assert code == 1 and "別の watch" in out, f"2 つ目の watch が実行された:\n{out}"
         time.sleep(max(0, t0 + 4.5 - time.time()))
         with open(memo, "a", encoding="utf-8") as f:
             f.write("二つ目の発話\n書きかけの行")
         arrived2 = time.time() - t0
-        # watch が回っている間に新しい行があれば、next は watch が足すのを待ってから見る（落ちない）
+        # watch の実行中に新しい行があれば、next は watch が足すのを待ってから見る（落ちない）
         code, out = run(["next", log], env=REAL_ENV)
-        assert code == 0, f"watch が回っているのに next が断った:\n{out}"
+        assert code == 0, f"watch が実行中なのに next が断った:\n{out}"
         wout, _ = w.communicate(timeout=15)
     finally:
         if w.poll() is None:
@@ -1454,7 +1454,7 @@ def test_watch_realtime(tmp):
     assert src[0]["t"] <= 3 and src[0]["t"] < arrived2 - 1, f"1 つ目の行を届いた時刻で押していない: {src[0]['t']}（届いた {arrived1:.1f} 秒）"
     for u, arrived in zip(src, (arrived1, arrived2)):
         assert arrived - 1.5 <= u["t"] <= arrived + 3.0, f"届いた時刻で押していない: t={u['t']} 届いた {arrived:.1f} 秒"
-    assert not log.with_name("k.watch.json").exists(), "止まった watch の印が残っている"
+    assert not log.with_name("k.watch.json").exists(), "止まった watch の状態ファイルが残っている"
     # watch が止まっているのに新しい行があれば、next は窓を出さない（next の時刻で押さない）
     with open(memo, "a", encoding="utf-8") as f:
         f.write("\n")
@@ -1582,7 +1582,7 @@ def test_now_needs_env(tmp):
     p = d / "live.jsonl"
     code, out = run(["open", p, "--live", "--transcript", memo, "--now", "2026-10-07T00:00:00Z"], env=REAL_ENV)
     assert code == 1 and "KIKU_TEST_CLOCK" in out and not p.exists(), f"本番の環境で live の --now が通った:\n{out}"
-    # 試験の環境で作った live の記録にも、本番の環境の --now はどの命令でも効かない
+    # テストの環境で作った live の記録にも、本番の環境の --now はどの命令でも効かない
     code, out = run(["open", p, "--live", "--transcript", memo, "--now", T0])
     assert code == 0, out
     memo.write_text("0:01\t甲\t始めます\n", encoding="utf-8")
@@ -1594,7 +1594,7 @@ def test_now_needs_env(tmp):
         code, out = run(args, env=REAL_ENV)
         assert code == 1 and "KIKU_TEST_CLOCK" in out and "Traceback" not in out, f"本番の環境で {args[0]} の --now が通った:\n{out}"
     assert p.read_text(encoding="utf-8") == before and not p.with_name("live.src.jsonl").exists()
-    # file の記録は --now を受ける（過去の記録を作り直す試験のため）
+    # file の記録は --now を受ける（過去の記録を作り直すテストのため）
     src = d / "src.tsv"
     write_tsv(src, [(5, "甲", "一つ目")])
     f = d / "file.jsonl"
@@ -1733,7 +1733,7 @@ def test_reply_shapes(tmp):
     put(d / "b.json", {"step": {"t": [0, 30]}, "note": {"x": "静かな窓"}})
     code, out = run(["append", lg, d / "b.json"])
     assert code == 0, f"events の無い返事を受けない:\n{out}"
-    # 1 回だけ ``` で包んだ返事は外して読む（json の札つきも）
+    # 1 回だけ ``` で包んだ返事は外して読む（json のタグつきも）
     lg = fresh("b")
     put(d / "b.json", "```json\n" + json.dumps(good, ensure_ascii=False) + "\n```\n")
     code, out = run(["append", lg, d / "b.json"])
@@ -1815,7 +1815,7 @@ def test_broken_input(tmp):
 # ------------------------------------------------------------ (z) 4 回目の反証の再現（5 回目で揃えた決め K1〜K7）
 
 def test_peek_blocked(tmp):
-    """(z1) r01・r01b: 捨てるログの素材に、本番の素材ログ・判断ログ・印・覚え書きを名指せない（K6。P30 と P07）。"""
+    """(z1) r01・r01b: 捨てるログの素材に、本番の素材ログ・判断ログ・ロックファイル・状態ファイル・覚え書きを名指せない（K6。P30 と P07）。"""
     d = Path(tempfile.mkdtemp(dir=tmp))
     live = d / "live"
     log, memo = live / "会議.jsonl", live / "会議.txt"
@@ -1847,7 +1847,7 @@ def test_peek_blocked(tmp):
     write_jsonl(v1, [{"e": "open", "name": "古い形", "chunk": 3}])
     code, out = run(["next", v1, "--transcript", live / "会議.src.jsonl"])
     assert code != 0 and "P07:" in out and "結論" not in out, out
-    # 監査も数える（道具を通さずに書いたログ）
+    # 監査も数える（ツールを通さずに書いたログ）
     bad = live / "bad.jsonl"
     write_jsonl(bad, [{"e": "open", "v": 2, "name": "手書き", "t0": T0, "mode": "live", "window": 30, "known": "",
                        "src": "会議.src.jsonl"}])
@@ -1910,9 +1910,9 @@ def test_live_last_and_end(tmp):
     assert code == 1 and "まだ渡していない発話が 1 件" in out and "next --last" in out, out
     assert "まだ入っていない変化（新しい行・消えた行・戻した行・時刻の列の直しなど）が 1 件" in out, out
     assert log.read_text(encoding="utf-8") == before
-    # watch が回っていなければ、next --last は最後の行を待てない（落とさずに断る）
+    # watch が実行中でなければ、next --last は最後の行を待てない（落とさずに断る）
     code, out = run(["next", log, "--last", "--now", at_plus(41)])
-    assert code == 1 and "watch が回っていません" in out, out
+    assert code == 1 and "watch が実行中ではありません" in out, out
     # 2 秒の確定（watch の 1 回分を直に呼ぶ。tail_state は watch が持つものと同じ形）
     t0s = RTM.iso_sec(T0)
     ts = {"key": None, "since": 0.0}
@@ -1962,7 +1962,7 @@ def test_live_last_and_end(tmp):
     assert run(["open", d / "f.jsonl", "--src", src])[0] == 0
     code, out = run(["next", d / "f.jsonl", "--last"])
     assert code == 1 and "--last" in out, out
-    # 監査: end で閉じた live の記録に、どの窓にも入っていない発話が残っていれば数える（道具を通さずに書いたログ）
+    # 監査: end で閉じた live の記録に、どの窓にも入っていない発話が残っていれば数える（ツールを通さずに書いたログ）
     evs = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines()]
     n2 = next(k for k, e in enumerate(evs) if e.get("e") == "step" and e.get("n") == 2)
     cut = evs[:n2] + [evs[-1]]
@@ -2169,7 +2169,7 @@ def test_open_field_types(tmp):
 
 def test_log_names(tmp):
     """(k9) 判断ログの名前は小文字の .jsonl で終わる名前だけ。自分自身・派生ファイル・大小文字だけ違う語幹の
-    判断ログか派生ファイルがあれば open は断る。watch の印に判断ログの名前を書き、名前の違う印では断る。"""
+    判断ログか派生ファイルがあれば open は断る。watch の状態ファイルに判断ログの名前を書き、書かれた名前の違う状態ファイルでは断る。"""
     d = Path(tempfile.mkdtemp(dir=tmp))
     live = d / "live"
     live.mkdir()
@@ -2195,9 +2195,9 @@ def test_log_names(tmp):
         code, out = opn(name)
         assert code == 1 and "語幹" in out and "大小文字" in out, f"{name} を開いた（{stray}）:\n{out}"
         assert sorted(os.listdir(live)) == before, f"断った open が何か書いた: {name}"
-    # watch の印には判断ログの名前を書く
+    # watch の状態ファイルには判断ログの名前を書く
     mark = json.loads((live / "kaigi.watch.json").read_text(encoding="utf-8")) if (live / "kaigi.watch.json").exists() else None
-    assert mark is None, "watch --once が印を残した"
+    assert mark is None, "watch --once が状態ファイルを残した"
     log = live / "kaigi.jsonl"
     put(live / "b.json", reply([0, 30]))
     for theirs, want in (("KAIGI.jsonl", "別の判断ログ"), (None, "名前が書かれていない")):
@@ -2210,14 +2210,14 @@ def test_log_names(tmp):
                      ["pause", log, "--now", at_plus(40)]):
             before = log.read_text(encoding="utf-8")
             code, out = run(args)
-            assert code == 2 and want in out and "Traceback" not in out, f"名前の違う印で {args[0]} が通った:\n{out}"
+            assert code == 2 and want in out and "Traceback" not in out, f"書かれた名前の違う状態ファイルで {args[0]} が通った:\n{out}"
             assert log.read_text(encoding="utf-8") == before
-    # 自分の名前の古い印（止まった watch が残したもの）は引き継ぐ
+    # 自分の名前の古い状態ファイル（止まった watch が残したもの）は引き継ぐ
     put(live / "kaigi.watch.json", {"token": "x", "beat": at_plus(1), "log": "kaigi.jsonl"})
     memo.write_text("甲\t始めます\n乙\t続けます\n", encoding="utf-8")
     out = watch_once(log, at_plus(40))
     assert "発話 1 件" in out, out
-    # 名前の違う古い印は引き継がない（印に名前を書いたのは、語幹の同じ別のログの印を使わないため）
+    # 名前の違う古い状態ファイルは引き継がない（状態ファイルに名前を書いたのは、語幹の同じ別のログの状態ファイルを使わないため）
     put(live / "kaigi.watch.json", {"token": "x", "beat": at_plus(1), "log": "other.jsonl"})
     code, out = run(["watch", log, "--once", "--now", at_plus(45)])
     assert code == 2 and "別の判断ログ" in out, out
@@ -2375,7 +2375,7 @@ class MemoSim:
 
 
 def _k18_summary(got):
-    """1 回の保存で書いたもの: 読み終えた行の変化（溜まりの片付けの forget と、知らせにならない打ち直しの印は除く）と新しい発話。"""
+    """1 回の保存で書いたもの: 読み終えた行の変化（溜まりの片付けの forget と、知らせにならない打ち直しの記録は除く）と新しい発話。"""
     return ([(r["kind"], r.get("lines") or r.get("line")) for r in got if r.get("ev") == "changed" and r["kind"] != "forget"
              and not (r["kind"] == "retyped" and not r.get("drop"))]
             + [("発話", r["text"]) for r in got if "i" in r])
@@ -2580,7 +2580,7 @@ def test_log_paths_k20(tmp):
     (d / "new3" / "f").write_text("x", encoding="utf-8")
     code, out = opn(d / "new3" / "f" / "k.jsonl")
     assert code == 1 and "Traceback" not in out, out
-    # status・digest・監査: 素材ログ・覚え書き・watch の印を判断ログとして渡されたら、中身を読まずに断る（行の数も出さない）
+    # status・digest・監査: 素材ログ・覚え書き・watch の状態ファイルを判断ログとして渡されたら、中身を読まずに断る（行の数も出さない）
     src = d / "live" / "k.src.jsonl"
     side = d / "live" / "k.next.json"
     put(side, {"t": [0, 30], "lines": [1, 1]})
@@ -2595,7 +2595,7 @@ def test_log_paths_k20(tmp):
 
 
 def test_k23(tmp):
-    """(k23) end -h の説明・live の end の t は聞き終えた時計より先に置けない・最後の窓の終わり・watch の印の
+    """(k23) end -h の説明・live の end の t は聞き終えた時計より先に置けない・最後の窓の終わり・watch の状態ファイルの
     読み書きのやり直し・.gitignore。"""
     code, out = run(["end", "-h"])
     assert code == 0 and "聞き終えた時計の秒" in out and "直前の窓の終わりの大きいほう" in out, out
@@ -2662,7 +2662,7 @@ def test_k23(tmp):
     watch_once(lg, at_plus(8))
     code, out = run(["next", lg, "--last", "--now", at_plus(22), "--json"])
     assert code == 0 and json.loads(out)["new"]["t"] == [5, 20], out
-    # watch の印の読み書きは OSError で落ちない（やり直し、書けなければ偽。一時ファイルも残さない）
+    # watch の状態ファイルの読み書きは OSError で落ちない（やり直し、書けなければ偽。一時ファイルも残さない）
     wl = d / "live" / "wm.jsonl"
     mp = RTM.watch_mark_path(wl)
     mp.mkdir()
@@ -2685,7 +2685,7 @@ def test_k23(tmp):
     assert RTM.read_watch_mark(wl) == {"token": "t2", "log": wl.name}
     mp.unlink()
     gi = (KIT / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert "*.watch.json.*.tmp" in gi, "watch の印の一時ファイルが .gitignore に無い"
+    assert "*.watch.json.*.tmp" in gi, "watch の状態ファイルの一時ファイルが .gitignore に無い"
 
 
 def test_k24_k26_memo(tmp):
@@ -2756,7 +2756,7 @@ def test_k24_k26_memo(tmp):
     assert _k18_summary(m.save(["乙\tはい"])) == [(R, [1])]
     assert _k18_summary(m.save(["乙\tはい", "乙\tはい"])) == [("retyped", [2]), ("発話", "はい")]
     assert _k18_summary(m.save(["乙\tはい", "乙\tはい", "甲\t四つ目", "乙\tはい"])) == [("発話", "四つ目"), ("発話", "はい")]
-    # 覚えの読み直し（read_srclog_records）も同じ状態になる: 素材ログから当て直した溜まり・spent・戻した行の印で、
+    # 覚えの読み直し（read_srclog_records）も同じ状態になる: 素材ログから当て直した溜まり・spent・「戻した行と知らせたか」のフラグで、
     # 次の保存が同じ結果になる
     sl = RTM.read_srclog(m.src)
     assert not sl.pool.has("乙\tはい") and len(sl.spent) == 0 and not any(e[2] for e in sl.entries), (len(sl.pool), len(sl.spent), sl.entries)
@@ -2779,7 +2779,7 @@ def test_k24_k26_memo(tmp):
 
 def test_k25_pending(tmp):
     """(k25) メモ帳の変化（新しい行だけでなく、戻した行・間の行・消えた行・時刻の列の直しの出来事と、改行の無い
-    最後の行）が素材ログに入るまで、next --last は待ち（watch が回っていなければ断り）、end は断る。書き終えた出来事の
+    最後の行）が素材ログに入るまで、next --last は待ち（watch が実行中でなければ断り）、end は断る。書き終えた出来事の
     知らせは最後の窓に出る。渡す発話が無いときの next --last --json も JSON（K31）。"""
     d = Path(tempfile.mkdtemp(dir=tmp))
     log, memo, bf = d / "live" / "k.jsonl", d / "live" / "k.txt", d / "b.json"
@@ -2805,7 +2805,7 @@ def test_k25_pending(tmp):
         assert code == 1 and "まだ入っていない変化" in out and "1 件" in out, f"{name}: end が断らない:\n{out}"
         assert log.read_text(encoding="utf-8") == before
         code, out = run(["next", log, "--last", "--now", at_plus(40)])
-        assert code == 1 and "watch が回っていません" in out, f"{name}: next --last が待たずに窓を出した:\n{out}"
+        assert code == 1 and "watch が実行中ではありません" in out, f"{name}: next --last が待たずに窓を出した:\n{out}"
         # watch の 1 回分（改行の無い最後の行は 2 秒の確定）
         ts = {"key": None, "since": 0.0}
         tick = lambda sec: RTM.sync_memo(str(memo), str(srclog), t0s, at_plus(int(sec)), settle=0, tail_state=ts, now_sec=t0s + sec)
@@ -2830,7 +2830,7 @@ def test_k25_pending(tmp):
 
 
 def test_k27_memo_paths(tmp):
-    """(k27) メモ帳・素材のパス: 「..」を挟んだ名前は断る。メモ帳を置くフォルダが無ければ、持ち主の印のために 1 つだけ
+    """(k27) メモ帳・素材のパス: 「..」を挟んだ名前は断る。メモ帳を置くフォルダが無ければ、ロックファイルのために 1 つだけ
     作り、メモ帳は作らない（その上も無ければ何も書かずに断る）。メモ帳が見つからないあいだ、watch は突き合わせず
     （読み終えた行を消えたことにしない）、様子が変わったときに知らせる。next・next --last もその知らせを出す。"""
     d = Path(tempfile.mkdtemp(dir=tmp))
@@ -2847,7 +2847,7 @@ def test_k27_memo_paths(tmp):
     for cmd in (["next"], ["append", d / "b.json"]):
         code, out = run(cmd[:1] + [log] + cmd[1:] + ["--transcript", f"{d}/live/x/../k.txt", "--now", at_plus(1)])
         assert code == 2 and "「..」" in out, f"{cmd[0]} が「..」の --transcript を受けた:\n{out}"
-    # メモ帳を置くフォルダが無い: その 1 つだけを作って印を書く。メモ帳は作らない。2 段無ければ断る
+    # メモ帳を置くフォルダが無い: その 1 つだけを作ってロックファイルを書く。メモ帳は作らない。2 段無ければ断る
     log2 = d / "live" / "k2.jsonl"
     memo2 = d / "notes" / "k2.txt"
     code, out = run(["open", log2, "--live", "--name", "試し", "--transcript", memo2, "--now", T0])
@@ -2883,7 +2883,7 @@ def test_k27_memo_paths(tmp):
     (d / "notes" / "よけた.txt").rename(memo2)
     out = watch_once(log2, at_plus(37))
     assert len(log2.with_name("k2.src.jsonl").read_text(encoding="utf-8").splitlines()) == n0, f"戻ったメモ帳で書き足した:\n{out}"
-    # watch（回し続ける形）は、見つからなくなったとき・また見つかったときに 1 回ずつ知らせる
+    # watch（実行し続ける形）は、見つからなくなったとき・また見つかったときに 1 回ずつ知らせる
     memo2.rename(d / "notes" / "よけた.txt")
     timer = __import__("threading").Timer(2.5, lambda: (d / "notes" / "よけた.txt").rename(memo2))
     timer.start()
@@ -2898,7 +2898,7 @@ locked = os.path.realpath(os.environ["KIKU_TEST_LOCKED"])
 real_open = io.open
 def fake_open(f, *a, **k):
     if isinstance(f, (str, os.PathLike)) and os.path.realpath(os.fspath(f)) == locked:
-        raise PermissionError(13, "ほかのアプリが掴んでいる（試験）", os.fspath(f))
+        raise PermissionError(13, "ほかのアプリが掴んでいる（テスト）", os.fspath(f))
     return real_open(f, *a, **k)
 builtins.open = io.open = fake_open
 import rt
@@ -2909,7 +2909,7 @@ sys.exit(rt.main(sys.argv[1:]))
 def test_r8_memo_locked(tmp):
     """(r8) メモ帳はあるのに開けない間（ほかのアプリが掴んでいる・権限が無い）: next は窓にその知らせを出し、
     next --last と end は開けるようになるまで断る（開けない間に打った行が、知らせ無しに記録から欠けない）。
-    開けない場面は、メモ帳の名前だけを開けなくした道具で作る。"""
+    開けない場面は、メモ帳の名前だけを開けなくしたツールで作る。"""
     d = Path(tempfile.mkdtemp(dir=tmp))
     (d / "live").mkdir()
     tool = d / "locked_rt.py"
@@ -3093,7 +3093,7 @@ def main():
         test_watch_changes(tmp)
         results.append("watch: 読み終えた行の変化を知らせ、新しい行を落とさず二度足さない・保存の途中は読まない")
         test_now_needs_env(tmp)
-        results.append("live の --now は試験の環境だけ")
+        results.append("live の --now はテストの環境だけ")
         test_unreadable_notices(tmp)
         results.append("読めない行・全角の時刻・時刻の飛びを行番号で知らせる（file）。live のメモ帳は時刻の列を捨てて全行を読む")
         test_cap_shrink(tmp)
@@ -3103,7 +3103,7 @@ def main():
         test_broken_input(tmp)
         results.append("壊れた step・深い入れ子は落ちずに拒んで数える")
         test_peek_blocked(tmp)
-        results.append("捨てるログで本番の素材ログ・判断ログ・印・覚え書きを素材にできない（P30・P07）")
+        results.append("捨てるログで本番の素材ログ・判断ログ・ロックファイル・状態ファイル・覚え書きを素材にできない（P30・P07）")
         test_memo_time_typo(tmp)
         results.append("メモ帳の時刻の打ち間違いで発話の位置がずれない")
         test_live_last_and_end(tmp)
@@ -3119,7 +3119,7 @@ def main():
         test_open_field_types(tmp)
         results.append("open の window・chunk の型が違っても落ちない")
         test_log_names(tmp)
-        results.append("判断ログの名前は小文字の .jsonl だけ・派生ファイルや大小文字だけ違う語幹があれば open は断る・名前の違う watch の印は断る")
+        results.append("判断ログの名前は小文字の .jsonl だけ・派生ファイルや大小文字だけ違う語幹があれば open は断る・書かれた名前の違う watch の状態ファイルは断る")
         test_append_end_refusal(tmp)
         results.append("append に end だけのバッチを渡しても、rt.py end と同じ断り")
         test_retimed_and_speaker_col(tmp)
@@ -3136,14 +3136,14 @@ def main():
         test_log_paths_k20(tmp)
         results.append("判断ログのパス（K20）: 「..」を断る・リンクを解いて照らす・フォルダは 1 つだけ作る・status・digest・監査も照らす")
         test_k23(tmp)
-        results.append("K23: end -h・live の end の t は聞き終えた時計まで・最後の窓の終わり・watch の印の読み書きのやり直し・.gitignore")
+        results.append("K23: end -h・live の end の t は聞き終えた時計まで・最後の窓の終わり・watch の状態ファイルの読み書きのやり直し・.gitignore")
         test_k24_k26_memo(tmp)
         results.append("K24・K26: 時刻の列だけの直しと undo は同じ中身・残った行は 3 行以上消えたときだけ・知らせのとおり打ち直した行は新しい発話・"
                        "打ち直しの知らせはその保存の行だけ（同じ保存で戻した行はどれも名指す）")
         test_k25_pending(tmp)
         results.append("K25・K31: メモ帳の出来事と改行の無い最後の行が入るまで next --last は待ち end は断る・渡す発話が無くても --json は JSON")
         test_k27_memo_paths(tmp)
-        results.append("K27: メモ帳・素材の「..」を断る・印のフォルダは 1 つだけ・見つからないメモ帳を空とみなさず知らせる")
+        results.append("K27: メモ帳・素材の「..」を断る・ロックファイルのフォルダは 1 つだけ・見つからないメモ帳を空とみなさず知らせる")
         test_k28_log_target(tmp)
         results.append("K28: リンク・フォルダ・無いログ・「/」で終わる名前は、どの命令も文で断り派生ファイルを作らない")
         test_r8_memo_locked(tmp)

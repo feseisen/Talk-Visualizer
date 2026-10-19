@@ -1,9 +1,9 @@
 /*
  * base.css — きく の見た目。先月の再生ビューア（v1）の質感を引き継ぐ: 緑がかった灰色の地、役割ごとに色を付けたカード、
- * 字下げの縦線、明朝の ◆ 区切り。外部参照なし（Web フォントも使わない。書体は OS にあるものから選ぶ）。
+ * 字下げの縦線、明朝の ◆ 区切り。外部参照なし（Web フォントも使わない。フォントは OS にあるものから選ぶ）。
  * 画面を拡大縮小する CSS は使わない（R8。切り替えるのは倍率ではなく、要点だけか細部までかという中身）。
  * 横幅はウィンドウの幅に合わせて伸び縮みし、ふだんの使い方で横にスクロールさせない（R10）。
- * 色はすべて下の札（:root の変数）から取る。暗い画面は、OS の設定（prefers-color-scheme）と data-theme="dark" の両方で切り替わる。
+ * 色はすべて下の :root の変数から取る。暗い画面は、OS の設定（prefers-color-scheme）と data-theme="dark" の両方で切り替わる。
  * 画面の段取りは body の data-mode（idle＝まだ何も無い・live＝聞いている・done＝記録を見ている）で見せ方を変える（app.js の renderNow）。
  */
 :root {
@@ -22,11 +22,11 @@
   --counter: #8E621B; --counter-tint: #F5EDDC;  /* 揺り戻し */
   --case: #5C6456;    --case-tint: #E8EBE2;     /* 実例 */
   --land: #2A6585;    --land-tint: #DEE9F0;     /* 着地 */
-  --top: #A33A46;     --top-tint: #F6E3E5;      /* 最上位の候補・誤り */
+  --top: #A33A46;     --top-tint: #F6E3E5;      /* 最上位の候補・エラー */
   --open: #9C5119;    --open-tint: #F6E8D9;     /* 開いている問い */
   --gap: #7A1F1F;     /* 未確定の窓・止まった知らせ */
   --live: #1F7A5A;    --live-ink: #176548; --live-tint: #DCEEE5; --on-live: #FFFFFF;  /* いま・始める */
-  --rec: #D2412D;     /* 聞いている印の点 */
+  --rec: #D2412D;     /* 聞いている目印の点 */
   --shadow: 0 1px 2px rgba(30, 34, 28, .06), 0 4px 14px rgba(30, 34, 28, .06);
   --u: 24px;          /* 字下げ 1 段の幅 */
   --f-ui: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo UI", "BIZ UDPGothic", "Noto Sans JP", sans-serif;
@@ -96,7 +96,7 @@ details.howto > summary { cursor: pointer; font-weight: 700; color: var(--ink-so
 details.howto[open] > summary { margin-bottom: 4px; }
 details.howto ol { margin: 4px 0; padding-left: 1.6em; }
 
-/* ---- 上の帯 ---- */
+/* ---- 上部のバー ---- */
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50; margin: 0 -16px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .bar-in { display: flex; align-items: center; gap: 10px 18px; min-height: 56px; flex-wrap: wrap; padding: 6px 0; }
 .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 0 1 auto; }
@@ -135,7 +135,7 @@ body:not([data-mode="idle"]) .brand-sub { display: none; }
 .gear::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 3px dotted currentColor; flex: none; box-sizing: border-box; }
 .gear:hover:not(:disabled) { color: var(--ink); text-decoration: underline; }
 
-/* ---- 帯の下の知らせ ---- */
+/* ---- バーの下の知らせ ---- */
 #setupmsg { max-width: 980px; margin: 12px auto 0; padding: 9px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line-strong); font-size: 13px; color: var(--ink); }
 #setupmsg.warn { border-left-color: var(--top); background: var(--top-tint); color: var(--ink); font-weight: 700; }
 #setupmsg:empty { display: none; }
@@ -145,7 +145,7 @@ body:not([data-mode="idle"]) .brand-sub { display: none; }
 .notices { max-width: 980px; margin: 10px auto 0; padding: 8px 14px; border-radius: 10px; background: var(--open-tint); border: 1px solid var(--open); font-size: 12px; }
 .notices > * { margin: 2px 0; }
 
-/* ---- 設定と記録（引き出し。開くのは帯の「設定と記録」から） ---- */
+/* ---- 設定と記録（引き出し。開くのはバーの「設定と記録」から） ---- */
 .drawer { scroll-margin-top: 72px; max-width: 1100px; margin: 14px auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 .drawer > summary { display: none; }
 .drawer[open] { padding: 6px 20px 16px; }
@@ -199,7 +199,7 @@ body[data-mode="idle"] .col { display: none; }
 .ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 10px 0 0; }
 .ask.setup { border-left-color: var(--live); }
 .ask-cloud { align-items: flex-start; font-size: 13px; cursor: pointer; }
-/* 拡張「橋」を入れる 3 つの手順。番号の丸は、済んだ手順だけ ✓ に変わる（済んだと分かるのは保存とコピーだけ。落としたかは、つながって手順ごと消えることで分かる） */
+/* 拡張機能「ブリッジ」をインストールする 3 つの手順。番号の丸は、済んだ手順だけ ✓ に変わる（済んだと分かるのは保存とコピーだけ。ドロップできたかは、拡張機能とつながって手順の表示ごと消えることで分かる） */
 .setup-steps { list-style: none; counter-reset: step; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
 .setup-steps > li { counter-increment: step; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0 10px; align-items: start; }
 .setup-steps > li::before { content: counter(step); width: 24px; height: 24px; border-radius: 50%; background: var(--struct); color: var(--on-struct); font: 700 13px/24px var(--f-num); text-align: center; }
@@ -241,7 +241,7 @@ body[data-mode="done"] .hero-alt, body[data-mode="live"] .hero-alt { margin: 0; 
 body[data-mode="done"] .hero-alt .soft, body[data-mode="live"] .hero-alt .soft { display: none; }
 body[data-mode="done"] .ask, body[data-mode="done"] .paste, body[data-mode="live"] .ask, body[data-mode="live"] .paste { flex: 1 0 100%; margin-top: 4px; }
 
-/* ---- 見本（記録が無い間だけ。淡く、本物と見間違えないよう札を付ける） ---- */
+/* ---- 見本（記録が無い間だけ。淡く、実際の記録と見間違えないようラベルを付ける） ---- */
 .sample { margin: 34px 0 0; position: relative; }
 .sample-cap { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-soft); margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--line-strong); }
 .sample-cap .tag { font-size: 11px; font-weight: 800; letter-spacing: .1em; border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 6px; color: var(--ink-soft); background: var(--surface); }
@@ -373,12 +373,12 @@ body[data-mode="idle"] .itl { display: none; }
 .fl.newest { background: var(--live-tint); border-radius: 6px; }
 .fl.newest .fx { font-weight: 700; }
 
-/* ---- 入口の欄（打つ・音声・ファイル）と分析役の欄 ---- */
+/* ---- 「入力方法」の欄（打つ・音声・ファイル）と分析役の欄 ---- */
 .intake, .analyst { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .intake h3, .analyst h2 { margin: 0 0 4px; font-size: 13px; color: var(--ink-soft); }
 .intake textarea { margin-top: 6px; }
 .intake #intakemsg:empty { display: none; }
-/* 聞いていない間は、打つ欄と拡張の欄にすることが無い（打つのは始めてから、拡張は「聞き取りを開始」で起きる）。ファイルと音声だけ先に選ぶ物がある */
+/* 聞いていない間は、打つ欄と拡張機能の欄にすることが無い（打つのは始めてから、拡張機能は「聞き取りを開始」で起きる）。ファイルと音声だけ先に選ぶ物がある */
 body:not([data-mode="live"]) #in-text, body:not([data-mode="live"]) #in-bridge { display: none; }
 body:not([data-mode="live"]) #intakebox:not(:has(> #in-file:not([hidden]), > #in-speech:not([hidden]))) { display: none; }
 .l0form .row input[type=text] { flex: 1; min-width: 8em; }

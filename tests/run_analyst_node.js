@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /*
- * run_analyst_node.js — src/analyst.js の試験（node で走らせる。fetch は呼ばない）
+ * run_analyst_node.js — src/analyst.js のテスト（node で実行する。fetch は呼ばない）
  *
  *   node tests/run_analyst_node.js
  *
- * 群:
+ * グループ:
  *   1. parseReply   返事の全体を包んだ囲み・前置き・壊れた JSON・形の違いを読み分ける
  *   2. makePrompt   指示＋状態の最小表現が1つの文字列になり、pack がそのまま入っている
  *   3. 台本（mock） fixtures/meeting10.jsonl を台本にした mock が、製品側の toBatch と verify.js を通して fixture を一字違わず
  *                  作り直せる。ステップ 6（gap の窓）では壊れた返事を3回返し、3回とも拒否される
- *   4. 組み立て     Anthropic / OpenAI 互換の本文とヘッダの形。設定の書き出しに鍵が入らない。スキーマの札が外れる。
- *                  API の誤りの文に返事の本文が入らない
+ *   4. 組み立て     Anthropic / OpenAI 互換の本文とヘッダの形。設定の書き出しに API キーが入らない。スキーマから $schema と $id が外れる。
+ *                  API のエラーの文に返事の本文が入らない
  *   5. toBatch      返事 → 追記の直し方が rt.py の reply_to_batch と同じ（li:null を欄ごと落とす、無いものを補わない、など）
  *   6. 刻み         src/cut.js の窓の切り方。終わりちょうどの発話は、最後の発話でも次の窓。素材の終わりで閉じる窓は、
  *                  ファイルではふだんと同じ刻みで、聞き終えている時刻より先に終わりを置かない。ライブでは聞き終えた時計の
@@ -18,13 +18,13 @@
  *                  1 つの窓の発話は規則表の上限（40）まで。
  *                  上限で切った窓は、終わりを渡さなかった最初の発話の時刻まで縮め、その時刻と同じ時刻の塊の手前で切る
  *                  （塊が窓の最初の発話から始まるときだけ幅 0 の窓に 40 件）。窓の幅は整数の秒。
- *                  受け取った時刻が前に戻っていれば、直前の時刻に揃えた写しで渡す。ライブで遅れて閉じる窓の終わりは、
+ *                  受け取った時刻が前に戻っていれば、直前の時刻に揃えたコピーで渡す。ライブで遅れて閉じる窓の終わりは、
  *                  刻みの位置（始まり + 窓幅の 1〜3 倍）のうち時計が過ぎた最も後ろ（rt.py と同じ。中断のあとも）
- *   7. 枠の中       kind 'claude'（この画面を開いている Claude に問う）。偽の claude オブジェクトで、口の決め方（use→sample／
+ *   7. アーティファクトの中       kind 'claude'（この画面を開いている Claude に問う）。モックの claude オブジェクトで、呼び出し方をどう決めるか（use→sample／
  *                  古い complete／どちらも無い）、問いが手動の輪と同じ 1 本の文字列で渡ること、囲み付きの返事、truncated、
- *                  {code} ごとの誤りの扱い（not_granted は fatal・rate_limited は「少し待つ」）、timeoutMs の打ち切り（指定したときだけ。
+ *                  {code} ごとのエラーの扱い（not_granted は fatal・rate_limited は「少し待つ」）、timeoutMs の打ち切り（指定したときだけ。
  *                  sample には既定の打ち切りを置かない——仕組みの側が終える。古い complete だけ既定 120 秒）、接続テスト
- *   どの群も、画面に出す文（msg）に英字の項目名が無く、分析役に返す文（error）は項目名を使うことも見る
+ *   どのグループも、画面に出す文（msg）に英字の項目名が無く、分析役に返す文（error）は項目名を使うことも見る
  */
 'use strict';
 const fs = require('fs');
@@ -95,7 +95,7 @@ function deepEq(a, b) { return canon(a) === canon(b); }
   const outs = shapes.map(function (x) { return A.parseReply(x); });
   t('parseReply', '読めない返事は、画面向けの文（msg）に英字の項目名が無い', outs.every(function (o) { return !o.ok && typeof o.msg === 'string' && o.msg && !/[A-Za-z]{2,}/.test(o.msg); }), outs.map(function (o) { return o.msg; }).join(' / '));
   t('parseReply', '分析役に返す文（error）は項目名で言う（JSON・events・step.t・note.x）', /JSON/.test(outs[0].error) && /events/.test(outs[1].error) && /step\.t/.test(outs[2].error) && /zzz/.test(outs[3].error) && /note\.x/.test(outs[4].error), outs.map(function (o) { return o.error; }).join(' / '));
-  t('parseReply', 'shapeReply も同じ口で使える（形で来た返事の検査）', typeof A.shapeReply === 'function' && !A.shapeReply({ step: { t: [0, 30] }, events: {}, note: { x: 'a' } }).ok && A.shapeReply({ step: { t: [0, 30] }, events: [], note: { x: 'a' } }).ok);
+  t('parseReply', 'shapeReply も同じように使える（形で来た返事の検査）', typeof A.shapeReply === 'function' && !A.shapeReply({ step: { t: [0, 30] }, events: {}, note: { x: 'a' } }).ok && A.shapeReply({ step: { t: [0, 30] }, events: [], note: { x: 'a' } }).ok);
 
   // events が null の返事は読めない（欄が無いときだけ空の並びとして読む）。読めない返事なので、検査に落ちたのと同じ 1 回に数える
   r = A.parseReply('{"step":{"t":[0,30]},"events":null,"note":{"x":"a"}}');
@@ -141,7 +141,7 @@ function deepEq(a, b) { return canon(a) === canon(b); }
 (async function () {
   const verify = V.makeVerifier(rules);
   const an = A.makeAnalyst({ kind: 'mock', script: fixture });
-  t('台本', 'makeAnalyst の label が日本語', an.label === '試験用の台本');
+  t('台本', 'makeAnalyst の label が日本語', an.label === '内蔵のダミー（テスト用）');
 
   // 窓の切り方（tests/README.md）: ステップ n の窓は [30(n-1), 30n]。発話は 30(n-1) <= t < 30n（終わりちょうどの発話は、最後でも次の窓）
   const steps = fixture.filter(function (e) { return e.e === 'step'; });
@@ -171,7 +171,7 @@ function deepEq(a, b) { return canon(a) === canon(b); }
       }
     }
     if (!written && n === 6) {
-      // 3回落ちたので、道具が gap の最小バッチを書く（fixture のステップ 6 そのもの）
+      // 3回落ちたので、ツールが gap の最小バッチを書く（fixture のステップ 6 そのもの）
       const gapBatch = [];
       let on = false;
       fixture.forEach(function (e) {
@@ -221,17 +221,17 @@ function deepEq(a, b) { return canon(a) === canon(b); }
   const ps = A.prepareSchema(schema);
   t('組み立て', 'スキーマから $schema と $id が外れ、$defs と anyOf は残る', !('$schema' in ps) && !('$id' in ps) && ps.$defs && ps.properties.events.items.anyOf.length === 9);
   const exp = JSON.parse(A.exportSettings({ kind: 'anthropic', key: 'SECRET', model: 'claude-opus-5-5', effort: 'low', schema: schema, ask: function () {}, script: fixture }));
-  t('組み立て', '設定の書き出しに鍵・関数・台本・スキーマが入らない', !('key' in exp) && !('ask' in exp) && !('script' in exp) && !('schema' in exp) && exp.model === 'claude-opus-5-5' && JSON.stringify(exp).indexOf('SECRET') < 0);
+  t('組み立て', '設定の書き出しに API キー・関数・台本・スキーマが入らない', !('key' in exp) && !('ask' in exp) && !('script' in exp) && !('schema' in exp) && exp.model === 'claude-opus-5-5' && JSON.stringify(exp).indexOf('SECRET') < 0);
   t('組み立て', 'usage の取り出し（Anthropic / OpenAI 互換）',
     deepEq(I.usageAnthropic({ input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 }), { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 }) &&
     deepEq(I.usageOpenAI({ prompt_tokens: 5, completion_tokens: 6, prompt_tokens_details: { cached_tokens: 7 } }), { input_tokens: 5, output_tokens: 6, cache_read_input_tokens: 7, cache_creation_input_tokens: null }));
   let threw = null;
   try { A.makeAnalyst({ kind: 'nope' }); } catch (e) { threw = e.message; }
-  t('組み立て', '知らない種類は日本語の誤りで止まる', threw && threw.indexOf('分析役の種類') === 0, threw);
+  t('組み立て', '知らない種類は日本語のエラーで止まる', threw && threw.indexOf('分析役の種類') === 0, threw);
   const tc = await A.testConnection({ kind: 'mock' });
   t('組み立て', '接続テストは API 以外では ok:false と理由を返す（fetch を呼ばない）', tc.ok === false && /API/.test(tc.error));
   const tc2 = await A.testConnection({ kind: 'anthropic' });
-  t('組み立て', '鍵が無ければ接続テストは fetch を呼ばずに止まる', tc2.ok === false && tc2.error === '鍵がありません');
+  t('組み立て', 'API キーが無ければ接続テストは fetch を呼ばずに止まる', tc2.ok === false && tc2.error === 'API キーがありません');
   {
     // 接続テストが送るもの: 指示文と短い問いを、repeat なら 2 回。思考を含めた上限 1024、考える量は low
     const sent = [];
@@ -250,7 +250,7 @@ function deepEq(a, b) { return canon(a) === canon(b); }
   const mr = await man.analyze({ now: { n: 1 } }, '指示');
   t('組み立て', '手動の輪: cfg.ask にプロンプトが渡り、貼られた返事を読む', mr.note.x === 'ok' && mr.usage === null);
 
-  // API の誤りの文に、返事の本文（会社のプロキシの遮断ページなど）を流し込まない。本文は console にだけ出す
+  // API のエラーの文に、返事の本文（会社のプロキシの遮断ページなど）を流し込まない。本文は console にだけ出す
   {
     const warned = [];
     const realWarn = console.warn;
@@ -273,8 +273,8 @@ function deepEq(a, b) { return canon(a) === canon(b); }
       globalThis.fetch = realFetch;
     } finally { console.warn = realWarn; }
     t('組み立て', 'HTML の遮断ページ（403）: 画面の文は状態番号だけで、本文が入らない', e1 && /403/.test(e1.message) && !/Blocked|秘密の本文|html/.test(e1.message), e1 && e1.message);
-    t('組み立て', 'JSON の誤り（400）: error.message だけが入る', e2 && /400/.test(e2.message) && /モデル名が違います/.test(e2.message) && !/invalid_request_error/.test(e2.message), e2 && e2.message);
-    t('組み立て', 'JSON でない本文（500）: 「機械向けの形ではない（会社の網が遮っている可能性）」と言う', e3 && /500/.test(e3.message) && /機械向けの形ではない/.test(e3.message) && /会社の網/.test(e3.message) && !/Internal/.test(e3.message), e3 && e3.message);
+    t('組み立て', 'JSON のエラー（400）: error.message だけが入る', e2 && /400/.test(e2.message) && /モデル名が違います/.test(e2.message) && !/invalid_request_error/.test(e2.message), e2 && e2.message);
+    t('組み立て', 'JSON でない本文（500）: 「API の形式ではない（会社のネットワークが遮断している可能性）」と言う', e3 && /500/.test(e3.message) && /API の形式ではない/.test(e3.message) && /会社のネットワーク/.test(e3.message) && !/Internal/.test(e3.message), e3 && e3.message);
     t('組み立て', '本文は console に出る', warned.length === 3 && /秘密の本文/.test(warned[0]) && /Internal Server Error/.test(warned[2]), warned.length + ' 件');
   }
 
@@ -592,21 +592,21 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     const after = wins.filter(function (ww) { return ww.lines[0] >= 15; });
     t('刻み', '時刻の打ち間違いのあとも、どの窓も 40 発話まで', wins.every(function (ww) { return ww.n <= 40; }) && after.length >= 4, JSON.stringify(wins.map(function (ww) { return [ww.t, ww.lines]; })).slice(0, 300));
     t('刻み', '発話は番号の順に 1 度ずつ全部渡る', seen.length === 150 && seen.every(function (i, k) { return i === k + 1; }), seen.length + ' 件');
-    t('刻み', '戻った時刻は直前の時刻（50:00）に揃えた写しで渡る', after.every(function (ww) { return ww.ts.every(function (tt) { return tt === 3000; }); }), JSON.stringify(after.map(function (ww) { return ww.ts.slice(0, 3); })));
+    t('刻み', '戻った時刻は直前の時刻（50:00）に揃えたコピーで渡る', after.every(function (ww) { return ww.ts.every(function (tt) { return tt === 3000; }); }), JSON.stringify(after.map(function (ww) { return ww.ts.slice(0, 3); })));
     const orig = { i: 2, t: 10 };
     const cm = CUT.makeCutter({ window: 30 });
     cm.push({ i: 1, t: 20 }); cm.push(orig);
     w = cm.tick(30);
-    t('刻み', '揃えるのは写しで、渡された発話そのものは書き換えない', orig.t === 10 && w && w.items[1].t === 20 && w.items[1] !== orig, show(w));
+    t('刻み', '揃えるのはコピーで、渡された発話そのものは書き換えない', orig.t === 10 && w && w.items[1].t === 20 && w.items[1] !== orig, show(w));
   })();
 
-  // ---- 7. 枠の中（kind 'claude'） ----
+  // ---- 7. アーティファクトの中（kind 'claude'） ----
   await (async function () {
-    const G = '枠の中';
-    const GOOD = '{"step":{"t":[0,30]},"events":[],"note":{"x":"枠"}}';
+    const G = 'アーティファクトの中';
+    const GOOD = '{"step":{"t":[0,30]},"events":[],"note":{"x":"アーティファクト"}}';
     const pack = { now: { n: 1, t: 30 }, new: { t: [0, 30], lines: [{ i: 1, t: 1, who: '話者A', text: 'こんにちは。' }] } };
     const noEn = function (s) { return typeof s === 'string' && s.length > 0 && !/[A-Za-z]{2,}/.test(s); };
-    // 偽の claude: use('sample') が sample を返す。sample は呼ばれたものを記録して、与えた答えを返す（答えが関数なら呼ぶ）
+    // モックの claude: use('sample') が sample を返す。sample は呼ばれたものを記録して、与えた答えを返す（答えが関数なら呼ぶ）
     const fake = function (answer, o) {
       o = o || {};
       const calls = { use: [], sample: [] };
@@ -629,14 +629,14 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     // (1) use→sample が決まった JSON を返す
     let f = fake({ text: GOOD, truncated: false, modelTierApplied: 'default' });
     let an = A.makeAnalyst({ kind: 'claude', claude: f.claude });
-    t(G, 'makeAnalyst の label が「この画面の Claude（枠の中）」', an.label === 'この画面の Claude（枠の中）' && an.kind === 'claude', an.label);
+    t(G, 'makeAnalyst の label が「この画面の Claude（アーティファクトの中）」', an.label === 'この画面の Claude（アーティファクトの中）' && an.kind === 'claude', an.label);
     let r = await an.analyze(pack, '# 指示\n\n本文');
-    t(G, 'use→sample: 返事の JSON を読み、raw は返事そのもの、usage・think は null、tier は答えた段', r.note.x === '枠' && r.step.t[1] === 30 && r.raw === GOOD && r.usage === null && r.think === null && r.tier === 'default', JSON.stringify(r));
+    t(G, 'use→sample: 返事の JSON を読み、raw は返事そのもの、usage・think は null、tier は答えた段', r.note.x === 'アーティファクト' && r.step.t[1] === 30 && r.raw === GOOD && r.usage === null && r.think === null && r.tier === 'default', JSON.stringify(r));
     const s0 = f.calls.sample[0];
     t(G, '問いは makePrompt と同じ 1 本の文字列（指示＋状態の最小表現。pack がそのまま入る）', s0 && s0.prompt === A.makePrompt('# 指示\n\n本文', pack) && s0.prompt.indexOf(JSON.stringify(pack)) > 0, s0 && s0.prompt.slice(0, 60));
     t(G, 'sample の選択肢は modelTier default・cache false・signal は AbortSignal（effort は渡さない）', s0 && s0.opts.modelTier === 'default' && s0.opts.cache === false && s0.opts.signal && typeof s0.opts.signal.aborted === 'boolean' && !('effort' in s0.opts), JSON.stringify(Object.keys(s0 ? s0.opts : {})));
     await an.analyze(pack, '# 指示\n\n本文');
-    t(G, '口は最初の analyze で 1 回だけ決める（2 回目は use を呼ばない）', f.calls.use.length === 1 && f.calls.use[0] === 'sample' && f.calls.sample.length === 2, f.calls.use.join(','));
+    t(G, '呼び出し方は最初の analyze で 1 回だけ決める（2 回目は use を呼ばない）', f.calls.use.length === 1 && f.calls.use[0] === 'sample' && f.calls.sample.length === 2, f.calls.use.join(','));
     // tier と effort の指定
     f = fake({ text: GOOD, truncated: false });
     an = A.makeAnalyst({ kind: 'claude', claude: f.claude, tier: 'complex', effort: 'high' });
@@ -650,15 +650,15 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     // (2) コードの囲み付き
     f = fake({ text: '```json\n' + GOOD + '\n```', truncated: false });
     r = await A.makeAnalyst({ kind: 'claude', claude: f.claude }).analyze(pack, 'P');
-    t(G, '返事を 1 回だけ囲んだコードの囲みは外して読む（既存の parseReply がそのまま効く）', r.note.x === '枠' && r.raw.indexOf('```') === 0, r.raw.slice(0, 20));
+    t(G, '返事を 1 回だけ囲んだコードの囲みは外して読む（既存の parseReply がそのまま効く）', r.note.x === 'アーティファクト' && r.raw.indexOf('```') === 0, r.raw.slice(0, 20));
     f = fake({ text: 'はい。\n```json\n' + GOOD + '\n```\n以上。', truncated: false });
     let e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
-    t(G, '前置き・後書きの付いた返事は読まない（再試行できる誤り。raw に返事が残る）', e && !e.fatal && /JSON/.test(e.message) && noEn(e.screen) && e.raw && e.raw.indexOf('はい。') === 0, e && e.message);
+    t(G, '前置き・後書きの付いた返事は読まない（再試行できるエラー。raw に返事が残る）', e && !e.fatal && /JSON/.test(e.message) && noEn(e.screen) && e.raw && e.raw.indexOf('はい。') === 0, e && e.message);
 
     // (3) truncated
     f = fake({ text: '{"step":{"t":[0,30]},"events":[', truncated: true });
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
-    t(G, 'truncated が true なら「返事が途中で切れた」の再試行できる誤り（fatal ではない。raw に途中までの返事）', e && !e.fatal && /途中で切れ/.test(e.message) && /truncated/.test(e.message) && noEn(e.screen) && /途中で切れ/.test(e.screen) && e.raw === '{"step":{"t":[0,30]},"events":[', e && e.message);
+    t(G, 'truncated が true なら「返事が途中で切れた」の再試行できるエラー（fatal ではない。raw に途中までの返事）', e && !e.fatal && /途中で切れ/.test(e.message) && /truncated/.test(e.message) && noEn(e.screen) && /途中で切れ/.test(e.screen) && e.raw === '{"step":{"t":[0,30]},"events":[', e && e.message);
 
     // (4) not_granted → fatal
     f = fake({ reject: { code: 'not_granted', message: 'The viewer declined' } });
@@ -671,19 +671,19 @@ function deepEq(a, b) { return canon(a) === canon(b); }
       const ee = await fail(A.makeAnalyst({ kind: 'claude', claude: ff.claude }));
       permOk.push(!!(ee && ee.fatal === true && ee.code === code && noEn(ee.screen)));
     }
-    t(G, '型定義が「永久に隠す」群に置く 4 つ（sampling_disabled ほか）も fatal', permOk.every(Boolean), JSON.stringify(permOk));
+    t(G, '型定義が「永久に隠す」グループに置く 4 つ（sampling_disabled ほか）も fatal', permOk.every(Boolean), JSON.stringify(permOk));
 
     // (5) rate_limited → 再試行できる。「少し待つ」と書く
     f = fake({ reject: { code: 'rate_limited', message: 'Too many calls' } });
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
-    t(G, '{code:rate_limited} は再試行できる誤りで、message と screen に「少し待」と書く', e && !e.fatal && e.code === 'rate_limited' && /少し待/.test(e.message) && /少し待/.test(e.screen) && /Too many calls/.test(e.message) && noEn(e.screen), e && e.message);
+    t(G, '{code:rate_limited} は再試行できるエラーで、message と screen に「少し待」と書く', e && !e.fatal && e.code === 'rate_limited' && /少し待/.test(e.message) && /少し待/.test(e.screen) && /Too many calls/.test(e.message) && noEn(e.screen), e && e.message);
     f = fake({ reject: { code: 'upstream_error', message: 'boom', text: '途中まで' } });
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
     const f3 = fake({ reject: { code: 'zzz_unknown', message: 'm' } });
     const e3 = await fail(A.makeAnalyst({ kind: 'claude', claude: f3.claude }));
     const f4 = fake({ reject: new Error('ほんものの例外') });
     const e4 = await fail(A.makeAnalyst({ kind: 'claude', claude: f4.claude }));
-    t(G, 'それ以外の code（upstream_error・知らない code）と Error は再試行できる誤り。e.text は raw に残り、code は err.code に',
+    t(G, 'それ以外の code（upstream_error・知らない code）と Error は再試行できるエラー。e.text は raw に残り、code は err.code に',
       e && !e.fatal && e.code === 'upstream_error' && e.raw === '途中まで' && /upstream_error/.test(e.message) && noEn(e.screen) &&
       e3 && !e3.fatal && e3.code === 'zzz_unknown' && /zzz_unknown/.test(e3.message) && noEn(e3.screen) &&
       e4 && !e4.fatal && e4.code === null && /ほんものの例外/.test(e4.message) && noEn(e4.screen), [e, e3, e4].map(function (x) { return x && x.message; }).join(' / '));
@@ -694,40 +694,40 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
     const f5 = fake('文字列だけ');
     const e5 = await fail(A.makeAnalyst({ kind: 'claude', claude: f5.claude }));
-    t(G, '空の text は「返事が空」で拒み、{text} の形でない返事は「決まった形で来なかった」', e && !e.fatal && /空/.test(e.message) && e5 && !e5.fatal && /\{text, truncated\}/.test(e5.message) && noEn(e5.screen), (e && e.message) + ' / ' + (e5 && e5.message));
+    t(G, '空の text は「返事が空」で拒み、{text} の形でない返事は「決まった形式で来なかった」', e && !e.fatal && /空/.test(e.message) && e5 && !e5.fatal && /\{text, truncated\}/.test(e5.message) && noEn(e5.screen), (e && e.message) + ' / ' + (e5 && e5.message));
 
-    // (6) use が null を返す → fatal。2 回目も use を呼び直さず同じ誤り
+    // (6) use が null を返す → fatal。2 回目も use を呼び直さず同じエラー
     f = fake(null, { noSample: true });
     an = A.makeAnalyst({ kind: 'claude', claude: f.claude });
     e = await fail(an);
     const eAgain = await fail(an);
-    t(G, 'use(\'sample\') が null なら「この画面では Claude に問えない（sample の能力が無い）」の fatal。2 回目も use を呼び直さない',
-      e && e.fatal === true && /Claude に問えない/.test(e.message) && /sample の能力が無い/.test(e.message) && noEn(e.screen) && eAgain === e && f.calls.use.length === 1 && f.calls.sample.length === 0, e && e.message);
+    t(G, 'use(\'sample\') が null なら「この画面では Claude を呼び出せない（sample の機能が無い）」の fatal。2 回目も use を呼び直さない',
+      e && e.fatal === true && /Claude を呼び出せない/.test(e.message) && /sample の機能が無い/.test(e.message) && noEn(e.screen) && eAgain === e && f.calls.use.length === 1 && f.calls.sample.length === 0, e && e.message);
     const throwing = { use: function () { return Promise.reject(new Error('use が落ちた')); } };
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: throwing }));
     const throwingSync = { use: function () { throw new Error('同期で落ちた'); } };
     const eSync = await fail(A.makeAnalyst({ kind: 'claude', claude: throwingSync }));
-    t(G, 'use が例外を投げても（約束にはないが）null と同じ fatal にする（非同期・同期とも）', e && e.fatal === true && /sample の能力が無い/.test(e.message) && /use が落ちた/.test(e.message) && eSync && eSync.fatal === true && /同期で落ちた/.test(eSync.message), (e && e.message) + ' / ' + (eSync && eSync.message));
+    t(G, 'use が例外を投げても（約束にはないが）null と同じ fatal にする（非同期・同期とも）', e && e.fatal === true && /sample の機能が無い/.test(e.message) && /use が落ちた/.test(e.message) && eSync && eSync.fatal === true && /同期で落ちた/.test(eSync.message), (e && e.message) + ' / ' + (eSync && eSync.message));
 
     // (7) use が無く complete がある（古い形）
     const old = { prompts: [], complete: function (p) { old.prompts.push(p); return Promise.resolve('```json\n' + GOOD + '\n```'); } };
     an = A.makeAnalyst({ kind: 'claude', claude: old });
     r = await an.analyze(pack, '# 指示\n\n本文');
-    t(G, '古い形（complete）: 同じ 1 本の文字列を渡し、返事の文字列を読む（囲みも外す）。tier は null', r.note.x === '枠' && old.prompts.length === 1 && old.prompts[0] === A.makePrompt('# 指示\n\n本文', pack) && r.tier === null && r.usage === null, JSON.stringify(r));
+    t(G, '古い形（complete）: 同じ 1 本の文字列を渡し、返事の文字列を読む（囲みも外す）。tier は null', r.note.x === 'アーティファクト' && old.prompts.length === 1 && old.prompts[0] === A.makePrompt('# 指示\n\n本文', pack) && r.tier === null && r.usage === null, JSON.stringify(r));
     const oldBad = { complete: function () { return Promise.resolve({ text: GOOD }); } };
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: oldBad }));
-    t(G, '古い形で文字列でない返事は「返事が文字になっていない」（再試行できる）', e && !e.fatal && /文字列ではありません/.test(e.message) && noEn(e.screen), e && e.message);
-    const oldThrows = { complete: function () { return Promise.reject(new Error('古い口が落ちた')); } };
+    t(G, '古い形で文字列でない返事は「返事がテキストになっていない」（再試行できる）', e && !e.fatal && /文字列ではありません/.test(e.message) && noEn(e.screen), e && e.message);
+    const oldThrows = { complete: function () { return Promise.reject(new Error('古い呼び出し方が失敗した')); } };
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: oldThrows }));
-    t(G, '古い形の例外は再試行できる誤りで、message に例外の文が入る', e && !e.fatal && /古い口が落ちた/.test(e.message) && noEn(e.screen), e && e.message);
+    t(G, '古い形の例外は再試行できるエラーで、message に例外の文が入る', e && !e.fatal && /古い呼び出し方が失敗した/.test(e.message) && noEn(e.screen), e && e.message);
     const both = fake({ text: GOOD, truncated: false });
     both.claude.complete = function () { throw new Error('呼ばれてはいけない'); };
     r = await A.makeAnalyst({ kind: 'claude', claude: both.claude }).analyze(pack, 'P');
-    t(G, 'use と complete の両方があれば use を使う', r.note.x === '枠' && both.calls.sample.length === 1);
+    t(G, 'use と complete の両方があれば use を使う', r.note.x === 'アーティファクト' && both.calls.sample.length === 1);
 
     // (8) どちらも無い → fatal
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: {} }));
-    t(G, 'use も complete も無ければ「この画面には Claude の口が無い（アーティファクトの枠の外）」の fatal', e && e.fatal === true && /Claude の口が無い/.test(e.message) && /枠の外/.test(e.message) && noEn(e.screen) && /枠の外/.test(e.screen), e && e.message);
+    t(G, 'use も complete も無ければ「この画面には Claude を呼び出す機能が無い（アーティファクトの外）」の fatal', e && e.fatal === true && /Claude を呼び出す機能が無い/.test(e.message) && /アーティファクトの外/.test(e.message) && noEn(e.screen) && /アーティファクトの外/.test(e.screen), e && e.message);
     {
       // cfg.claude が無ければ globalThis.claude を見る。無ければ同じ fatal
       const had = Object.prototype.hasOwnProperty.call(globalThis, 'claude');
@@ -738,7 +738,7 @@ function deepEq(a, b) { return canon(a) === canon(b); }
       globalThis.claude = g.claude;
       let rG;
       try { rG = await A.makeAnalyst({ kind: 'claude' }).analyze(pack, 'P'); } finally { if (had) globalThis.claude = saved; else delete globalThis.claude; }
-      t(G, 'cfg.claude が無ければ globalThis.claude を使う（無ければ口が無い fatal）', eNone && eNone.fatal === true && /口が無い/.test(eNone.message) && rG && rG.note.x === '枠' && g.calls.use.length === 1, eNone && eNone.message);
+      t(G, 'cfg.claude が無ければ globalThis.claude を使う（無ければ「呼び出す機能が無い」の fatal）', eNone && eNone.fatal === true && /呼び出す機能が無い/.test(eNone.message) && rG && rG.note.x === 'アーティファクト' && g.calls.use.length === 1, eNone && eNone.message);
     }
 
     // (9) timeoutMs で切れる
@@ -747,22 +747,22 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     let t0 = Date.now();
     e = await fail(an);
     const took = Date.now() - t0;
-    t(G, 'timeoutMs で signal を切り、sample が cancelled で返したら「時間切れ」の再試行できる誤り', e && !e.fatal && e.code === 'cancelled' && /時間切れ/.test(e.message) && /時間切れ/.test(e.screen) && noEn(e.screen) && f.calls.sample[0].opts.signal.aborted === true && took < 2000, (e && e.message) + ' ' + took + 'ms');
+    t(G, 'timeoutMs で signal を切り、sample が cancelled で返したら「タイムアウト」の再試行できるエラー', e && !e.fatal && e.code === 'cancelled' && /タイムアウト/.test(e.message) && /タイムアウト/.test(e.screen) && noEn(e.screen) && f.calls.sample[0].opts.signal.aborted === true && took < 2000, (e && e.message) + ' ' + took + 'ms');
     f = fake(null, { never: true, honorSignal: false });
     t0 = Date.now();
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude, timeoutMs: 30 }));
-    t(G, 'signal を見ない sample でも、時間切れで返る（待ち続けない）', e && !e.fatal && /時間切れ/.test(e.message) && Date.now() - t0 < 2000, e && e.message);
+    t(G, 'signal を見ない sample でも、タイムアウトで返る（待ち続けない）', e && !e.fatal && /タイムアウト/.test(e.message) && Date.now() - t0 < 2000, e && e.message);
     const oldNever = { complete: function () { return new Promise(function () {}); } };
     t0 = Date.now();
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: oldNever, timeoutMs: 30 }));
-    t(G, '古い形（complete）も timeoutMs で待つのをやめる', e && !e.fatal && /時間切れ/.test(e.message) && Date.now() - t0 < 2000, e && e.message);
+    t(G, '古い形（complete）も timeoutMs で待つのをやめる', e && !e.fatal && /タイムアウト/.test(e.message) && Date.now() - t0 < 2000, e && e.message);
     f = fake({ reject: { code: 'cancelled', message: 'stop' } });
     e = await fail(A.makeAnalyst({ kind: 'claude', claude: f.claude }));
-    t(G, 'こちらの打ち切りでない cancelled は「中止された」（時間切れとは言わない）', e && !e.fatal && e.code === 'cancelled' && /中止/.test(e.message) && !/時間切れ/.test(e.message) && noEn(e.screen), e && e.message);
+    t(G, 'こちらの打ち切りでない cancelled は「中止された」（タイムアウトとは言わない）', e && !e.fatal && e.code === 'cancelled' && /中止/.test(e.message) && !/タイムアウト/.test(e.message) && noEn(e.screen), e && e.message);
     f = fake({ text: GOOD, truncated: false });
     r = await A.makeAnalyst({ kind: 'claude', claude: f.claude, timeoutMs: 30 }).analyze(pack, 'P');
     await new Promise(function (res) { setTimeout(res, 60); });
-    t(G, '時間内に返れば signal は切られない（返事の後に時間が過ぎても切らない）', r.note.x === '枠' && f.calls.sample[0].opts.signal.aborted === false);
+    t(G, '時間内に返れば signal は切られない（返事の後に時間が過ぎても切らない）', r.note.x === 'アーティファクト' && f.calls.sample[0].opts.signal.aborted === false);
     // (9b) timeoutMs を指定しなければ、sample にこちらの打ち切りを置かない（型定義「時間切れを自分で作るな」。
     //      同意の画面を読む間も待つし、既定の段では書き始めるまで 2 分近くかかる）。古い complete だけ既定の 120 秒で待つのをやめる
     {
@@ -770,7 +770,7 @@ function deepEq(a, b) { return canon(a) === canon(b); }
       const sm = { sample: function () {} }, cm = { complete: function () {} };
       t(G, 'claudeTimeoutMs: sample は指定が無ければ null（打ち切らない）、指定があればその数', TM({}, sm) === null && TM({ timeoutMs: 30 }, sm) === 30 && TM({ timeoutMs: 0 }, sm) === null && TM({ timeoutMs: -1 }, sm) === null && TM({ timeoutMs: '5' }, sm) === null && TM({ timeoutMs: Infinity }, sm) === null && TM(null, sm) === null);
       t(G, 'claudeTimeoutMs: 古い complete は指定が無ければ 120000、指定があればその数', TM({}, cm) === 120000 && TM({ timeoutMs: 5000 }, cm) === 5000 && TM({ timeoutMs: 0 }, cm) === 120000);
-      // 時計を見張る: analyze の間に analyst.js が setTimeout を仕掛けないこと（偽の sample は時計を使わない）
+      // 時計を見張る: analyze の間に analyst.js が setTimeout を仕掛けないこと（モックの sample は時計を使わない）
       const realST = globalThis.setTimeout;
       const armed = [];
       globalThis.setTimeout = function (fn, ms) { armed.push(ms); return realST.apply(this, arguments); };
@@ -782,15 +782,15 @@ function deepEq(a, b) { return canon(a) === canon(b); }
         const slow = fake(function () { return new Promise(function (res) { realST(function () { res({ text: GOOD, truncated: false }); }, 130); }); });
         slowOk = await A.makeAnalyst({ kind: 'claude', claude: slow.claude }).analyze(pack, 'P');
       } finally { globalThis.setTimeout = realST; }
-      t(G, 'timeoutMs を指定しなければ、sample の呼び出しに時計（setTimeout）を 1 つも仕掛けず、signal は切られないまま', rNo && rNo.note.x === '枠' && armed.length === 0 && f.calls.sample[0].opts.signal && f.calls.sample[0].opts.signal.aborted === false, '仕掛けた時計 ' + JSON.stringify(armed));
-      t(G, 'timeoutMs を指定しなければ、遅い返事も切らずに受け取る', slowOk && slowOk.note.x === '枠');
+      t(G, 'timeoutMs を指定しなければ、sample の呼び出しに時計（setTimeout）を 1 つも仕掛けず、signal は切られないまま', rNo && rNo.note.x === 'アーティファクト' && armed.length === 0 && f.calls.sample[0].opts.signal && f.calls.sample[0].opts.signal.aborted === false, '仕掛けた時計 ' + JSON.stringify(armed));
+      t(G, 'timeoutMs を指定しなければ、遅い返事も切らずに受け取る', slowOk && slowOk.note.x === 'アーティファクト');
       // 古い complete は既定で待つのをやめる（120 秒。ここでは時計が仕掛かることだけ見る）
       const armed2 = [];
       globalThis.setTimeout = function (fn, ms) { armed2.push(ms); return realST.apply(this, arguments); };
       let rOld;
       try { rOld = await A.makeAnalyst({ kind: 'claude', claude: { complete: function () { return Promise.resolve(GOOD); } } }).analyze(pack, 'P'); }
       finally { globalThis.setTimeout = realST; }
-      t(G, '古い complete は指定が無くても 120 秒の時計を仕掛ける（signal が無いので、待つのをやめるため）', rOld && rOld.note.x === '枠' && armed2.length === 1 && armed2[0] === 120000, JSON.stringify(armed2));
+      t(G, '古い complete は指定が無くても 120 秒の時計を仕掛ける（signal が無いので、待つのをやめるため）', rOld && rOld.note.x === 'アーティファクト' && armed2.length === 1 && armed2[0] === 120000, JSON.stringify(armed2));
     }
 
     // 接続テスト
@@ -804,20 +804,20 @@ function deepEq(a, b) { return canon(a) === canon(b); }
     tc = await A.testConnection({ kind: 'claude', claude: {} });
     const tcNo = await A.testConnection({ kind: 'claude', claude: fake(null, { noSample: true }).claude });
     const tcDecl = await A.testConnection({ kind: 'claude', claude: fake({ reject: { code: 'not_granted', message: 'no' } }).claude });
-    t(G, '接続テスト: 口が無ければ reached:false、閲覧者が断れば reached:true・authed:false。誤りは画面向けの文（英字なし）',
+    t(G, '接続テスト: Claude に問う機能が無ければ reached:false、閲覧者が断れば reached:true・authed:false。エラーは画面向けの文（英字なし）',
       !tc.ok && !tc.reached && noEn(tc.error) && !tcNo.ok && !tcNo.reached && noEn(tcNo.error) && !tcDecl.ok && tcDecl.reached && !tcDecl.authed && noEn(tcDecl.error), [tc.error, tcNo.error, tcDecl.error].join(' / '));
     // 設定の書き出し
     const exp = JSON.parse(A.exportSettings({ kind: 'claude', claude: f.claude, tier: 'quick', timeoutMs: 5000 }));
-    t(G, '設定の書き出しに口のオブジェクト（claude）は入らず、tier と timeoutMs は入る', !('claude' in exp) && exp.kind === 'claude' && exp.tier === 'quick' && exp.timeoutMs === 5000, JSON.stringify(exp));
-    // 誤りの文の作りを直に
+    t(G, '設定の書き出しに、Claude を呼び出す機能のオブジェクト（claude）は入らず、tier と timeoutMs は入る', !('claude' in exp) && exp.kind === 'claude' && exp.tier === 'quick' && exp.timeoutMs === 5000, JSON.stringify(exp));
+    // エラーの文の作りを直に
     const I2 = A._internal;
     const allScreens = ['invalid_request', 'prompt_too_large', 'session_expired', 'empty_completion', 'image_rejected', 'queue_overflow', 'transform_error', 'invalid_json', 'not_granted', 'rate_limited', 'cancelled', 'refused'].map(function (c) { return I2.claudeError({ code: c, message: 'M' }, false); });
     t(G, 'どの code でも screen は日本語だけで、message に code が入る（cancelled は除く）', allScreens.every(function (x) { return noEn(x.screen) && (x.code === 'cancelled' || x.message.indexOf(x.code) >= 0); }), allScreens.map(function (x) { return x.screen; }).join(' / '));
-    t(G, 'fatal が付くのは永久の群だけ', allScreens.filter(function (x) { return x.fatal; }).map(function (x) { return x.code; }).join(',') === 'not_granted');
+    t(G, 'fatal が付くのは永久のグループだけ', allScreens.filter(function (x) { return x.fatal; }).map(function (x) { return x.code; }).join(',') === 'not_granted');
   })();
 
   report();
-})().catch(function (e) { console.error('試験そのものが例外で止まりました: ' + (e && e.stack || e)); process.exit(1); });
+})().catch(function (e) { console.error('テストそのものが例外で止まりました: ' + (e && e.stack || e)); process.exit(1); });
 
 function report() {
   const groups = {};

@@ -1,32 +1,32 @@
 #!/usr/bin/env node
 /*
- * run_node.js — verify.js と fold.js の試験を node で走らせる（ブラウザの tests.html と同じ試験）
+ * run_node.js — verify.js と fold.js のテストを node で実行する（ブラウザの tests.html と同じテスト）
  *
- *   node tests/run_node.js            すべて走らせ、結果を表に出す。1 件でも落ちれば終了コード 1
+ *   node tests/run_node.js            すべて実行し、結果を表に出す。1 件でも落ちれば終了コード 1
  *   node tests/run_node.js --verbose  通った件の中身も出す
  *   node tests/run_node.js --fresh    生成物 _data.js を使わず、元のファイル（規則表・cases・fixtures）から読む
  *
- * 試験データは tests/_data.js（tools/make_test_data.py が作る）。無いか、元のファイルより古ければ、元から直接読む
- * （古い生成物で試験しても今の規則表・cases を見たことにならない。ブラウザ用には作り直しが要るので、その旨を出す）
+ * テストデータは tests/_data.js（tools/make_test_data.py が作る）。無いか、元のファイルより古ければ、元から直接読む
+ * （古い生成物でテストしても今の規則表・cases を見たことにならない。ブラウザ用には作り直しが要るので、その旨を出す）
  *
- * ここだけで走らせる試験（ブラウザの tests.html には無い）:
- *   素材の読み  src/intake.js の素材ファイルの読み手が、tests/fixtures/materials.json に並べた共通の試験素材
+ * ここだけで実行するテスト（ブラウザの tests.html には無い）:
+ *   素材の読み  src/intake.js の素材ファイルの読み手が、tests/fixtures/materials.json に並べた共通のテスト素材
  *               （alone・tsv・inline・vtt・mixed・mixed_alone・tail・none・vtt_bare・srt・blank・tsv_who）を、それぞれの
  *               *.expect.json と一字違わず同じ書き方・発話の列・読めない行・時刻が飛んでいる行・時刻で始まる本文の行・
- *               黙って飛ばした行・知らせを付ける発話・発話の無い素材の断りの文に読むか（rt.py も、その試験で同じ素材と期待値を通す）。先頭の BOM・CR LF の改行・最後の改行の無い写しでも
+ *               黙って飛ばした行・知らせを付ける発話・発話の無い素材の断りの文に読むか（rt.py も、そのテストで同じ素材と期待値を通す）。先頭の BOM・CR LF の改行・最後の改行の無いコピーでも
  *               同じか。先を読まないか。ファイルの入口と刻み（cut.js）で流したときの窓と、その窓で出す知らせの文が期待値と同じか。
  *               知らせの文の型（notice_text）。書き方ごとの小さな境目・WebVTT の端の形・時刻の書き方。打つ入口の時刻を単調にするか
  *   話者の切り出し  打つ入口の splitWho が format/FORMAT.md「話者の切り出し」のとおりか（時刻・比・URL で始まる行を
  *               話者にしない）。打った 1 行の読み方（readTypedLine）が tests/fixtures/typed_lines.json と同じか。
- *               打つ入口が素材ログに渡す {who, text}。時刻の列の知らせは emit.notice に渡し、札を書き換えないか
+ *               打つ入口が素材ログに渡す {who, text}。時刻の列の知らせは emit.notice に渡し、ラベルを書き換えないか
  *   音声認識の入口  中断と再開を素早く繰り返しても、認識を 1 つしか動かさないか。聞き終えるときに、いま動いている認識の
  *               終わりを待ち（上限 3 秒）、止めた後に届いた確定の結果も渡すか。何も聞き取れないまま失敗する認識が続くと、
  *               始め直しの待ちを 0.3・1・2・4 秒と延ばし、5 回で止めるか（聞き取れたら数え直す。黙っている間の「声が聞こえない」は
- *               数えない）。再開しない誤りのあと終わりの知らせが来なくても、500 ミリ秒で終わったものとし、聞き終えるときに
+ *               数えない）。再開しないエラーのあと終わりの知らせが来なくても、500 ミリ秒で終わったものとし、聞き終えるときに
  *               3 秒待たないか（作り物の認識と作り物の時計で確かめる）。
  *               画面共有の音（opts.track）: 認識を start(track) で始め、素材ログの asr_start に source を書くか。トラックが live で
  *               なければ始めないか。共有を止めたら（ended）再開せずに止まり、知らせが 1 回か。start(track) が投げたら止まるか。
- *               captureDisplayAudio が、音の無い共有を映像を止めて断るか、口が無い・許されていないときの文（作り物の
+ *               captureDisplayAudio が、音の無い共有を映像を止めて断るか、API が無い・許されていないときの文（作り物の
  *               navigator.mediaDevices を globalThis に置き、終わったら戻す。Promise なので、この節だけ待ってから結果に足す）
  *   違反文      P30 の長い素材の名前を、終わりを残して短くするか
  */
@@ -105,7 +105,7 @@ function readMaterial(text) {
   };
 }
 const MATERIAL_KEYS = ['format', 'utterances', 'unreadable', 'bad_bytes', 'jumps', 'time_head', 'skipped_lines', 'attach', 'refuse'];
-function sameJson(a, b) { return JSON.stringify(a) === JSON.stringify(b); }   // 鍵の順まで同じ
+function sameJson(a, b) { return JSON.stringify(a) === JSON.stringify(b); }   // キーの順まで同じ
 function diffKeys(a, want) { return MATERIAL_KEYS.filter(function (k) { return !sameJson(a[k], want[k]); }); }
 
 // ファイルの入口（intake.js）と刻み（cut.js の fixed。app.js のファイルの入口と同じつなぎ方）で素材を流したときの
@@ -172,7 +172,7 @@ function runMaterial() {
   const same = sameJson;
   const FX = path.join(__dirname, 'fixtures');
   const index = JSON.parse(fs.readFileSync(path.join(FX, 'materials.json'), 'utf8'));
-  // 共通の試験素材と期待値（rt.py の試験も同じ表を通す）
+  // 共通のテスト素材と期待値（rt.py のテストも同じ表を通す）
   index.materials.forEach(function (m) {
     const text = fs.readFileSync(path.join(FX, m.file), 'utf8');
     const want = JSON.parse(fs.readFileSync(path.join(FX, m.expect), 'utf8'));
@@ -195,7 +195,7 @@ function runMaterial() {
     const w = materialWindows(text, want.window);
     out.push({ group: G, name: m.name + ': ファイルの入口で窓幅 ' + want.window + ' 秒に流すと、窓（' + want.windows.length + ' 個）とその窓で出す知らせの文が期待値と同じ（知らせは付けた発話を渡す窓で、種類ごとに 1 文）',
       ok: same(w.windows, want.windows), detail: same(w.windows, want.windows) ? '' : '結果 ' + JSON.stringify(w.windows) });
-    out.push({ group: G, name: m.name + ': emit.notice があれば、流しているあいだ知らせで入口の札（emit.status）を変えない',
+    out.push({ group: G, name: m.name + ': emit.notice があれば、流しているあいだ知らせで入口のラベル（emit.status）を変えない',
       ok: w.status.length === 0, detail: JSON.stringify(w.status) });
     const wn = materialWindowsByNotes(text, want.window);
     const wnv = wn.windows.map(function (x) { return { t: x.t, lines: x.lines, notices: x.notices }; });
@@ -276,7 +276,7 @@ function runMaterial() {
   out.push({ group: G, name: 'vtt: --> を含む行は NOTE の塊の中でも字幕の時刻の行（NOTE の塊はそこで終わる）',
     ok: v1.format === 'vtt' && same(pick(v1), [[1, '甲', '一']]) && same(v1.skipped_lines, [1, 3]) && same(lns(v1.unreadable), [4]), detail: JSON.stringify(v1) });
   const v2 = readMaterial('WEBVTT\n\n1\n00:00:05.999 --> 00:00:07.000 align:start\n<v.loud 司会 太郎>&lt;開始&gt; します</v>\n<c.y>二行目</c>\n\n00:60.000 --> 01:00.000\n読めない\n\n01:02.500-->01:03.000\n\n');
-  out.push({ group: G, name: 'vtt: ミリ秒は切り捨て、設定は無視、<v.クラス 名前> の名前が話者、札を除いて &lt; &gt; を戻す。秒が 60 の時刻の行は読めない行。本文の無い字幕は発話にしない',
+  out.push({ group: G, name: 'vtt: ミリ秒は切り捨て、設定は無視、<v.クラス 名前> の名前が話者、タグを除いて &lt; &gt; を戻す。秒が 60 の時刻の行は読めない行。本文の無い字幕は発話にしない',
     ok: same(pick(v2), [[5, '司会 太郎', '<開始> します 二行目']]) && same(lns(v2.unreadable), [8, 9]) && same(v2.skipped_lines, [1, 3]), detail: JSON.stringify(v2) });
   const v3 = readMaterial('WEBVTT\n\n00:01.000 --> 00:02.000\n一\n00:03.000 --> 00:04.000\n二\n\n迷い込んだ行\n');
   out.push({ group: G, name: 'vtt: 空行の無い時刻の行でも前の字幕を閉じる。時刻の行の無い塊（最後の発話より後ろ）は読めない行で、最後の発話に付ける',
@@ -300,10 +300,10 @@ function runMaterial() {
   const vb5 = readMaterial('');
   out.push({ group: G, name: '空の素材も断る（見出しとして飛ばした行 0 行）', ok: same(vb5.refuse, [intake.NO_TIMED_TEXT.replace('{n}', '0')]) && intake.materialRefusal('0:01 a\n') === null, detail: JSON.stringify(vb5.refuse) });
 
-  // ファイルの入口: 知らせは、付けた発話を渡すときに出す（読めない行は素材ログにも残す）。emit.notice が無ければ札に出す
+  // ファイルの入口: 知らせは、付けた発話を渡すときに出す（読めない行は素材ログにも残す）。emit.notice が無ければラベルに出す
   const runFile = function (txt) {
     const log = [];
-    const em = { line: function (l) { log.push(['発話', l.t, l.text]); }, event: function (e) { log.push(['出来事', e.ev, e.line, e.t, e.raw]); }, interim: function () {}, status: function (x) { log.push(['札', x]); } };
+    const em = { line: function (l) { log.push(['発話', l.t, l.text]); }, event: function (e) { log.push(['出来事', e.ev, e.line, e.t, e.raw]); }, interim: function () {}, status: function (x) { log.push(['ラベル', x]); } };
     let lastT1 = 0;
     const cut = { windowEnd: function () { return lastT1 + 30; }, setLastT1: function (t) { lastT1 = t; }, pendingCount: function () { return 0; } };
     const fi = intake.makeFileIntake(em, cut);
@@ -314,15 +314,15 @@ function runMaterial() {
     return { log: log, fi: fi };
   };
   const f1 = runFile('0:01\t甲\t一\n0:2\t甲\t壊れた時刻\n0:40\t乙\t二\n0:3\t乙\t最後の後ろの壊れた行\n');
-  const ev1 = f1.log.filter(function (x) { return x[0] !== '札'; });
+  const ev1 = f1.log.filter(function (x) { return x[0] !== 'ラベル'; });
   out.push({ group: G, name: 'ファイルの入口: 読めない行は付けた発話（後ろの発話）を渡したあとに素材ログへ残し、最後の発話より後ろは、最後の発話を渡した窓で読み切ったときに残す',
     ok: same(ev1, [['発話', 1, '一'], ['発話', 40, '二'], ['出来事', 'unreadable', 2, 40, '0:2\t甲\t壊れた時刻'], ['出来事', 'unreadable', 4, 60, '0:3\t乙\t最後の後ろの壊れた行']]), detail: JSON.stringify(ev1) });
-  const st1 = f1.log.filter(function (x) { return x[0] === '札'; }).map(function (x) { return x[1]; });
-  out.push({ group: G, name: 'ファイルの入口: emit.notice が無ければ、札にその窓の知らせの文を出す（同じ窓の 2 行は 1 文に「2・4 行目」）',
+  const st1 = f1.log.filter(function (x) { return x[0] === 'ラベル'; }).map(function (x) { return x[1]; });
+  out.push({ group: G, name: 'ファイルの入口: emit.notice が無ければ、ラベルにその窓の知らせの文を出す（同じ窓の 2 行は 1 文に「2・4 行目」）',
     ok: st1.indexOf(nt.unreadable.replace('{lines}', '2・4 行目')) >= 0 && same(f1.fi.noticed(), { unreadable: [2, 4], badbyte: [], jump: [], timehead: [] }), detail: st1.join(' / ') });
   const f3 = runFile('0:01\n一\n9:00 から始めます\n0:40\n二\n');
   const head3 = nt.timehead.replace('{lines}', '3 行目');
-  const at3 = f3.log.map(function (x) { return x[0] === '札' ? x[1] : x[0]; });
+  const at3 = f3.log.map(function (x) { return x[0] === 'ラベル' ? x[1] : x[0]; });
   out.push({ group: G, name: 'ファイルの入口: 時刻で始まる本文の行は、その行を本文に入れた発話を渡した直後に知らせる（次の発話を待たない）',
     ok: same(f3.log.filter(function (x) { return x[0] === '発話'; }), [['発話', 1, '一 9:00 から始めます'], ['発話', 40, '二']]) && at3.indexOf(head3) === at3.indexOf('発話') + 1 && same(f3.fi.noticed(), { unreadable: [], badbyte: [], jump: [], timehead: [3] }),
     detail: JSON.stringify(at3) });
@@ -345,8 +345,8 @@ function runMaterial() {
   return out.concat(runWho(), runSpeech(), runSpeechLocal(), runSpeechRetry(), runSpeechDisplay());
 }
 
-// ---- 音声認識の入口: この PC の中で文字にする（opts.local）と、再開しない誤り ----
-// 調べる口（speechLocal・speechInstall）は Promise なので、e2e_routes.js の Z で確かめる
+// ---- 音声認識の入口: この PC の中で文字にする（opts.local）と、再開しないエラー ----
+// 調べる関数（speechLocal・speechInstall）は Promise を返すので、e2e_routes.js の Z で確かめる
 function runSpeechLocal() {
   const out = [];
   const G = '音声認識の入口';
@@ -369,22 +369,22 @@ function runSpeechLocal() {
       return { si: si, r: r, events: events, status: status, made: made.length };
     };
     const a = run({ local: true });
-    out.push({ group: G, name: 'opts.local: 認識に processLocally を立て、始まりの出来事に local:true、札は「この PC の中で文字にしている」',
+    out.push({ group: G, name: 'opts.local: 認識に processLocally を立て、始まりの出来事に local:true、ラベルは「この PC の中で文字にしている」',
       ok: a.r.processLocally === true && a.r.lang === 'ja-JP' && a.events.some(function (e) { return e.ev === 'asr_start' && e.local === true; }) && /この PC の中で文字にしている/.test(a.status.join('|')) && a.si.local === true,
       detail: JSON.stringify({ pl: a.r.processLocally, ev: a.events, st: a.status }) });
     const b = run(undefined);
-    out.push({ group: G, name: 'opts 無し: processLocally を立てず、始まりの出来事に local:false、札は「提供元のサーバーへ送られている」',
+    out.push({ group: G, name: 'opts 無し: processLocally を立てず、始まりの出来事に local:false、ラベルは「提供元のサーバーへ送られている」',
       ok: b.r.processLocally !== true && b.events.some(function (e) { return e.ev === 'asr_start' && e.local === false; }) && /提供元のサーバーへ送られている/.test(b.status.join('|')),
       detail: JSON.stringify({ pl: b.r.processLocally, ev: b.events, st: b.status }) });
     const c = run({ local: true }, 'language-not-supported');
-    out.push({ group: G, name: 'opts.local で「言語が使えない」: 再開せず（認識は 1 つのまま）、サーバーへは切り替えないと言う',
+    out.push({ group: G, name: 'opts.local で「日本語の音声認識に対応していない」: 再開せず（認識は 1 つのまま）、サーバーへは切り替えないと言う',
       ok: c.made === 1 && made.length === 1 && /提供元のサーバーへは切り替えない/.test(c.status.join('|')) && !c.events.some(function (e) { return e.ev === 'asr_restart'; }),
       detail: JSON.stringify({ made: made.length, st: c.status }) });
     const d = run(undefined, 'service-not-allowed');
-    out.push({ group: G, name: '「認識が許されていない」は再開しない',
-      ok: made.length === 1 && /許されていない/.test(d.status.join('|')) && !d.events.some(function (e) { return e.ev === 'asr_restart'; }), detail: JSON.stringify({ made: made.length, st: d.status }) });
+    out.push({ group: G, name: '「音声認識の機能が許可されていない」は再開しない',
+      ok: made.length === 1 && /許可されていない/.test(d.status.join('|')) && !d.events.some(function (e) { return e.ev === 'asr_restart'; }), detail: JSON.stringify({ made: made.length, st: d.status }) });
     const e = run({ local: true }, 'network');
-    out.push({ group: G, name: '「通信が切れた」はこれまでどおり再開する（2 つ目の認識も processLocally を立てる）',
+    out.push({ group: G, name: '「音声認識の通信に失敗した」はこれまでどおり再開する（2 つ目の認識も processLocally を立てる）',
       ok: made.length === 2 && made[1].processLocally === true && e.events.some(function (x) { return x.ev === 'asr_restart'; }), detail: JSON.stringify({ made: made.length }) });
   } finally {
     globalThis.SpeechRecognition = saved.sr; globalThis.setTimeout = saved.to;
@@ -392,8 +392,8 @@ function runSpeechLocal() {
   return out;
 }
 
-// ---- 音声認識の入口: 続けて失敗した認識の始め直し（待ちを延ばし、5 回で止める）と、終わりの知らせが来ない誤り ----
-// 作り物の認識（start で onstart を呼ぶだけ）と、作り物の時計・待ち（setTimeout を預かり、試験が順に回す）で確かめる
+// ---- 音声認識の入口: 続けて失敗した認識の始め直し（待ちを延ばし、5 回で止める）と、終わりの知らせが来ないエラー ----
+// 作り物の認識（start で onstart を呼ぶだけ）と、作り物の時計・待ち（setTimeout を預かり、テストが順に回す）で確かめる
 function runSpeechRetry() {
   const out = [];
   const G = '音声認識の入口';
@@ -403,10 +403,10 @@ function runSpeechRetry() {
   let timers = [];
   function FakeSR() { made.push(this); this.aborted = 0; this.stopped = 0; }
   FakeSR.prototype.start = function () { if (this.onstart) this.onstart(); };
-  FakeSR.prototype.stop = function () { this.stopped++; };       // 終わりの知らせは出さない（試験が呼ぶ）
+  FakeSR.prototype.stop = function () { this.stopped++; };       // 終わりの知らせは出さない（テストが呼ぶ）
   FakeSR.prototype.abort = function () { this.aborted++; };      // 同じ（Chromium は、日本語が無い端末内の認識で abort() しても出さない）
   const result = function (said, fin) { const r = [{ transcript: said }]; r.isFinal = fin !== false; return { resultIndex: 0, results: [r] }; };
-  // 預かった待ちを 1 つ回す（早い順ではなく、置いた順。ここの試験では待ちが同時に 2 つ以上あることは無い）
+  // 預かった待ちを 1 つ回す（早い順ではなく、置いた順。ここのテストでは待ちが同時に 2 つ以上あることは無い）
   const runOne = function () { const x = timers.shift(); if (x) x.f(); return x ? x.ms : null; };
   const make = function (opts) {
     made.length = 0; timers = [];
@@ -417,7 +417,7 @@ function runSpeechRetry() {
     box.ev = function (k) { return box.events.filter(function (e) { return e.ev === k; }).length; };
     return box;
   };
-  // 1 回の失敗: いまの認識が誤りを知らせて終わり、始め直しの待ちを回す（待ちがあれば、その長さを返す）
+  // 1 回の失敗: いまの認識がエラーを知らせて終わり、始め直しの待ちを回す（待ちがあれば、その長さを返す）
   const failOnce = function (box, code) {
     const r = made[made.length - 1];
     if (code) r.onerror({ error: code });
@@ -434,17 +434,17 @@ function runSpeechRetry() {
     const waits = [];
     for (let k = 0; k < 5; k++) { const w = failOnce(a, 'network'); if (w != null) waits.push(w); }
     const evAt5 = a.events.map(function (e) { return e.ev; });
-    made[made.length - 1].onerror({ error: 'network' });   // 止めた後に届いた誤り: 素材ログには残すが、札の理由は変えない
+    made[made.length - 1].onerror({ error: 'network' });   // 止めた後に届いたエラー: 素材ログには残すが、ラベルの理由は変えない
     runOne();
     const lastSt = a.status[a.status.length - 1] || '';
-    out.push({ group: G, name: '続けて失敗: 何も聞き取れないまま「通信が切れた」で終わる認識が続くと、始め直しの待ちを 0.3・1・2・4 秒と延ばし、5 回目で止める（もう始め直さない）',
+    out.push({ group: G, name: '続けて失敗: 何も聞き取れないまま「音声認識の通信に失敗した」で終わる認識が続くと、始め直しの待ちを 0.3・1・2・4 秒と延ばし、5 回目で止める（もう始め直さない）',
       ok: same(waits, [300, 1000, 2000, 4000]) && same(intake.RESTART_WAIT_MS, [300, 1000, 2000, 4000]) && intake.FAIL_LIMIT === 5 && made.length === 5 && timers.length === 0,
       detail: JSON.stringify({ waits: waits, made: made.length, timers: timers.length }) });
-    out.push({ group: G, name: '続けて失敗: 止めたら札に、続けて失敗したことと最後の誤り（日本語と符号 network）を出し、emit.stopped で理由を 1 回だけ渡す',
-      ok: /5 回続けて失敗した/.test(lastSt) && /認識の通信が切れた（network）/.test(lastSt) && /もう始め直さない/.test(lastSt) &&
-        a.stopped.length === 1 && /認識の通信が切れた（network）/.test(a.stopped[0]),
+    out.push({ group: G, name: '続けて失敗: 止めたらラベルに、続けて失敗したことと最後のエラー（日本語と符号 network）を出し、emit.stopped で理由を 1 回だけ渡す',
+      ok: /5 回続けて失敗した/.test(lastSt) && /音声認識の通信に失敗した（network）/.test(lastSt) && /もう始め直さない/.test(lastSt) &&
+        a.stopped.length === 1 && /音声認識の通信に失敗した（network）/.test(a.stopped[0]),
       detail: JSON.stringify({ status: lastSt, stopped: a.stopped }) });
-    out.push({ group: G, name: '続けて失敗: 素材ログの行は 5 回分で止まる（始めた 5・誤り 5・終わり 5・再開 4）。止めた後に何を呼んでも増えない',
+    out.push({ group: G, name: '続けて失敗: 素材ログの行は 5 回分で止まる（始めた 5・エラー 5・終わり 5・再開 4）。止めた後に何を呼んでも増えない',
       ok: evAt5.length === 19 && evAt5.filter(function (k) { return k === 'asr_start'; }).length === 5 && evAt5.filter(function (k) { return k === 'asr_error'; }).length === 5 &&
         evAt5.filter(function (k) { return k === 'asr_end'; }).length === 5 && evAt5.filter(function (k) { return k === 'asr_restart'; }).length === 4 &&
         a.events.length === 20 && made.length === 5 && timers.length === 0 && a.stopped.length === 1,
@@ -472,13 +472,13 @@ function runSpeechRetry() {
       ok: wc.every(function (w) { return w === 300; }) && c.stopped.length === 0 && made.length === 9,
       detail: JSON.stringify({ waits: wc, made: made.length }) });
 
-    // 4. 誤りを知らせずに、始めてすぐ（1 秒未満で）何も聞き取れないまま終わる認識も失敗と数える
+    // 4. エラーを知らせずに、始めてすぐ（1 秒未満で）何も聞き取れないまま終わる認識も失敗と数える
     const d = make({ local: true });
     d.si.start();
     const wd = [];
     for (let k = 0; k < 5; k++) wd.push(failOnce(d, null));
     const lastD = d.status[d.status.length - 1] || '';
-    out.push({ group: G, name: '続けて失敗: 誤りが無くても、始めて 1 秒もたたずに何も聞き取れないまま終わる認識が 5 回続いたら止める。端末内で文字にする設定は始め直しても保つ',
+    out.push({ group: G, name: '続けて失敗: エラーが無くても、始めて 1 秒もたたずに何も聞き取れないまま終わる認識が 5 回続いたら止める。端末内で文字にする設定は始め直しても保つ',
       ok: same(wd, [300, 1000, 2000, 4000, null]) && d.stopped.length === 1 && /すぐに終わった/.test(lastD) && made.every(function (r) { return r.processLocally === true; }),
       detail: JSON.stringify({ waits: wd, status: lastD }) });
 
@@ -492,8 +492,8 @@ function runSpeechRetry() {
     out.push({ group: G, name: '続けて失敗: 中断して再開したら数え直す（再開の前の 4 回は数えない）',
       ok: same(we, [300, 1000, 2000, 4000]) && e.stopped.length === 0, detail: JSON.stringify({ waits: we, stopped: e.stopped }) });
 
-    // 6. 再開しない誤りのあと、終わりの知らせ（onend）が来ない（端末内の認識に日本語が無いときの Chromium）。
-    //    500 ミリ秒待って終わったものとし、札に理由を出し、emit.stopped を呼ぶ。聞き終えるときに 3 秒待たない
+    // 6. 再開しないエラーのあと、終わりの知らせ（onend）が来ない（端末内の認識に日本語が無いときの Chromium）。
+    //    500 ミリ秒待って終わったものとし、ラベルに理由を出し、emit.stopped を呼ぶ。聞き終えるときに 3 秒待たない
     const f = make({ local: true });
     f.si.start();
     const r6 = made[0];
@@ -504,25 +504,25 @@ function runSpeechRetry() {
     f.si.stopWait(function (r) { doneF.push(r); });
     const left6 = timers.length;
     r6.onend();    // 遅れて来た終わりの知らせ（来ても二度は数えない）
-    out.push({ group: G, name: '終わりの知らせが来ない誤り: 再開しない誤りのあと 500 ミリ秒待っても終わりの知らせが来なければ、終わったものとして扱い（止め直しを試み、asr_end は書かない）、札に理由を出し、emit.stopped を 1 回呼ぶ',
+    out.push({ group: G, name: '終わりの知らせが来ないエラー: 再開しないエラーのあと 500 ミリ秒待っても終わりの知らせが来なければ、終わったものとして扱い（止め直しを試み、asr_end は書かない）、ラベルに理由を出し、emit.stopped を 1 回呼ぶ',
       ok: before6.pending === 1 && before6.stopped === 0 && w6 === intake.FATAL_END_WAIT_MS && intake.FATAL_END_WAIT_MS === 500 && f.si.pending() === 0 && r6.aborted === 1 &&
         f.ev('asr_end') === 0 && f.stopped.length === 1 && /提供元のサーバーへは切り替えない/.test(f.stopped[0]) && /止まったまま/.test(f.status[f.status.length - 1]) && made.length === 1,
       detail: JSON.stringify({ before: before6, wait: w6, pending: f.si.pending(), aborted: r6.aborted, stopped: f.stopped, status: f.status }) });
-    out.push({ group: G, name: '終わりの知らせが来ない誤り: その後に聞き終えると、待たずに進む（上限の待ちを置かず、「待っても来なかった」と言わない）',
+    out.push({ group: G, name: '終わりの知らせが来ないエラー: その後に聞き終えると、待たずに進む（上限の待ちを置かず、「待っても来なかった」と言わない）',
       ok: doneF.length === 1 && doneF[0].timedOut === false && left6 === 0 && f.ev('asr_stop_timeout') === 0 && f.told.length === 0 && f.si.noticed().stopTimeout === false,
       detail: JSON.stringify({ done: doneF, timers: left6, told: f.told }) });
 
-    // 7. 再開しない誤りのあと、終わりの知らせがすぐ来たときは、今までどおり（500 ミリ秒の待ちは何もしない）
+    // 7. 再開しないエラーのあと、終わりの知らせがすぐ来たときは、今までどおり（500 ミリ秒の待ちは何もしない）
     const g = make(undefined);
     g.si.start();
     made[0].onerror({ error: 'not-allowed' });
     made[0].onend();
     const w7 = runOne();
-    out.push({ group: G, name: '再開しない誤りのあと終わりの知らせが来たら、その時に emit.stopped を 1 回呼ぶ（500 ミリ秒の待ちでは二度呼ばない）',
+    out.push({ group: G, name: '再開しないエラーのあと終わりの知らせが来たら、その時に emit.stopped を 1 回呼ぶ（500 ミリ秒の待ちでは二度呼ばない）',
       ok: w7 === 500 && g.stopped.length === 1 && /マイクの許可が無い/.test(g.stopped[0]) && g.ev('asr_end') === 1 && made[0].aborted === 0 && made.length === 1,
       detail: JSON.stringify({ wait: w7, stopped: g.stopped, aborted: made[0].aborted }) });
 
-    // 8. 聞き終えるのを待っている間に、再開しない誤りが来て終わりの知らせが来ない: 500 ミリ秒で待ちが解ける（3 秒待たない）
+    // 8. 聞き終えるのを待っている間に、再開しないエラーが来て終わりの知らせが来ない: 500 ミリ秒で待ちが解ける（3 秒待たない）
     const h = make({ local: true });
     h.si.start();
     const doneH = [];
@@ -531,7 +531,7 @@ function runSpeechRetry() {
     made[0].onerror({ error: 'language-not-supported' });
     const fatalTimer = timers[timers.length - 1];
     fatalTimer.f();                              // 500 ミリ秒の待ちだけ回す
-    out.push({ group: G, name: '聞き終えの待ちの間に再開しない誤りが来て終わりの知らせが来なくても、500 ミリ秒で待ちが解け、上限で進んだことにしない（止まった知らせは出す。ページは聞き終えの最中なので使わない）',
+    out.push({ group: G, name: '聞き終えの待ちの間に再開しないエラーが来て終わりの知らせが来なくても、500 ミリ秒で待ちが解け、上限で進んだことにしない（止まった知らせは出す。ページは聞き終えの最中なので使わない）',
       ok: capH === 1 && fatalTimer.ms === 500 && doneH.length === 1 && doneH[0].timedOut === false && h.ev('asr_stop_timeout') === 0 && h.told.length === 0 && h.stopped.length === 1,
       detail: JSON.stringify({ cap: capH, done: doneH, stopped: h.stopped }) });
   } finally {
@@ -587,7 +587,7 @@ function runWho() {
   const badTyped = typed.filter(function (r) { return !same(intake.readTypedLine(r.line), { kind: r.kind, who: r.who, text: r.text }); });
   out.push({ group: G, name: '打った 1 行の読み方が共通の期待値（typed_lines.json、' + typed.length + ' 行）と一字違わず同じ（1 列目の時刻を落とす・表の話者の列・話者だけの行も発話）', ok: badTyped.length === 0,
     detail: badTyped.map(function (r) { return JSON.stringify(r.line) + ' → ' + JSON.stringify(intake.readTypedLine(r.line)); }).join(' / ') });
-  // 打つ入口に表の行を貼る: 1 列目の時刻を落とし、入口の札で 1 回だけ知らせる。話者だけの行も捨てない
+  // 打つ入口に表の行を貼る: 1 列目の時刻を落とし、入口のラベルで 1 回だけ知らせる。話者だけの行も捨てない
   const got2 = [], said = [];
   const emit2 = { line: function (l) { got2.push([l.who, l.text, l.t]); }, event: function () {}, interim: function () {}, status: function (x) { said.push(x); } };
   const ti3 = intake.makeTextIntake(ta, emit2, function () { return 7.9; });
@@ -599,14 +599,14 @@ function runWho() {
     ok: same(got2, [['甲', '貼った表の行', 7], ['乙', '時刻は使わない', 7], [null, '司会：', 7]]) && before === false && ti3.noticed().timecol === true &&
       said.filter(function (x) { return x === intake.TIMECOL_TEXT; }).length === 1,
     detail: JSON.stringify(got2) + ' / ' + JSON.stringify(said) });
-  // 受け取る側に emit.notice があれば、時刻の列の知らせはそちらにだけ渡し、入口の札（中断中など）を書き換えない
+  // 受け取る側に emit.notice があれば、時刻の列の知らせはそちらにだけ渡し、入口のラベル（中断中など）を書き換えない
   const said2 = [], told = [];
   const ti4 = intake.makeTextIntake(ta, { line: function () {}, event: function () {}, interim: function () {}, status: function (x) { said2.push(x); }, notice: function (x) { told.push(x); } }, function () { return 9; });
   ti4.start();
   said2.length = 0;
   ta.value = '0:20\t甲\t中断の間に貼った表の行\n0:30\t乙\t二つ目';
   ti4.flush();
-  out.push({ group: G, name: '打つ入口: emit.notice があれば、時刻の列の知らせはそちらに 1 回だけ渡し、札（emit.status）は変えない',
+  out.push({ group: G, name: '打つ入口: emit.notice があれば、時刻の列の知らせはそちらに 1 回だけ渡し、ラベル（emit.status）は変えない',
     ok: same(told, [[intake.TIMECOL_TEXT]]) && said2.length === 0, detail: JSON.stringify(told) + ' / ' + JSON.stringify(said2) });
   return out;
 }
@@ -619,7 +619,7 @@ function runSpeech() {
   const made = [];
   function FakeSR() { this.stopped = false; made.push(this); }
   FakeSR.prototype.start = function () { if (this.onstart) this.onstart(); };
-  FakeSR.prototype.stop = function () { this.stopped = true; };   // 終わりの知らせ（onend）は、試験が遅らせて呼ぶ
+  FakeSR.prototype.stop = function () { this.stopped = true; };   // 終わりの知らせ（onend）は、テストが遅らせて呼ぶ
   const result = function (said) { const r = [{ transcript: said }]; r.isFinal = true; return { resultIndex: 0, results: [r] }; };
   const saved = { sr: globalThis.SpeechRecognition, to: globalThis.setTimeout };
   const timers = [];
@@ -650,7 +650,7 @@ function runSpeech() {
     const before = status.length;
     made[1].onerror({ error: 'network' });
     made[0].onresult(result('止める前の確定'));
-    out.push({ group: G, name: '古い世代の誤りの知らせは札を変えず（素材ログには残す）、古い世代の確定した結果は捨てない',
+    out.push({ group: G, name: '古い世代のエラーの知らせはラベルを変えず（素材ログには残す）、古い世代の確定した結果は捨てない',
       ok: status.length === before && events[events.length - 1] === 'asr_error' && got[got.length - 1] === '止める前の確定', detail: JSON.stringify(status.slice(before)) + ' / ' + JSON.stringify(got) });
     ended(made[2]);
     runTimers();
@@ -771,11 +771,11 @@ function runSpeech() {
     h.mine()[0].onerror({ error: 'network' });
     ended(h.mine()[0]);
     const after = h.events.slice(evCap);
-    out.push({ group: G, name: 'K29 聞き終える: 待つ世代が 2 つでも上限は合わせて 3 秒（待ちは 1 つ）。上限の後に届いた確定の結果は発話にせず、素材ログに {ev:late, text, t} を残し、知らせの欄に「…1 件捨てました（記録の外）」から順に出す。その後の誤り・終わりの出来事は素材ログに足さない',
+    out.push({ group: G, name: 'K29 聞き終える: 待つ世代が 2 つでも上限は合わせて 3 秒（待ちは 1 つ）。上限の後に届いた確定の結果は発話にせず、素材ログに {ev:late, text, t} を残し、知らせの欄に「…1 件あった。構造には入れず、素材ログにだけ残した」から順に出す。その後のエラー・終わりの出来事は素材ログに足さない',
       ok: beforeCap === 0 && same(delays, [intake.STOP_WAIT_MS]) && doneH.length === 1 && doneH[0].timedOut === true && h.got.length === 0 &&
         same(after, [{ ev: 'late', text: '上限の後の結果一', t: 7 }, { ev: 'late', text: '上限の後の結果二', t: 7 }]) &&
         same(h.told, [[intake.STOP_WAIT_TEXT], [intake.lateText(1)], [intake.lateText(2)]]) &&
-        intake.lateText(1) === '聞き終えた後に届いた認識の結果を 1 件捨てました（記録の外）' &&
+        intake.lateText(1) === '聞き終えた後に届いた認識の結果が 1 件あった。構造には入れず、素材ログにだけ残した' &&
         h.si.noticed().late === 2 && h.si.noticed().stopTimeout === true && h.si.pending() === 0,
       detail: JSON.stringify({ before: beforeCap, delays: delays, done: doneH, got: h.got, after: after, told: h.told }) });
 
@@ -799,9 +799,9 @@ function runSpeech() {
 }
 
 // ---- 音声認識の入口: 画面共有の音（opts.track で start(track)。Teams・Zoom の相手の声は PC で鳴っている音） ----
-// 作り物の認識（start に渡されたものを覚える。印を立てると、引数があるときだけ投げる＝Chrome 135 より前のつもり）と、
+// 作り物の認識（start に渡されたものを覚える。フラグを立てると、引数があるときだけ投げる＝Chrome 135 より前のつもり）と、
 // 作り物のトラック（readyState と ended の出来事）、預かった待ち（setTimeout）で確かめる。
-// 画面共有を取る口（captureDisplayAudio）は Promise なので、runSpeechDisplayAsync で
+// 画面共有を取る関数（captureDisplayAudio）は Promise を返すので、runSpeechDisplayAsync で
 function runSpeechDisplay() {
   const out = [];
   const G = '音声認識の入口';
@@ -816,7 +816,7 @@ function runSpeechDisplay() {
     if (FakeSR.throwOnTrack && arguments.length) throw new TypeError('start に引数は渡せない');
     if (this.onstart) this.onstart();
   };
-  FakeSR.prototype.stop = function () { this.stopped++; };     // 終わりの知らせは出さない（試験が呼ぶ）
+  FakeSR.prototype.stop = function () { this.stopped++; };     // 終わりの知らせは出さない（テストが呼ぶ）
   FakeSR.prototype.abort = function () { this.aborted++; };
   function FakeTrack(state) { this.readyState = state || 'live'; this.label = '画面の音'; this.handlers = []; }
   FakeTrack.prototype.addEventListener = function (k, f) { if (k === 'ended') this.handlers.push(f); };
@@ -839,39 +839,39 @@ function runSpeechDisplay() {
     globalThis.SpeechRecognition = FakeSR;
     globalThis.setTimeout = function (f, ms) { timers.push({ f: f, ms: ms }); return timers.length; };
 
-    // (a) track を渡すと start(track)。始まりの出来事に source:'display'、札に「画面共有の音」、返すものの source
+    // (a) track を渡すと start(track)。始まりの出来事に source:'display'、ラベルに「画面共有の音」、返すものの source
     const ta = new FakeTrack('live');
     const a = make({ track: ta });
     const beganA = a.si.start();
     const startA = a.events.filter(function (e) { return e.ev === 'asr_start'; });
-    out.push({ group: G, name: '画面共有の音: opts.track を渡すと認識を start(track) で始め、素材ログの asr_start に source:"display"（local:false）、札は「聞いている（画面共有の音。音声は提供元のサーバーへ送られている）」、返すものは kind:"speech"・source:"display"',
+    out.push({ group: G, name: '画面共有の音: opts.track を渡すと認識を start(track) で始め、素材ログの asr_start に source:"display"（local:false）、ラベルは「聞いている（画面共有の音。音声は提供元のサーバーへ送られている）」、返すものは kind:"speech"・source:"display"',
       ok: beganA === true && made.length === 1 && made[0].startArgs.length === 1 && made[0].startArgs[0] === ta && startA.length === 1 && startA[0].source === 'display' && startA[0].local === false &&
         a.status.indexOf('聞いている（画面共有の音。音声は提供元のサーバーへ送られている）') >= 0 && a.si.kind === 'speech' && a.si.source === 'display' && a.stopped.length === 0 && timers.length === 0,
       detail: JSON.stringify({ args: made[0].startArgs.length, ev: startA, st: a.status }) });
     made[0].onresult(result('相手の声'));
     out.push({ group: G, name: '画面共有の音: 確定した結果はマイクと同じに渡る', ok: same(a.got, ['相手の声']), detail: JSON.stringify(a.got) });
-    // マイク（track 無し）はこれまでどおり start() に引数なし、source:'mic'、札の文も前のまま
+    // マイク（track 無し）はこれまでどおり start() に引数なし、source:'mic'、ラベルの文も前のまま
     const m = make(undefined);
     m.si.start();
     const startM = m.events.filter(function (e) { return e.ev === 'asr_start'; });
-    out.push({ group: G, name: 'マイク（opts.track 無し）: start() に引数を渡さず、asr_start に source:"mic"、札は前のまま「聞いている（音声は提供元のサーバーへ送られている）」、返すものの source は "mic"',
+    out.push({ group: G, name: 'マイク（opts.track 無し）: start() に引数を渡さず、asr_start に source:"mic"、ラベルは前のまま「聞いている（音声は提供元のサーバーへ送られている）」、返すものの source は "mic"',
       ok: made[0].startArgs.length === 0 && startM.length === 1 && startM[0].source === 'mic' && m.status.indexOf('聞いている（音声は提供元のサーバーへ送られている）') >= 0 && m.si.source === 'mic',
       detail: JSON.stringify({ ev: startM, st: m.status }) });
-    // track と local を両方: processLocally も立ち、札に両方
+    // track と local を両方: processLocally も立ち、ラベルに両方
     const tl = new FakeTrack('live');
     const l = make({ track: tl, local: true });
     l.si.start();
-    out.push({ group: G, name: '画面共有の音とこの PC の中で文字にする（opts.local）を両方: processLocally を立てて start(track)、asr_start は local:true・source:"display"、札は「聞いている（画面共有の音。この PC の中で文字にしている）」',
+    out.push({ group: G, name: '画面共有の音とこの PC の中で文字にする（opts.local）を両方: processLocally を立てて start(track)、asr_start は local:true・source:"display"、ラベルは「聞いている（画面共有の音。この PC の中で文字にしている）」',
       ok: made[0].processLocally === true && made[0].startArgs[0] === tl && l.events.some(function (e) { return e.ev === 'asr_start' && e.local === true && e.source === 'display'; }) && l.status.indexOf('聞いている（画面共有の音。この PC の中で文字にしている）') >= 0,
       detail: JSON.stringify({ st: l.status }) });
 
-    // (b) track が live でない: 認識を作らず、札に「画面共有が止まっている」、止まった知らせは start() が返った後に 1 回
+    // (b) track が live でない: 認識を作らず、ラベルに「画面共有が止まっている」、止まった知らせは start() が返った後に 1 回
     const tb = new FakeTrack('ended');
     const b = make({ track: tb });
     const beganB = b.si.start();
     const toldInStartB = b.stopped.length;
     const msB = runAll();
-    out.push({ group: G, name: '画面共有の音: トラックが live でなければ認識を作らず、札に「音声認識が使えない（画面共有が止まっている）。再開しない」、emit.stopped は start() が返った後に 1 回（asr_start は書かない）',
+    out.push({ group: G, name: '画面共有の音: トラックが live でなければ認識を作らず、ラベルに「音声認識が使えない（画面共有が止まっている）。再開しない」、emit.stopped は start() が返った後に 1 回（asr_start は書かない）',
       ok: beganB === true && made.length === 0 && b.status.indexOf('音声認識が使えない（画面共有が止まっている）。再開しない') >= 0 && toldInStartB === 0 && same(msB, [0]) && same(b.stopped, ['画面共有が止まっている']) && b.ev('asr_start') === 0 && b.si.pending() === 0,
       detail: JSON.stringify({ made: made.length, st: b.status, stopped: b.stopped, ms: msB }) });
 
@@ -887,11 +887,11 @@ function runSpeechDisplay() {
     made[0].onend();                                     // 終わりの知らせが来た
     const toldAfterEnd = c.stopped.slice();
     runAll();                                            // 500 ミリ秒の待ちを回しても、二度目の知らせは出ない
-    out.push({ group: G, name: '画面共有の音: 聞いている最中に共有を止めた（トラックの ended）ら、認識を止めて再開しない。札に「画面共有が止められた」、終わりの知らせで emit.stopped を 1 回（asr_restart は書かない。新しい認識も作らない）',
+    out.push({ group: G, name: '画面共有の音: 聞いている最中に共有を止めた（トラックの ended）ら、認識を止めて再開しない。ラベルに「画面共有が止められた」、終わりの知らせで emit.stopped を 1 回（asr_restart は書かない。新しい認識も作らない）',
       ok: stoppedAtEnd === 1 && toldBeforeEnd === 0 && waitC === intake.FATAL_END_WAIT_MS && same(toldAfterEnd, ['画面共有が止められた']) && same(c.stopped, ['画面共有が止められた']) &&
         c.status.indexOf('音声認識が使えない（画面共有が止められた）。再開しない') >= 0 && c.status.indexOf('音声認識は止まったまま（画面共有が止められた）') >= 0 && c.ev('asr_restart') === 0 && made.length === 1 && same(c.got, ['止める前']) && c.si.pending() === 0,
       detail: JSON.stringify({ stopped: stoppedAtEnd, told: c.stopped, st: c.status, made: made.length, wait: waitC }) });
-    // 終わりの知らせが来なくても 500 ミリ秒で終わったものとし、emit.stopped を 1 回。その後に届いた誤り・終わりで理由を書き換えない
+    // 終わりの知らせが来なくても 500 ミリ秒で終わったものとし、emit.stopped を 1 回。その後に届いたエラー・終わりで理由を書き換えない
     const tc2 = new FakeTrack('live');
     const c2 = make({ track: tc2 });
     c2.si.start();
@@ -900,7 +900,7 @@ function runSpeechDisplay() {
     const stC2 = c2.status.length;
     made[0].onerror({ error: 'audio-capture' });
     made[0].onend();
-    out.push({ group: G, name: '画面共有の音: 共有を止めた後に終わりの知らせが来なくても 500 ミリ秒で終わったものとして（abort を呼び）emit.stopped を 1 回。遅れて来た誤り・終わりでは札も理由も変えず、二度目の知らせも出さない',
+    out.push({ group: G, name: '画面共有の音: 共有を止めた後に終わりの知らせが来なくても 500 ミリ秒で終わったものとして（abort を呼び）emit.stopped を 1 回。遅れて来たエラー・終わりではラベルも理由も変えず、二度目の知らせも出さない',
       ok: same(msC2, [intake.FATAL_END_WAIT_MS]) && made[0].aborted === 1 && same(c2.stopped, ['画面共有が止められた']) && c2.status.length === stC2 && c2.si.pending() === 0,
       detail: JSON.stringify({ ms: msC2, told: c2.stopped, aborted: made[0].aborted }) });
     // 始め直しの待ちの間に共有を止めた: 待ちが明けても新しい認識を作らず、emit.stopped を 1 回
@@ -937,30 +937,30 @@ function runSpeechDisplay() {
     const stC5 = c5.status.length;
     tc5.end();
     runAll();
-    out.push({ group: G, name: '画面共有の音: 聞き終えた後に共有を止めても、札も emit.stopped も変えない',
+    out.push({ group: G, name: '画面共有の音: 聞き終えた後に共有を止めても、ラベルも emit.stopped も変えない',
       ok: doneC5.length === 1 && doneC5[0].timedOut === false && c5.stopped.length === 0 && c5.status.length === stC5, detail: JSON.stringify({ told: c5.stopped, st: c5.status.slice(stC5) }) });
 
-    // (d) start(track) が例外を投げる（Chrome 135 より前）: 止めて、札に「Chrome 135 以降が要る」、emit.stopped は start() が返った後に 1 回
+    // (d) start(track) が例外を投げる（Chrome 135 より前）: 止めて、ラベルに「Chrome 135 以降が要る」、emit.stopped は start() が返った後に 1 回
     FakeSR.throwOnTrack = true;
     const td = new FakeTrack('live');
     const d = make({ track: td });
     d.si.start();
     const toldInStartD = d.stopped.length;
     runAll();
-    out.push({ group: G, name: '画面共有の音: start(track) が例外を投げたら（引数を渡せないブラウザ）、札に「このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）」と出して止め、emit.stopped は start() が返った後に 1 回（asr_start は書かない。始め直さない）',
+    out.push({ group: G, name: '画面共有の音: start(track) が例外を投げたら（引数を渡せないブラウザ）、ラベルに「このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）」と出して止め、emit.stopped は start() が返った後に 1 回（asr_start は書かない。始め直さない）',
       ok: made.length === 1 && d.status.indexOf('音声認識を始められない: このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）') >= 0 && toldInStartD === 0 && same(d.stopped, ['このブラウザは画面共有の音を文字にできない（Chrome 135 以降が要る）']) && d.ev('asr_start') === 0 && d.si.pending() === 0 && timers.length === 0,
       detail: JSON.stringify({ st: d.status, told: d.stopped }) });
     FakeSR.throwOnTrack = false;
-    // マイクの start() が投げたときは、これまでどおり札だけ（止めない・知らせない）
+    // マイクの start() が投げたときは、これまでどおりラベルだけ（止めない・知らせない）
     FakeSR.prototype.start = function () { throw new Error('始められない'); };
     const dm = make(undefined);
     dm.si.start();
     runAll();
-    out.push({ group: G, name: 'マイク: start() が例外を投げたときは、これまでどおり札に出すだけ（emit.stopped は呼ばない）',
+    out.push({ group: G, name: 'マイク: start() が例外を投げたときは、これまでどおりラベルに出すだけ（emit.stopped は呼ばない）',
       ok: dm.status.indexOf('音声認識を始められない: 始められない') >= 0 && dm.stopped.length === 0, detail: JSON.stringify({ st: dm.status, told: dm.stopped }) });
     FakeSR.prototype.start = function () { this.startArgs = Array.prototype.slice.call(arguments); if (this.onstart) this.onstart(); };
 
-    // audio-capture の文: 画面共有のときは「音の取り込みが無い」、マイクのときは「マイクが無い」のまま
+    // audio-capture の文: 画面共有のときは「画面共有の音を取り込めていない」、マイクのときは「マイクが無い」のまま
     const te = new FakeTrack('live');
     const e = make({ track: te });
     e.si.start();
@@ -972,10 +972,10 @@ function runSpeechDisplay() {
     made[0].onerror({ error: 'audio-capture' });
     made[0].onend();
     runAll();
-    out.push({ group: G, name: '誤り audio-capture の文: 画面共有の音では「画面共有の音の取り込みが無い」（再開しない）、マイクでは「マイクが無い」のまま。asrErrorText(code, source) も同じ読み替え（ほかの符号は変えない）',
-      ok: same(e.stopped, ['画面共有の音の取り込みが無い']) && e.status.indexOf('音声認識が使えない（画面共有の音の取り込みが無い）。再開しない') >= 0 && same(em.stopped, ['マイクが無い']) &&
-        intake.asrErrorText('audio-capture', 'display') === '画面共有の音の取り込みが無い（audio-capture）' && intake.asrErrorText('audio-capture') === 'マイクが無い（audio-capture）' && intake.asrErrorText('audio-capture', 'mic') === 'マイクが無い（audio-capture）' &&
-        intake.asrErrorText('network', 'display') === '認識の通信が切れた（network）' && intake.fatalAsrText('not-allowed', 'display') === 'マイクの許可が無い',
+    out.push({ group: G, name: 'エラー audio-capture の文: 画面共有の音では「画面共有の音を取り込めていない」（再開しない）、マイクでは「マイクが無い」のまま。asrErrorText(code, source) も同じ読み替え（ほかの符号は変えない）',
+      ok: same(e.stopped, ['画面共有の音を取り込めていない']) && e.status.indexOf('音声認識が使えない（画面共有の音を取り込めていない）。再開しない') >= 0 && same(em.stopped, ['マイクが無い']) &&
+        intake.asrErrorText('audio-capture', 'display') === '画面共有の音を取り込めていない（audio-capture）' && intake.asrErrorText('audio-capture') === 'マイクが無い（audio-capture）' && intake.asrErrorText('audio-capture', 'mic') === 'マイクが無い（audio-capture）' &&
+        intake.asrErrorText('network', 'display') === '音声認識の通信に失敗した（network）' && intake.fatalAsrText('not-allowed', 'display') === 'マイクの許可が無い',
       detail: JSON.stringify({ display: e.stopped, mic: em.stopped }) });
   } finally {
     if (saved.sr === undefined) delete globalThis.SpeechRecognition; else globalThis.SpeechRecognition = saved.sr;
@@ -984,7 +984,7 @@ function runSpeechDisplay() {
   return out;
 }
 
-// ---- 画面共有の音を取る口（captureDisplayAudio。Promise なので、ここだけ待ってから結果に足す） ----
+// ---- 画面共有の音を取る関数（captureDisplayAudio。Promise を返すので、ここだけ待ってから結果に足す） ----
 // 作り物の navigator.mediaDevices を globalThis に置き、終わったら元の navigator（node にもある）に戻す
 function runSpeechDisplayAsync() {
   const out = [];
@@ -1009,7 +1009,7 @@ function runSpeechDisplayAsync() {
         return { ok: e instanceof Error && e.message === T.no_audio && e.reason === 'no_audio' && v.stopped === 1 && !!asked && asked.video === true && asked.systemAudio === 'include' && asked.selfBrowserSurface === 'exclude' &&
           asked.audio.echoCancellation === false && asked.audio.noiseSuppression === false && asked.audio.autoGainControl === false, detail: JSON.stringify({ msg: e.message, reason: e.reason, vstopped: v.stopped, asked: asked }) };
       }).then(function (r) {
-        out.push({ group: G, name: '画面共有の音: 音のトラックが無い共有（「システム音声も共有」「タブの音声も共有」に印が無い）は、取った映像のトラックを止めて DISPLAY_TEXT.no_audio（Windows は「画面全体」＋「システム音声も共有」、タブなら「タブの音声も共有」）の文で断る。頼む条件は映像あり・音あり（加工なし）・システム音声を含む・自分のタブは除く', ok: r.ok, detail: r.detail });
+        out.push({ group: G, name: '画面共有の音: 音のトラックが無い共有（「システム音声も共有」「タブの音声も共有」にチェックが入っていない）は、取った映像のトラックを止めて DISPLAY_TEXT.no_audio（Windows は「画面全体」＋「システム音声も共有」、タブなら「タブの音声も共有」）の文で断る。頼む条件は映像あり・音あり（加工なし）・システム音声を含む・自分のタブは除く', ok: r.ok, detail: r.detail });
       });
     },
     // 音のトラックがある共有: {stream, track, label} で解決し、どのトラックも止めない
@@ -1020,23 +1020,23 @@ function runSpeechDisplayAsync() {
         out.push({ group: G, name: '画面共有の音: 音のトラックがあれば {stream, track（音のトラック）, label} で解決し、映像も音も止めない', ok: r.stream === s && r.track === a && r.label === 'システム音声' && a.stopped === 0 && v.stopped === 0, detail: JSON.stringify({ label: r.label, a: a.stopped, v: v.stopped }) });
       }, function (e) { out.push({ group: G, name: '画面共有の音: 音のトラックがあれば解決する', ok: false, detail: String(e && e.message || e) }); });
     },
-    // (f) 口が無い: getDisplayMedia が無い／mediaDevices が無い／navigator が無い
+    // (f) API が無い: getDisplayMedia が無い／mediaDevices が無い／navigator が無い
     function () {
       const tries = [function () { withMedia(null); }, function () { setNav({}); }, function () { setNav(undefined); }];
       return tries.reduce(function (p, prep) {
         return p.then(function (acc) { prep(); return intake.captureDisplayAudio().then(function () { return acc.concat(['断らなかった']); }, function (e) { return acc.concat([e.message + '|' + e.reason]); }); });
       }, Promise.resolve([])).then(function (got) {
-        out.push({ group: G, name: '画面共有の音: getDisplayMedia が無い（口が無い・mediaDevices が無い・navigator が無い）ときは「このブラウザでは画面共有の音を取り込めない」と断る', ok: sameJson(got, [T.none + '|none', T.none + '|none', T.none + '|none']), detail: JSON.stringify(got) });
+        out.push({ group: G, name: '画面共有の音: getDisplayMedia が無い（関数が無い・mediaDevices が無い・navigator が無い）ときは「このブラウザでは画面共有の音を取り込めない」と断る', ok: sameJson(got, [T.none + '|none', T.none + '|none', T.none + '|none']), detail: JSON.stringify(got) });
       });
     },
     // (f) NotAllowedError（取りやめた・決まりで止められている）
     function () {
       withMedia(function () { return Promise.reject(domErr('NotAllowedError')); });
       return intake.captureDisplayAudio().then(function () { out.push({ group: G, name: '画面共有の音: NotAllowedError で断る', ok: false, detail: '断らなかった' }); }, function (e) {
-        out.push({ group: G, name: '画面共有の音: getDisplayMedia が NotAllowedError で断ったら「画面共有が許されていない（取りやめたか、使う場所の決まりで止められている）」（reason は not_allowed、元の誤りは cause）', ok: e.message === T.not_allowed && e.reason === 'not_allowed' && !!e.cause && e.cause.name === 'NotAllowedError', detail: JSON.stringify({ msg: e.message, reason: e.reason }) });
+        out.push({ group: G, name: '画面共有の音: getDisplayMedia が NotAllowedError で断ったら「画面共有が許可されていない（選択画面でキャンセルしたか、管理者の設定で止められている）」（reason は not_allowed、元のエラーは cause）', ok: e.message === T.not_allowed && e.reason === 'not_allowed' && !!e.cause && e.cause.name === 'NotAllowedError', detail: JSON.stringify({ msg: e.message, reason: e.reason }) });
       });
     },
-    // そのほかの誤り: 名前を日本語に（表に無い名前はかっこの中に）。同期の例外（古い実装）も同じ道
+    // そのほかのエラー: 名前を日本語に（表に無い名前はかっこの中に）。同期の例外（古い実装）も同じ道
     function () {
       const names = ['InvalidStateError', 'AbortError', 'NotFoundError', 'NotReadableError', 'SomethingElse'];
       return names.reduce(function (p, name) {
@@ -1045,14 +1045,14 @@ function runSpeechDisplayAsync() {
         withMedia(function () { throw domErr('TypeError'); });
         return intake.captureDisplayAudio().then(function () { return got.concat(['断らなかった']); }, function (e) { return got.concat([e.reason + ':' + e.message]); });
       }).then(function (got) {
-        out.push({ group: G, name: '画面共有の音: そのほかの誤りは日本語の文で断る（ボタンを押した直後でない・途中で終わった・共有できる画面が無い・読めない。表に無い名前はかっこの中に添える。同期の例外も同じ道）',
-          ok: sameJson(got, ['other:ボタンを押した直後にしか画面共有を始められない', 'other:画面共有が途中で終わった', 'other:共有できる画面が無い', 'other:画面の音を読めない', 'other:画面共有を始められない（SomethingElse）', 'other:画面共有を始められない（TypeError）']), detail: JSON.stringify(got) });
+        out.push({ group: G, name: '画面共有の音: そのほかのエラーは日本語の文で断る（ボタンを押した直後でない・途中で終わった・共有できる画面が無い・読めない。表に無い名前はかっこの中に添える。同期の例外も同じ道）',
+          ok: sameJson(got, ['other:ボタンを押した直後にしか画面共有を始められない', 'other:画面共有が途中で終わった', 'other:共有できる画面が無い', 'other:選んだ画面を取り込めない（OS か別のアプリが妨げている可能性）', 'other:画面共有を始められない（SomethingElse）', 'other:画面共有を始められない（TypeError）']), detail: JSON.stringify(got) });
       });
     }
   ];
   return steps.reduce(function (p, f) { return p.then(f); }, Promise.resolve()).then(function () { restoreNav(); return out; }, function (e) {
     restoreNav();
-    out.push({ group: G, name: '画面共有の音: 試験の途中で例外', ok: false, detail: String(e && e.stack || e) });
+    out.push({ group: G, name: '画面共有の音: テストの途中で例外', ok: false, detail: String(e && e.stack || e) });
     return out;
   });
 }
@@ -1090,8 +1090,8 @@ function report(results) {
   console.log('合計 ' + results.length + ' 件、不合格 ' + ng + ' 件');
   process.exit(ng ? 1 : 0);
 }
-// 画面共有の音を取る口の試験だけ Promise なので、待ってから一緒に出す
+// 画面共有の音を取る関数のテストだけ Promise なので、待ってから一緒に出す
 runSpeechDisplayAsync().then(function (more) { report(syncResults.concat(more)); }).catch(function (e) {
-  console.log('試験の結果を出せなかった: ' + (e && e.stack || e));
+  console.log('テストの結果を出せなかった: ' + (e && e.stack || e));
   process.exit(1);
 });

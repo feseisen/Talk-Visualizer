@@ -13,7 +13,7 @@
       "required": ["t"],
       "properties": {
         "t": {
-          "description": "窓 [始まり, 終わり]（秒）。道具が渡した窓と同じ値を返す",
+          "description": "窓 [始まり, 終わり]（秒）。ツールが渡した窓と同じ値を返す",
           "type": "array",
           "items": {"type": "number"}
         }
@@ -99,7 +99,7 @@
       }
     },
     "fix": {
-      "description": "訂正。was は道具が現状から埋めるので返事には書かない。now の型は field で決まる",
+      "description": "訂正。was はツールが現状から埋めるので返事には書かない。now の型は field で決まる",
       "anyOf": [
         {
           "type": "object",
@@ -195,7 +195,7 @@
       }
     },
     "rename": {
-      "description": "括りの名前を変える。was は道具が埋める",
+      "description": "括りの名前を変える。was はツールが埋める",
       "type": "object",
       "additionalProperties": false,
       "required": ["e", "id", "t", "now"],

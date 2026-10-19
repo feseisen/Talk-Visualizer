@@ -6,10 +6,10 @@
  *   const r = verify(log, batch, {now, next_ids, heard_until, window, src});
  *   // log         これまでのログ（イベントの配列。変えない）。各行の欄も見る（F01〜F07）。壊れた行があれば追記しない（rt.py と同じ線）
  *   // batch       追記しようとするイベントの配列（先頭は step。end・pause だけの追記もある）。変えない
- *   // now         道具の壁時計（ISO 8601 UTC）。step / end / pause の at に押す。無ければ現在時刻
- *   // next_ids    道具が分析役に渡した次の id {card, hold, list, group}。無ければ状態から計算する
- *   // heard_until 道具が聞き終えている素材時間（秒）。あれば step.t[1] がこれを超えると P09
- *   // window      道具が渡した窓 {t:[a,b], lines:[i,j]}。あれば step と一致しなければ P07
+ *   // now         ツールの壁時計（ISO 8601 UTC）。step / end / pause の at に押す。無ければ現在時刻
+ *   // next_ids    ツールが分析役に渡した次の id {card, hold, list, group}。無ければ状態から計算する
+ *   // heard_until ツールが聞き終えている素材時間（秒）。あれば step.t[1] がこれを超えると P09
+ *   // window      ツールが渡した窓 {t:[a,b], lines:[i,j]}。あれば step と一致しなければ P07
  *   // src         素材ログの行 [{i,t,who,text}]。あれば P20（話者）を検査する
  *   // → {ok, errors[], warnings[], batch}
  *   //   ok      違反が 1 つも無いとき true（P26: 全か無か）
@@ -17,28 +17,28 @@
  *   //   warnings 警告文（拒まない）
  *   //   batch   書いてよい形に整えた追記（step.at を押し、fix/rename の was を埋めたもの）。ok でなければ null
  *
- * 版: ログ先頭の open.v を規則表の versions.<版>.open_v に当てて決める（他の手がかりは使わない）。
- *   型も比べる（=== で当てる。true は 1 ではない）。どの版にも無い v は知らない版として拒む（F07）。黙って v1 扱いにしない。
+ * 版: ログ先頭の open.v を規則表の versions.<版>.open_v と照らし合わせて決める（他の手がかりは使わない）。
+ *   型も比べる（=== で照合する。true は 1 ではない）。どの版にも無い v は知らない版として拒む（F07）。黙って v1 扱いにしない。
  *   版の判定だけを使いたい側（fold.js・app.js）は TSV_VERIFY.versionOf(open) を呼ぶ:
  *     versionOf(open[, rules]) → 1 か 2（数）。open でない・知らない版なら null
  *     rules を省くと、makeVerifier(rules) に渡した規則表 → globalThis.TSV_RULES（組み立てた画面）
  *     → node なら ../format/rules.json の順に探し、どれも無ければ Error を投げる（黙って既定にしない）
  * 手続き的検査（P01〜P30）は rules.procedural に id だけがあり、実装はここと rt.py の両方が持つ
- *   （P28 の警告は素材の全文を要るので rt.py だけ。P07 の「素材から窓を計算し直す」も rt.py。ここは渡された window と照らす）。
+ *   （P28 の警告は素材の全文を要るので rt.py だけ。P07 の「素材から窓を計算し直す」も rt.py。ここは渡された window と照らし合わせる）。
  * ブラウザでは globalThis.makeVerifier と globalThis.TSV_VERIFY、node では module.exports に同じものを出す。
  *
  * 値の扱い（rt.py と揃える）:
- *   - 数は有限のものだけ（NaN・±Infinity は F02）。JSON の -1e999 は読むと -Infinity になるので、写す前に見る
+ *   - 数は有限のものだけ（NaN・±Infinity は F02）。JSON の -1e999 は読むと -Infinity になるので、JSON にする前に見る
  *   - 欄の値の入れ子は limits.value.max_depth（32）段まで（数・文字列は 0 段、配列とオブジェクトは 1 ＋ 中身のいちばん深いもの）。
- *     超えれば F02。数える側も 33 段目で打ち切るので、何段重ねた値でも落ちない（JSON に写す前に見る）
+ *     超えれば F02。数える側も 33 段目で打ち切るので、何段重ねた値でも落ちない（JSON にする前に見る）
  *   - 分析役が step・end・pause に書いた at は、値の検査も含めてどの検査よりも前に捨てる（どんな値でも、それを理由に拒まない）
  *   - 数は絶対値が 2^53 − 1（Number.MAX_SAFE_INTEGER）以下のものだけ（超えると JSON を読んだ時点で丸まり、
  *     rt.py と同じ値を比べられないので F02）
- *   - 文字列に対になっていないサロゲート（片割れ）があれば F02（欄の値・配列やオブジェクトの中・鍵のどこでも）
+ *   - 文字列に対になっていないサロゲート（片割れ）があれば F02（欄の値・配列やオブジェクトの中・キーのどこでも）
  *   - 壁時計は半角の数字だけの形で、暦にある日時だけ（24 時・2 月 30 日・60 秒・0 年は F02。組み立て直して一致を見る）
  *   - 整数の欄の 2.0 は、JSON を読んだ時点で 2 と区別できないので整数として受ける
  *   - was と現状は JSON の文字列にして比べる（false と 0 は別）
- *   - 正規表現は文字列の末尾まで当てる（JS の $ は末尾の改行の手前では当たらない）
+ *   - 正規表現は文字列の末尾まで照合する（JS の $ は末尾の改行の手前では一致しない）
  *   - イベントでない行（文字列・数・配列・null）と、e が文字列でない行は F07 で拒む。落ちない（e の欄の値は、深さや数の
  *     検査より前に種類として見る。rt.py と同じく、e の値が深すぎる行も F07）
  *   - 欄の形の検査（F01・F02・F03・F05・F06。範囲と上限の F04 は除く）に落ちた step 以外のイベントは、ほかの検査をしない
@@ -51,7 +51,7 @@
 (function () {
   'use strict';
 
-  // 壁時計の形。JS の \d は半角の 0〜9 だけに当たる（rt.py は re.ASCII で同じにする）
+  // 壁時計の形。JS の \d は半角の 0〜9 だけに一致する（rt.py は re.ASCII で同じにする）
   const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?Z$/;
   const MAX_NUM = 9007199254740991; // 2^53 − 1。これを超える数は F02
   // 対になっていないサロゲート（上位の片割れの後に下位が無い／下位の片割れの前に上位が無い）
@@ -73,7 +73,7 @@
     return out;
   }
 
-  // 秒を m:ss（1 時間以上は h:mm:ss）に。負の秒は頭に - を付ける（rt.py の fmt と同じ）
+  // 秒を m:ss（1 時間以上は h:mm:ss）に。負の秒は先頭に - を付ける（rt.py の fmt と同じ）
   function fmt(s) {
     if (typeof s !== 'number' || !isFinite(s)) return String(s);
     const sign = s < 0 ? '-' : '';
@@ -98,7 +98,7 @@
   function has(o, k) { return o != null && HAS.call(o, k); }
   function own(o, k) { return has(o, k) ? o[k] : undefined; }
   function table() { return Object.create(null); }
-  // 欄を自前の欄として置く（鍵が __proto__ でも原型を書き換えない）
+  // 欄を自前の欄として置く（キーが __proto__ でも原型を書き換えない）
   function put(o, k, v) { Object.defineProperty(o, k, { value: v, writable: true, enumerable: true, configurable: true }); }
 
   // イベントとして読める行か（オブジェクトで、e が文字列）。読めなければ null
@@ -108,7 +108,7 @@
   // 値の中に、記録に書けない値があるか。最初に見つけた理由を返す（無ければ null）
   //   'nonfinite' 有限でない数（NaN・±Infinity）
   //   'big'       絶対値が 2^53 − 1 を超える数
-  //   'lone'      対になっていないサロゲートを含む文字列（オブジェクトの鍵も見る）
+  //   'lone'      対になっていないサロゲートを含む文字列（オブジェクトのキーも見る）
   //   'deep'      入れ子が深すぎる（room は、あと何段の配列・オブジェクトを入れてよいか）
   // 欄の値の深さは、数・文字列が 0 段、配列とオブジェクトが 1 ＋ 中身のいちばん深いもの。
   // badValue(欄の値, 32) は深さ 33 以上で 'deep'。room が 0 の所で止まるので、たどるのは高々 33 段（何段重ねた値でも落ちない）
@@ -130,9 +130,9 @@
     return null;
   }
 
-  // 道具が押す at を持つ種類（分析役が書いた at は、どの検査よりも前に捨てる）
+  // ツールが押す at を持つ種類（分析役が書いた at は、どの検査よりも前に捨てる）
   const TOOL_AT = { step: true, end: true, pause: true };
-  // 分析役が step・end・pause に書いた at を捨てた写し（欄の並びはそのまま。元は変えない）。それ以外の行はそのまま返す
+  // 分析役が step・end・pause に書いた at を捨てたコピー（欄の並びはそのまま。元は変えない）。それ以外の行はそのまま返す
   function dropAt(e) {
     const k = kindOf(e);
     if (k === null || !HAS.call(TOOL_AT, k) || !has(e, 'at')) return e;
@@ -202,7 +202,7 @@
 
   const TARGET_LABEL = { card: 'カード', group: '括り', list: '数え上げ', hold: '保留' };
 
-  // 道具が埋める欄（fix.was・rename.was）を now の手前に置く（rt.py の _insert_before と同じ並び）
+  // ツールが埋める欄（fix.was・rename.was）を now の手前に置く（rt.py の _insert_before と同じ並び）
   function insertBefore(e, before, key, value) {
     const out = {};
     Object.keys(e).forEach(function (k) { if (k === before) put(out, key, value); put(out, k, e[k]); });
@@ -212,8 +212,8 @@
 
   // ---- 版の決定 ----
 
-  // open.v を versions.<版>.open_v に当てる。返り値は規則表の版の鍵（"1"・"2"）。open でない・どの版にも無ければ null。
-  // 型も比べる（=== で当てる。true は 1 ではなく、知らない版）
+  // open.v を versions.<版>.open_v と照らし合わせる。返り値は規則表の版のキー（"1"・"2"）。open でない・どの版にも無ければ null。
+  // 型も比べる（=== で照合する。true は 1 ではなく、知らない版）
   function detectVersion(R, openEv) {
     if (kindOf(openEv) !== 'open') return null;
     const v = has(openEv, 'v') ? openEv.v : null;
@@ -317,7 +317,7 @@
       }
     }
 
-    // 文字列の頭から末尾まで当てる（規則表の形は ^…$。JS の $ は末尾の改行の手前では当たらないので、そのまま末尾まで）
+    // 文字列の先頭から末尾まで照合する（規則表の形は ^…$。JS の $ は末尾の改行の手前では一致しないので、そのまま末尾まで）
     function idPatternOk(kind, v) {
       const p = own(R.id_patterns, kind);
       return !p || (typeof v === 'string' && new RegExp(p).test(v));
@@ -332,7 +332,7 @@
       return fd.req === 'opt' || VER.required_levels.indexOf(fd.req) >= 0;
     }
 
-    // inLog が真なら既存のログの行（道具が押す欄・埋める欄も、もう書かれているはずなので欠けとして見る。rt.py の incoming=False と同じ）
+    // inLog が真なら既存のログの行（ツールが押す欄・埋める欄も、もう書かれているはずなので欠けとして見る。rt.py の incoming=False と同じ）
     function checkFields(ev, where, VER, errs, inLog) {
       const def = own(R.events, ev.e);
       const fields = def.fields;
@@ -345,8 +345,8 @@
       for (const name of Object.keys(fields)) {
         const fd = fields[name];
         if (!has(ev, name)) {
-          // 道具が押す欄（step.at など）は、無くても道具が足すので欠けとしない。
-          // 道具が埋める欄（fix.was など）は、版の fill_was が true のときだけ同じ扱い。v1 では分析役が書くので必須（rt.py と同じ）
+          // ツールが押す欄（step.at など）は、無くてもツールが足すので欠けとしない。
+          // ツールが埋める欄（fix.was など）は、版の fill_was が true のときだけ同じ扱い。v1 では分析役が書くので必須（rt.py と同じ）
           const filledByTool = !inLog && (fd.tool_writes || (fd.tool_fills && VER.fill_was));
           if (!filledByTool && VER.required_levels.indexOf(fd.req) >= 0) errs.push('F01: ' + where + ': ' + lab + ' に ' + name + ' がありません');
           continue;
@@ -408,10 +408,10 @@
       };
       if (!Array.isArray(log)) log = [];
       if (!Array.isArray(batchIn) || batchIn.length === 0) { errs.push('P02: 追記が空です'); return result(null); }
-      // 分析役が step・end・pause に書いた at は、どの検査よりも前に捨てる（値の検査にもかけない。道具が押し直す）
+      // 分析役が step・end・pause に書いた at は、どの検査よりも前に捨てる（値の検査にもかけない。ツールが押し直す）
       const batchWork = batchIn.map(dropAt);
-      // 記録に書けない値（有限でない数・2^53 − 1 を超える数・対になっていないサロゲート・深すぎる入れ子）は写す前に見る
-      // （JSON に写すと有限でない数は null に化けて、違反の文が実際と合わなくなる。深すぎる入れ子は写すときに落ちる）
+      // 記録に書けない値（有限でない数・2^53 − 1 を超える数・対になっていないサロゲート・深すぎる入れ子）は JSON にする前に見る
+      // （JSON にすると有限でない数は null に化けて、違反の文が実際と合わなくなる。深すぎる入れ子は JSON にするときに落ちる）
       const maxDepth = isInt(own(R.limits, 'value.max_depth')) ? own(R.limits, 'value.max_depth') : 32;
       const BAD_MSG = {
         nonfinite: 'に有限でない数があります（数は有限のものだけ）',
@@ -458,7 +458,7 @@
       }
       const VER = R.versions[verKey];
       // 既存のログの欄も見る（rt.py の fold と同じ線。欄の壊れた行があれば追記しない）。
-      // 手順の規則（P）までは見直さない。画面が作るログは追記のたびに検査済みなので、ここで鳴るのは外から渡された壊れたログ
+      // 手順の規則（P）までは見直さない。画面が作るログは追記のたびに検査済みなので、ここで違反が出るのは外から渡された壊れたログ
       const nBefore = errs.length;
       log.forEach(function (e, i) {
         const where = 'ログ' + (i + 1) + '行目';
@@ -473,15 +473,15 @@
       if (start === 1) {
         // open は1件だけの追記（次の追記で1ステップ目を書く）。step や他のイベントを同じ追記に混ぜない（rt.py と同じ線）
         checkFields(batch[0], '追記1件目', VER, errs);
-        // P30: 素材の名前（上限を当てる版＝v2）。素材ファイルとメモ帳の名前（limits.open.src_ext）だけを受ける。大小文字は問わない
+        // P30: 素材の名前（上限を適用する版＝v2）。素材ファイルとメモ帳の名前（limits.open.src_ext）だけを受ける。大小文字は問わない
         const exts = own(R.limits, 'open.src_ext');
         if (VER.limits && Array.isArray(exts) && exts.length && typeof batch[0].src === 'string') {
           const low = batch[0].src.toLowerCase();
           if (!exts.some(function (x) { return typeof x === 'string' && x && low.endsWith(x.toLowerCase()); })) {
-            // 長い名前は終わりの 59 字だけを出す（頭に「…」）。断る理由は名前の終わり（拡張子）にあるので、終わりを残す（rt.py と同じ）
+            // 長い名前は終わりの 59 字だけを出す（先頭に「…」）。断る理由は名前の終わり（拡張子）にあるので、終わりを残す（rt.py と同じ）
             const cps = Array.from(batch[0].src);
             const shown = cps.length > 60 ? '…' + cps.slice(-59).join('') : batch[0].src;
-            errs.push('P30: 追記1件目: 素材の名前 ' + JSON.stringify(shown) + ' は ' + exts.join('・') + ' で終わっていません（素材にできるのは素材ファイルとメモ帳だけ。判断ログ・素材ログ・印・覚え書きは素材にできません）');
+            errs.push('P30: 追記1件目: 素材の名前 ' + JSON.stringify(shown) + ' は ' + exts.join('・') + ' で終わっていません（素材にできるのは素材ファイルとメモ帳だけ。判断ログ・素材ログ・ロックファイル・状態ファイル・覚え書きは素材にできません）');
           }
         }
         if (batch.length > 1) { errs.push('P02: 追記2件目: open は1件だけの追記にします（1ステップ目は次の追記で書きます）'); return result(null); }
@@ -570,7 +570,7 @@
         const where = '追記' + (start + idx + 1) + '件目';
         if (!knownKind(e, VER)) { badKind(e, where, verKey); return; }
         const lab = label(e);
-        // at は道具が押す欄（分析役が書いた値は、上の dropAt がどの検査よりも前に捨ててある）。版に無ければ押さない
+        // at はツールが押す欄（分析役が書いた値は、上の dropAt がどの検査よりも前に捨ててある）。版に無ければ押さない
         if (e.e === 'step' && VER.step_at) e.at = clock;
         if (e.e === 'end' || e.e === 'pause') e.at = clock;
         const errsBefore = errs.length;
@@ -616,13 +616,13 @@
             if (w.t && !deepEq(w.t, e.t)) errs.push('P07: ' + where + ': 渡した窓は ' + fmt(w.t[0]) + '〜' + fmt(w.t[1]) + ' ですが、' + fmt(e.t[0]) + '〜' + fmt(e.t[1]) + ' になっています');
             if (w.lines && !deepEq(w.lines, e.lines)) errs.push('P07: ' + where + ': 渡した行は ' + w.lines[0] + '〜' + w.lines[1] + ' ですが、' + e.lines[0] + '〜' + e.lines[1] + ' になっています');
           }
-          // P07: 素材ログ（src）を渡されたとき、窓と発話の時刻の関係を照らす（v2 の時間の窓だけ。rt.py の compute_window が作る形）。
+          // P07: 素材ログ（src）を渡されたとき、窓と発話の時刻の関係を照らし合わせる（v2 の時間の窓だけ。rt.py の compute_window が作る形）。
           //   幅のある窓 [t0, t1]: 渡した発話はどれも t1 より前。渡さなかった次の発話（lines[1] + 1）は t1 以後
           //     （t1 より前なら、窓はその発話を渡すか、上限で切って終わりをその時刻まで縮めるはずだった）
           //   幅 0 の窓 [T, T]（上限ちょうどの件数。P05）:
           //     始まりが直前の窓の終わり（無ければ 0）より先へ進んだ窓は、同じ時刻 T の塊が窓の最初の発話から始まる形なので、
           //     渡した発話はどれも T ちょうどで、次の発話は T 以後
-          //     進んでいない窓は、遅れて届いた発話（時刻が窓の始まり以下）で上限に当たった形なので、渡した発話も次の発話も T 以下
+          //     進んでいない窓は、遅れて届いた発話（時刻が窓の始まり以下）で上限に達したケースなので、渡した発話も次の発話も T 以下
           //   窓の始まりより前の発話（live で遅れて届いた分）は、幅のある窓では拒まない（rt.py と同じ）
           if (VER.cut !== 'chunk' && srcTime) {
             const zero = e.t[1] === e.t[0];
@@ -630,7 +630,7 @@
             const jumped = zero && e.t[0] > base;
             const why = !zero ? '窓に入るのは、窓の終わりより前の発話だけ。終わりちょうどの発話は次の窓'
               : jumped ? '始まりを進めた幅 0 の窓に入るのは、窓と同じ時刻の発話だけ'
-                : '始まりを進めていない幅 0 の窓に入るのは、窓の時刻以下の発話だけ（遅れて届いた発話で上限に当たった形）';
+                : '始まりを進めていない幅 0 の窓に入るのは、窓の時刻以下の発話だけ（遅れて届いた発話で上限に達したケース）';
             // 件数の上限（P05）を超える窓でも、見るのは先頭の 1000 件まで（とても大きな lines でも止まらない）
             for (let i = e.lines[0]; i <= e.lines[1] && i - e.lines[0] < 1000; i++) {
               if (!HAS.call(srcTime, i)) continue;
@@ -646,7 +646,7 @@
               if ((!zero || jumped) && nt < e.t[1]) {
                 errs.push('P07: ' + where + ': 渡さなかった発話 ' + nx + ' の時刻 ' + fmt(nt) + ' が窓の終わり ' + fmt(e.t[1]) + ' より前です（窓の中の時刻の発話は渡すか、上限で切ったなら終わりをその時刻まで縮める）');
               } else if (zero && !jumped && nt > e.t[1]) {
-                errs.push('P07: ' + where + ': 渡さなかった発話 ' + nx + ' の時刻 ' + fmt(nt) + ' が、始まりを進めていない幅 0 の窓 ' + fmt(e.t[0]) + '〜' + fmt(e.t[1]) + ' より後です（その形になるのは、上限を超えた分も窓の時刻以下に遅れて届いたときだけ。ほかは終わりを次の発話の時刻まで縮める）');
+                errs.push('P07: ' + where + ': 渡さなかった発話 ' + nx + ' の時刻 ' + fmt(nt) + ' が、始まりを進めていない幅 0 の窓 ' + fmt(e.t[0]) + '〜' + fmt(e.t[1]) + ' より後です（そうなるのは、上限を超えた分も窓の時刻以下に遅れて届いたときだけ。ほかは終わりを次の発話の時刻まで縮める）');
               }
             }
           }
@@ -713,7 +713,7 @@
             if (e.li != null && isPair(e.li)) {
               const l = own(st.lists, e.li[0]);
               if (!l) errs.push('P10: ' + where + ': カード ' + e.id + ' が指す数え上げ ' + e.li[0] + ' がありません');
-              else if (!(e.li[1] >= 1 && e.li[1] <= l.n)) errs.push('P18: ' + where + ': カード ' + e.id + ' の番目 ' + e.li[1] + ' は数え上げ ' + e.li[0] + ' の範囲（1〜' + l.n + '）の外です');
+              else if (!(e.li[1] >= 1 && e.li[1] <= l.n)) errs.push('P18: ' + where + ': カード ' + e.id + ' が指す ' + e.li[1] + ' 番目は、数え上げ ' + e.li[0] + ' の範囲（1〜' + l.n + '）の外です');
             }
             checkWho(e, where, 'カード ' + e.id);
             hedge.forEach(function (wd) {
@@ -765,7 +765,7 @@
             else if (f === 'span') {
               if (!typeOk('span', now)) errs.push('P14: ' + where + ': span の訂正後の値は、始まりと終わり（終わりは null でもよい）の 2 つ組です');
               else {
-                if (now[0] > target.t) errs.push('P14: ' + where + ': 括り ' + e.id + ' の始まり ' + fmt(now[0]) + ' が印の位置 ' + fmt(target.t) + ' より後です');
+                if (now[0] > target.t) errs.push('P14: ' + where + ': 括り ' + e.id + ' の始まり ' + fmt(now[0]) + ' が、マーカーの時刻 ' + fmt(target.t) + ' より後です');
                 if (now[1] != null && now[1] < now[0]) errs.push('P14: ' + where + ': 括り ' + e.id + ' の終わり ' + fmt(now[1]) + ' が始まり ' + fmt(now[0]) + ' より前です');
                 if (now[1] != null && end != null && now[1] > end) errs.push('P14: ' + where + ': 括り ' + e.id + ' の終わり ' + fmt(now[1]) + ' は、まだ聞いていない所です（聞き終えたのは ' + fmt(end) + '）');
               }
@@ -783,7 +783,7 @@
               else if (now < target.items.length) errs.push('P14: ' + where + ': 数え上げ ' + e.id + ' の数 ' + now + ' が、分かっている項目 ' + target.items.length + ' 件より少なくなります');
             }
             if (VER.fill_was) {
-              // 道具が埋める was は now の手前に置く（書き出した1行が rt.py と同じ並びになる）
+              // ツールが埋める was は now の手前に置く（書き出した1行が rt.py と同じ並びになる）
               if (e.was === undefined) { e = insertBefore(e, 'now', 'was', clone(target[f])); batch[start + idx] = e; }
               else if (!deepEq(e.was, target[f])) errs.push('P14: ' + where + ': 訂正の was ' + JSON.stringify(e.was) + ' が現状 ' + JSON.stringify(target[f]) + ' と違います');
             }
@@ -796,7 +796,7 @@
               takeId('group', e.id, where, '括り');
             }
             if (typeOk('span', e.span) && isNum(e.t)) {
-              if (e.span[0] > e.t) errs.push('P15: ' + where + ': 括り ' + e.id + ' の始まり ' + fmt(e.span[0]) + ' が印の位置 ' + fmt(e.t) + ' より後です');
+              if (e.span[0] > e.t) errs.push('P15: ' + where + ': 括り ' + e.id + ' の始まり ' + fmt(e.span[0]) + ' が、マーカーの時刻 ' + fmt(e.t) + ' より後です');
               if (e.span[1] != null && e.span[1] < e.span[0]) errs.push('P15: ' + where + ': 括り ' + e.id + ' の終わり ' + fmt(e.span[1]) + ' が始まり ' + fmt(e.span[0]) + ' より前です');
               if (e.span[1] != null && end != null && e.span[1] > end) errs.push('P15: ' + where + ': 括り ' + e.id + ' の終わり ' + fmt(e.span[1]) + ' は、まだ聞いていない所です（聞き終えたのは ' + fmt(end) + '）');
             }

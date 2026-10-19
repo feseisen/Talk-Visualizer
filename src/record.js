@@ -2,12 +2,12 @@
  * record.js — 記録。判断ログ（<会議名>.jsonl）と素材ログ（<会議名>.src.jsonl）の 2 本。どちらも追記専用
  *
  *   - メモリの配列に積み、同時に IndexedDB（データベース kiku）へ 1 行ずつ追記する
- *   - 「書き出す」で jsonl ／ src.jsonl を a[download] で落とす
- *   - File System Access が使えれば、本物のファイルにも追記する（使えなければ黙って IndexedDB だけ）
+ *   - 「書き出す」で jsonl ／ src.jsonl を a[download] でダウンロードする
+ *   - File System Access が使えれば、実際のファイルにも追記する（使えなければ黙って IndexedDB だけ）
  *   - 「記録を消す」で、この会議名の行を IndexedDB から消す
- *   - claude.ai のアーティファクトの枠の中では、枠の共有データベース（db）に写しを置ける（makeDbSink。下の節。
- *     同じ名前を 2 つの端末が同時に写さないよう、見出しの貸し出しを持つ端末だけが書く）。
- *     枠の中では保存の画面も a[download] も使えないので、書き出しは枠の保存（downloads）で（makeDownloadsExport）
+ *   - claude.ai のアーティファクトの中では、アーティファクトの共有データベース（db）にコピー（控え）を置ける（makeDbSink。下の節。
+ *     同じ名前を 2 つの端末が同時にコピーしないよう、見出しのロックを持つ端末だけが書く）。
+ *     アーティファクトの中では保存の画面も a[download] も使えないので、書き出しはアーティファクトの保存機能（downloads）で（makeDownloadsExport）
  *
  * 一度書いた行には手を入れない。直すときは fix イベントを足して表す（format/FORMAT.md）。
  * ここには検査が無い。追記の前に verify.js を通すのは呼ぶ側（app.js）の責任
@@ -22,7 +22,7 @@
 
   function openDb() {
     return new Promise(function (resolve, reject) {
-      if (!globalThis.indexedDB) { reject(new Error('ブラウザ内の保存が無い')); return; }
+      if (!globalThis.indexedDB) { reject(new Error('このブラウザの保存領域（IndexedDB）が使えない')); return; }
       let req;
       try { req = indexedDB.open(DB_NAME, DB_VER); } catch (e) { reject(e); return; }
       req.onupgradeneeded = function () {
@@ -35,7 +35,7 @@
         });
       };
       req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error || new Error('ブラウザ内の保存を開けない')); };
+      req.onerror = function () { reject(req.error || new Error('このブラウザの保存領域（IndexedDB）を開けない')); };
     });
   }
 
@@ -46,14 +46,14 @@
     const handles = { log: null, src: null };
     const fsChain = { log: Promise.resolve(), src: Promise.resolve() };
     const status = { idb: '未確認', fs: { log: '無し', src: '無し' }, lastError: null };
-    let mirror = null;                 // 枠の共有データベースへの写し（makeDbSink）。無ければ null。失敗しても記録は止めない
+    let mirror = null;                 // アーティファクトの共有データベースへのコピー（控え。makeDbSink）。無ければ null。失敗しても記録は止めない
 
     function db() {
       if (!dbp) dbp = openDb().then(function (d) { status.idb = '使える'; return d; }, function (e) { status.idb = '使えない（' + (e && e.message || e) + '）'; throw e; });
       return dbp;
     }
 
-    // 既存の記録を読む（同じ会議名の行を鍵の順に）。無ければ空
+    // 既存の記録を読む（同じ会議名の行をキーの順に）。無ければ空
     function load() {
       return db().then(function (d) {
         return Promise.all(['log', 'src'].map(function (store) {
@@ -125,22 +125,22 @@
       if (mirror) mirror.appendSrc([ev]);
       return ev;
     }
-    // 枠の共有データベースへの写し（makeDbSink の返り値）を結び付ける。以後の追記と「消す」が写しにも届く。
-    // null で外す。結び付ける前の分は写さない（続きから聞くときは、先に sink.loadAll() で写しの側を読む）
+    // アーティファクトの共有データベースへのコピー（控え。makeDbSink の返り値）を結び付ける。以後の追記と「消す」がコピーにも届く。
+    // null で外す。結び付ける前の分はコピーしない（続きから聞くときは、先に sink.loadAll() でコピーの側を読む）
     function attachMirror(sink) { mirror = sink || null; return mirror; }
 
     function download(fname, text) {
       const blob = new Blob([text], { type: 'application/x-ndjson;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = fname; a.style.display = 'none';   // 枠では使わない（app.js は枠の中では枠の保存を使い、ここへ来ない）
+      a.href = url; a.download = fname; a.style.display = 'none';   // 枠では使わない（app.js はアーティファクトの中ではアーティファクトの保存機能を使い、ここへ来ない）
       document.body.appendChild(a); a.click();
       setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
     }
-    // 書き出す。保存の画面（showSaveFilePicker）が使えればそれで名前を付けて保存し、無ければ a[download] で落とす
-    // （file:// から a[download] で落とすと、名前が「download」になる環境がある。Chromium の headless で観測。実機は未確認）。
+    // 書き出す。保存の画面（showSaveFilePicker）が使えればそれで名前を付けて保存し、無ければ a[download] でダウンロードする
+    // （file:// から a[download] でダウンロードすると、名前が「download」になる環境がある。Chromium の headless で観測。実機は未確認）。
     // 返す値: 'picker'（選んだ保存先に保存した）／'cancelled'（保存先を選ばなかった）／'download'（保存の画面が無いので
-    // a[download] で落とした）／'fallback'（保存の画面を開けなかった・保存できなかったので a[download] で落とした。
+    // a[download] でダウンロードした）／'fallback'（保存の画面を開けなかった・保存できなかったので a[download] でダウンロードした。
     // Chromium は押してから約 5 秒を過ぎると 2 つ目の保存の画面を開かせない（SecurityError）。1 つ目の画面で迷うと 2 つ目がこれになる）
     function exportVia(fname, text) {
       if (typeof globalThis.showSaveFilePicker === 'function') {
@@ -157,7 +157,7 @@
     function exportLog() { return exportVia(name + '.jsonl', lines(rec.log)); }
     function exportSrc() { return exportVia(name + '.src.jsonl', lines(rec.src)); }
 
-    // 本物のファイルに追記する（File System Access）。いまある分を先に書き、以後は追記
+    // 実際のファイルに追記する（File System Access）。いまある分を先に書き、以後は追記
     function bindFile(kind) {
       if (typeof globalThis.showSaveFilePicker !== 'function') { status.fs[kind] = 'この環境では使えない'; return Promise.resolve(false); }
       const suggested = kind === 'log' ? name + '.jsonl' : name + '.src.jsonl';
@@ -165,11 +165,11 @@
         handles[kind] = h;
         return h.createWritable().then(function (w) {
           return w.write(lines(kind === 'log' ? rec.log : rec.src)).then(function () { return w.close(); });
-        }).then(function () { status.fs[kind] = '書いている（' + (h.name || suggested) + '）'; return true; });
-      }).catch(function (e) { status.fs[kind] = '結び付けなかった（' + (e && e.message || e) + '）'; return false; });
+        }).then(function () { status.fs[kind] = 'ファイルに書き込み中（' + (h.name || suggested) + '）'; return true; });
+      }).catch(function (e) { status.fs[kind] = '保存先のファイルを設定できなかった（' + (e && e.message || e) + '）'; return false; });
     }
 
-    // この会議名の行を IndexedDB から消し、メモリも空にする（写しが結び付いていれば、写しの側も消す）
+    // この会議名の行を IndexedDB から消し、メモリも空にする（コピーが結び付いていれば、コピーの側も消す）
     function clear() {
       rec.log = []; rec.src = [];
       const m = mirror;
@@ -208,11 +208,11 @@
     };
   }
 
-  // ---- 枠の共有データベース（db）への写し ----
+  // ---- アーティファクトの共有データベース（db）へのコピー（控え） ----
   //
-  // claude.ai のアーティファクトの枠の中では、await claude.use('db') で枠の共有データベースが使える（無ければ null）。
-  // 記録の本体は上の IndexedDB で、ここはその写し。別のタブや別の端末から「続きから聞く」ための材料になる。
-  // 写しが書けなくても本体は止めない（失敗は status に残し、1 回だけやり直し、それでも駄目なら以後は黙って落とす）
+  // claude.ai のアーティファクトの中では、await claude.use('db') でアーティファクトの共有データベースが使える（無ければ null）。
+  // 記録の本体は上の IndexedDB で、ここはそのコピー（控え）。別のタブや別の端末から「続きから聞く」ための材料になる。
+  // コピーが書けなくても本体は止めない（失敗は status に残し、1 回だけやり直し、それでも駄目なら以後は黙って落とす）
   //
   //   見出し    kiku/<名前>             {name, started, lastLog, lastSrc, v:1}
   //   判断ログ  kiku/<名前>/log/<6 桁>  {n, events, at}   n は 1 から。id は n を 6 桁に 0 埋めした文字列（並べ替えのため）
@@ -246,11 +246,11 @@
     return changed ? out + '-' + hash8(s) : out;
   }
 
-  // やり直しても通らない誤り（契約の決まり: 呼び方の誤り・容量・取り消し・枠の都合）。name_conflict と other_writer はこちらで付ける
+  // やり直しても通らないエラー（仕様の決まり: 呼び方の誤り・容量・取り消し・アーティファクトの都合）。name_conflict と other_writer はこちらで付ける
   const NO_RETRY = { invalid_argument: 1, quota_exceeded: 1, revoked: 1, not_granted: 1, capability_disabled: 1, capability_removed: 1, transform_error: 1, name_conflict: 1, other_writer: 1 };
-  const LEASE_MS = 30000;   // 見出しの貸し出し（acquire）の長さ。書くたびに延ばす。これより長く書かなければ、別の端末が書き手になれる
-  // 貸し出しの持ち主の名前。同じタブでは読み込み直しても同じ名前になるよう sessionStorage に覚える（使えなければその場の乱数）。
-  // 読み込み直した直後も自分の前の貸し出しを延ばせるので、切れるまで待たずに書ける。別のタブ・別の端末は別の名前になる
+  const LEASE_MS = 30000;   // 見出しのロック（acquire）の長さ。書くたびに延ばす。これより長く書かなければ、別の端末が書き手になれる
+  // ロックの持ち主の名前。同じタブでは読み込み直しても同じ名前になるよう sessionStorage に保存する（使えなければその場の乱数）。
+  // 読み込み直した直後も自分の前のロックを延ばせるので、切れるまで待たずに書ける。別のタブ・別の端末は別の名前になる
   let holderCache = null;
   function tabHolder() {
     if (holderCache) return holderCache;
@@ -259,7 +259,7 @@
     try { h = globalThis.sessionStorage ? sessionStorage.getItem(KEY) : null; } catch (e) { h = null; }
     if (!h) {
       h = 'kiku-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
-      try { if (globalThis.sessionStorage) sessionStorage.setItem(KEY, h); } catch (e) { /* 覚えられなければその場限りの名前 */ }
+      try { if (globalThis.sessionStorage) sessionStorage.setItem(KEY, h); } catch (e) { /* 保存できなければその場限りの名前 */ }
     }
     holderCache = h;
     return h;
@@ -271,17 +271,17 @@
     return code ? code + (msg ? '（' + msg + '）' : '') : (msg || String(e));
   }
 
-  // db: await claude.use('db') の返り値（null なら何もしない写し）。name: 記録の名前。
-  // opts は試験のため（now: 時刻の文字列を返す、wait: やり直しの前に待つ、srcHoldMs: 素材ログをまとめて書くまでの猶予、
-  // leaseMs: 貸し出しの長さ、holder: 貸し出しの持ち主の名前）
+  // db: await claude.use('db') の返り値（null なら何もしないコピー）。name: 記録の名前。
+  // opts はテストのため（now: 時刻の文字列を返す、wait: やり直しの前に待つ、srcHoldMs: 素材ログをまとめて書くまでの猶予、
+  // leaseMs: ロックの長さ、holder: ロックの持ち主の名前）
   //
-  // 単一の書き手: 書く前に見出しの文書へ短い貸し出し（acquire）を掛け、持てたときだけ書く。契約（db.d.ts）は「書き込みは後勝ちで
-  // 取引は無い。読んで足して書く番号を作るな」と言う——同じ名前の記録を 2 つの端末（タブ）が同時に写すと、両方が見出しの
-  // lastLog=N を読んで同じ文書 000(N+1) に set し、後の set が前のイベントを黙って消す。貸し出しは持ち主の名前で延ばせるので、
+  // 単一の書き手: 書く前に見出しの文書へ短いロック（acquire）を掛け、持てたときだけ書く。仕様（db.d.ts）は「書き込みは後勝ちで
+  // トランザクションは無い。読んで足して書く番号を作るな」と言う——同じ名前の記録を 2 つの端末（タブ）が同時にコピーすると、両方が見出しの
+  // lastLog=N を読んで同じ文書 000(N+1) に set し、後の set が前のイベントを黙って消す。ロックは持ち主の名前で延ばせるので、
   // 書くたびに延ばす（持ち主の名前は tabHolder: 同じタブなら読み込み直しても同じ）。別の端末が持っていれば、切れる時刻まで
-  // 1 回だけ待ってもう一度取り、それでも持てなければ書かずに写しを止めて status.error にそう出す（other_writer。本体は残る）。
-  // 貸し出しを取り直したとき（持っていない間があった）は、別の端末が書いたかもしれないので見出しと末尾を読み直してから続ける。
-  // 貸し出しの口が無い古い仕組み（acquire が無い・capability_removed）では、調停できないまま前のとおり書く
+  // 1 回だけ待ってもう一度取り、それでも持てなければ書かずにコピーを止めて status.error にそう出す（other_writer。本体は残る）。
+  // ロックを取り直したとき（持っていない間があった）は、別の端末が書いたかもしれないので見出しと末尾を読み直してから続ける。
+  // ロックの機能が無い古い仕組み（acquire が無い・capability_removed）では、調停できないまま前のとおり書く
   function makeDbSink(db, name, opts) {
     opts = opts || {};
     const now = opts.now || function () { return new Date().toISOString(); };
@@ -289,18 +289,18 @@
     const srcHold = typeof opts.srcHoldMs === 'number' ? opts.srcHoldMs : 1500;
     const leaseMs = typeof opts.leaseMs === 'number' && opts.leaseMs > 0 ? opts.leaseMs : LEASE_MS;
     const holder = typeof opts.holder === 'string' && opts.holder ? opts.holder : tabHolder();
-    let leaseUntil = 0;             // 自分が貸し出しを持っていると分かっている時刻（こちらの時計、ms）。0 は持っていない
+    let leaseUntil = 0;             // 自分がロックを持っていると分かっている時刻（こちらの時計、ms）。0 は持っていない
     const seg = dbSegment(name);
     const status = {
-      db: db ? '未確認' : '無し',   // '無し'（枠の外）／'未確認'／'使える'／'使えない'
+      db: db ? '未確認' : '無し',   // '無し'（アーティファクトの外）／'未確認'／'使える'／'使えない'
       name: name, segment: seg,
-      written: { log: 0, src: 0 },  // 写したイベントの数
+      written: { log: 0, src: 0 },  // コピーしたイベントの数
       docs: { log: 0, src: 0 },     // この sink が書いた文書の数
       retried: 0, dropped: 0,       // やり直した回数・黙って落としたイベントの数
-      error: null,                  // 写しを止めた理由（止めたら以後は書かない）
+      error: null,                  // コピーを止めた理由（止めたら以後は書かない）
       lastError: null,              // 最後の失敗（やり直して通った分も残る）
       loading: false,
-      head: null                    // 見出しの写し（読んだ・書いた最新）
+      head: null                    // 見出しのコピー（読んだ・書いた最新）
     };
     let chain = Promise.resolve();
     let inspected = null;           // 見出しと末尾を読んだ Promise（通らなければ null に戻し、次に読み直す）
@@ -318,13 +318,13 @@
     function giveUp(e, kind) {
       dead = true;
       status.db = '使えない';
-      if (e && e.code === 'other_writer') status.error = '別の端末（タブ）が同じ記録を写している（' + errText(e) + '）。この端末からは写さない（記録の本体は残る）';
-      else status.error = label(kind) + 'の写しを書けなかった（' + errText(e) + '）。以後、写しは書かない（記録の本体は残る）';
+      if (e && e.code === 'other_writer') status.error = '別のタブか別の PC が、同じ記録をデータベースに保存している（' + errText(e) + '）。このタブからはデータベースに保存しない';
+      else status.error = label(kind) + 'をデータベースに保存できなかった（' + errText(e) + '）。以後、データベースには保存しない';
     }
 
-    // 見出しの貸し出しを取る（持っていれば延ばす）。→ true: 取り直した（持っていない間があった）、false: 持っていたのを延ばした。
+    // 見出しのロックを取る（持っていれば延ばす）。→ true: 取り直した（持っていない間があった）、false: 持っていたのを延ばした。
     // 別の端末が持っていれば、その端末が閉じられて延ばされなくなった場合に備えて、切れる時刻まで 1 回だけ待ってもう一度取る。
-    // それでも持てなければ other_writer を投げる（やり直さない）。貸し出しの口が無ければ false（調停できないまま書く）
+    // それでも持てなければ other_writer を投げる（やり直さない）。ロックの機能が無ければ false（調停できないまま書く）
     function lease() {
       const ref = headRef();
       if (typeof ref.acquire !== 'function') return Promise.resolve(false);
@@ -339,12 +339,12 @@
       }).then(function (r) {
         if (!(r && r.acquired)) {
           leaseUntil = 0;
-          throw { code: 'other_writer', message: '別の端末が貸し出しを持っている' + (r && r.expiresAt ? '（' + r.expiresAt + ' まで）' : '') };
+          throw { code: 'other_writer', message: '別のタブか別の PC が、書き込みのロックを持っている' + (r && r.expiresAt ? '（' + r.expiresAt + ' まで）' : '') };
         }
         leaseUntil = asked + leaseMs;
         return !wasHeld;
       }, function (e) {
-        if (e && e.code === 'capability_removed') return false;   // 貸し出しの口が無い古い仕組み
+        if (e && e.code === 'capability_removed') return false;   // ロックの機能が無い古い仕組み
         throw e;
       });
     }
@@ -356,8 +356,8 @@
         return headRef().get();
       }).then(function (snap) {
         if (snap && snap.exists) {
-          const h = Object.assign({}, snap.data() || {});   // 届いた文書は凍っているので写しを持つ
-          if (h.name !== undefined && h.name !== name) throw { code: 'name_conflict', message: '同じ置き場に別の記録「' + h.name + '」がある' };
+          const h = Object.assign({}, snap.data() || {});   // 届いた文書は凍っているのでコピーを持つ
+          if (h.name !== undefined && h.name !== name) throw { code: 'name_conflict', message: '同じ保存先に別の記録「' + h.name + '」がある' };
           counters.log = Number(h.lastLog) || 0; counters.src = Number(h.lastSrc) || 0;
           status.head = h;
         } else {
@@ -383,7 +383,7 @@
       });
     }
 
-    // 貸し出しを取る → 1 つの文書に書く（set）→ 見出しの lastLog／lastSrc を進める（update）。通らなければ 1 回だけやり直す
+    // ロックを取る → 1 つの文書に書く（set）→ 見出しの lastLog／lastSrc を進める（update）。通らなければ 1 回だけやり直す
     function writeBatch(kind, evs) {
       function once() {
         return lease().then(function (fresh) {
@@ -485,7 +485,7 @@
     }
     // log と src を全部読んで、イベントの配列を 2 本返す（続きから聞くための材料）。読んでいる間は書かない
     function loadAll() {
-      if (!db) return Promise.resolve({ ok: false, log: [], src: [], head: null, docs: { log: 0, src: 0 }, error: '枠の共有データベースが無い' });
+      if (!db) return Promise.resolve({ ok: false, log: [], src: [], head: null, docs: { log: 0, src: 0 }, error: 'アーティファクトのデータベースが無い' });
       chain = chain.then(function () {
         status.loading = true;
         return inspect().then(function () {
@@ -501,7 +501,7 @@
       return chain;
     }
 
-    // この名前の写しを消す（文書を 1 件ずつ、最後に見出し）。消せなければ false
+    // この名前のコピーを消す（文書を 1 件ずつ、最後に見出し）。消せなければ false
     function deleteAll(kind, rounds) {
       if (rounds > 200) return Promise.resolve();   // 消しても減らない（見えない文書など）なら止める
       return colRef(kind).orderBy('n').limit(1000).get().then(function (qs) {
@@ -532,16 +532,16 @@
     return { appendLog: appendLog, appendSrc: appendSrc, head: head, loadAll: loadAll, clear: clear, flush: flush, status: status, segment: seg };
   }
 
-  // ---- 枠の保存（downloads）での書き出し ----
+  // ---- アーティファクトの保存機能（downloads）での書き出し ----
   //
-  // 枠の中では showSaveFilePicker も a[download] も使えない。downloads は await claude.use('downloads') の返り値（無ければ null）。
+  // アーティファクトの中では showSaveFilePicker も a[download] も使えない。downloads は await claude.use('downloads') の返り値（無ければ null）。
   // 保存できる拡張子が決まっているので、外れる名前（.jsonl など）には .txt を足して出す（中身はそのまま。閲覧者が付け直せる）
 
   const DL_EXT = ['gif', 'png', 'jpg', 'jpeg', 'webp', 'mp4', 'webm', 'txt', 'json', 'md', 'docx', 'pptx', 'epub', 'csv', 'ttf', 'html', 'svg', 'pdf', 'xlsx', 'zip'];
   const DL_REASON = {
-    declined: '保存しなかった', rejected_extension: 'この形のファイルは枠の中では保存できない', extension_not_enabled: 'この形のファイルはここでは保存できない',
-    too_large: '大きすぎて保存できない', rate_limited: '前の確認がまだ開いている。少し待ってもう一度', bad_request: '保存の呼び方が誤っている',
-    request_unknown: '保存の求めが無い', unavailable: 'この画面では保存できない', empty: '中身が空なので保存しない'
+    declined: '保存の確認で取り消した', rejected_extension: 'この形式のファイルはアーティファクトの中では保存できない', extension_not_enabled: 'この形式のファイルはここでは保存できない',
+    too_large: '大きすぎて保存できない', rate_limited: '前の確認がまだ開いている。少し待ってから、もう一度押す', bad_request: '保存の呼び出し方が正しくない',
+    request_unknown: '保存のリクエストが見つからない', unavailable: 'この画面では保存できない', empty: '中身が空なので保存しない'
   };
   function downloadFilename(fname) {
     const s = String(fname == null ? '' : fname);
@@ -558,9 +558,9 @@
       return false;
     }
     // 保存を閲覧者に促す。保存したら true。断られた・できなかったら false（理由は status.reason に日本語、status.lastError に code）。
-    // 中身は文字列（UTF-8 で保存される）か、バイト列（Uint8Array など。拡張の ZIP）
+    // 中身は文字列（UTF-8 で保存される）か、バイト列（Uint8Array など。拡張機能の ZIP）
     function save(filename, text) {
-      if (!usable) return Promise.resolve(fail('unavailable', '枠の保存が無い'));
+      if (!usable) return Promise.resolve(fail('unavailable', 'アーティファクトの保存機能が無い'));
       const bytes = !!(text && typeof text === 'object' && typeof text.byteLength === 'number');
       if (bytes ? !text.byteLength : (typeof text !== 'string' || !text.length)) return Promise.resolve(fail('empty', '中身が空'));
       const fname = downloadFilename(filename);
@@ -571,7 +571,7 @@
     return { save: save, status: status, filename: downloadFilename };
   }
 
-  // 枠の中の能力（'db'・'downloads' など）を取る。無ければ null（claude.use が無い・null を返す・例外を投げる、のどれでも）。
+  // アーティファクトの中の機能（'db'・'downloads' など）を取る。無ければ null（claude.use が無い・null を返す・例外を投げる、のどれでも）。
   // 決して reject しない
   function useCapability(cap) {
     return Promise.resolve().then(function () {
@@ -586,7 +586,7 @@
   function listRecords() {
     return openDb().then(function (d) {
       return new Promise(function (resolve) {
-        const recs = Object.create(null); // 鍵は会議の名前（人が打つ）。素の表にする
+        const recs = Object.create(null); // キーは会議の名前（人が打つ）。素の表にする
         let tx;
         try { tx = d.transaction('log', 'readonly'); } catch (e) { resolve([]); return; }
         const cur = tx.objectStore('log').openCursor();
@@ -618,7 +618,7 @@
   function listNames() {
     return openDb().then(function (d) {
       return new Promise(function (resolve) {
-        const names = Object.create(null); // 鍵は会議の名前（人が打つ）。素の表にする
+        const names = Object.create(null); // キーは会議の名前（人が打つ）。素の表にする
         let tx;
         try { tx = d.transaction('log', 'readonly'); } catch (e) { resolve([]); return; }
         const cur = tx.objectStore('log').openCursor();

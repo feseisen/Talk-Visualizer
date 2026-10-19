@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /*
- * e2e_kiku.js — 道具（kiku.html）を画面から通しで確かめる試験（Chromium headless、file://）
+ * e2e_kiku.js — ツール（kiku.html）を画面から通しで確かめるテスト（Chromium headless、file://）
  *
- *   node tests/e2e/e2e_kiku.js [道具の根のパス] [出力フォルダ]
- *   （playwright と Chromium が要る。試験ページ tests/tests.html と違い、node 無しでは走らない。
+ *   node tests/e2e/e2e_kiku.js [ツールのルートフォルダのパス] [出力フォルダ]
+ *   （playwright と Chromium が要る。テストページ tests/tests.html と違い、node が無いと実行できない。
  *    Chromium の場所は環境変数 CHROMIUM_PATH で渡す。無ければ playwright の既定の Chromium を使う）
  *
  * 1. tests/tests.html を開き、結果の表（#total）を読む
  * 2. kiku.html の縦の一筋: 経路=内蔵の模擬、入口=ファイル（tests/fixtures/meeting10.txt）、
  *    「聞き取りを開始」→「次の窓を流す」×5。窓ごとに中央の行・左の保留と最上位・右の逐語を読む
  *    DOM の行の t が上から単調非減少、未来の行が無い、を確かめる。
- *    内蔵の模擬の台本に数え上げ（窓 1）・括り（窓 2）・括りの範囲の訂正（窓 4）があり、左の欄と中央の札に出る。
+ *    内蔵の模擬の台本に数え上げ（窓 1）・括り（窓 2）・括りの範囲の訂正（窓 4）があり、左の欄と中央のラベルに出る。
  *    分析役の欄の見えている文に英字の項目名が無く、検査器の文（規則の id つき）は畳んだ欄の中にだけある
  * 3. 「書き出す」で 2 つのファイルを落として出力フォルダに保存する（tools/audit_r2b.py に通して確かめられる）。
  *    保存先の選択を取りやめたときは「保存した」と言わない。1 つ目の保存の画面で 5 秒より長く迷って 2 つ目の画面が開けない
@@ -69,7 +69,7 @@ async function readPanels(page) {
 }
 function parseEdge(edge) {
   // 「いま 1〜6 発話目まで判断した（S1）。…」
-  const m = /いま (\d+)〜(\d+) 発話目まで判断した（S(\d+)）/.exec(edge || '');
+  const m = /いま (\d+)〜(\d+) 番目の発言まで整理した（区切り S(\d+)）/.exec(edge || '');
   return m ? { l0: Number(m[1]), l1: Number(m[2]), n: Number(m[3]) } : null;
 }
 function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; }
@@ -77,7 +77,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
 (async function main() {
   const browser = await chromium.launch(LAUNCH);
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
-  // 設定は「設定と記録」の引き出しの中（2026-10-10 の作り直し）。試験は欄を直に操作するので、引き出しを開いておく
+  // 設定は「設定と記録」の引き出しの中（2026-10-10 の作り直し）。テストは欄を直に操作するので、引き出しを開いておく
   await ctx.addInitScript(function () { document.addEventListener('DOMContentLoaded', function () { const d = document.getElementById('settings'); if (d) d.open = true; }); });
 
   // ---------- 1. tests.html ----------
@@ -87,7 +87,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
     page.on('pageerror', function (e) { errs.push(String(e && e.message || e)); });
     page.on('request', function (r) { if (!/^file:/.test(r.url())) ext.push(r.url()); });
     await page.goto('file://' + path.join(KIT, 'tests', 'tests.html'));
-    await page.waitForFunction(function () { const t = document.getElementById('total'); return t && !/走らせています/.test(t.textContent); }, null, { timeout: 60000 });
+    await page.waitForFunction(function () { const t = document.getElementById('total'); return t && !/実行しています/.test(t.textContent); }, null, { timeout: 60000 });
     const total = await page.evaluate(function () { return document.getElementById('total').textContent; });
     const title = await page.title();
     const ng = await page.evaluate(function () { return Array.from(document.querySelectorAll('tr.ng')).map(function (tr) { return tr.innerText; }); });
@@ -160,7 +160,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
   await page.click('#start');
   await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
   const p0 = await readPanels(page);
-  check('一筋', '聞き始めた', /聞いている/.test(p0.stListen) && /内蔵の模擬/.test(p0.stRoute) && /ファイル/.test(p0.stIntake), p0.stListen + ' / ' + p0.stRoute + ' / ' + p0.stIntake);
+  check('一筋', '聞き始めた', /聞いている/.test(p0.stListen) && /内蔵のダミー/.test(p0.stRoute) && /ファイル/.test(p0.stIntake), p0.stListen + ' / ' + p0.stRoute + ' / ' + p0.stIntake);
   const rows0 = await readRows(page);
   check('一筋', '始める前は中央に行が無い', rows0.length === 0, rows0.length);
 
@@ -173,7 +173,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
     // mock は 300ms 後に返す。書き終えると file-next が再び押せる
     await page.waitForFunction(function (n) {
       const e = document.getElementById('edge').textContent;
-      const m = /（S(\d+)）/.exec(e);
+      const m = /（区切り S(\d+)）/.exec(e);
       return m && Number(m[1]) === n && !document.getElementById('file-next').disabled;
     }, k, { timeout: 10000 });
     const rows = await readRows(page);
@@ -193,10 +193,10 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
     if (k === 2) check('台本', '窓 2: 左の「章」に A が開いたまま出る', /章A/.test(pn.chaps) && /続いている/.test(pn.chaps), pn.chaps.replace(/\n/g, ' ').slice(0, 120));
     if (k === 2) check('台本', '窓 2: 中央に ◆ の括りの行がある', rows.some(function (r) { return /dvrow/.test(r.cls); }), rows.map(function (r) { return r.cls; }).join(','));
     if (k === 3) check('台本', '窓 3: 章 A はまだ開いている', /章A/.test(pn.chaps) && /続いている/.test(pn.chaps), pn.chaps.replace(/\n/g, ' ').slice(0, 120));
-    if (k === 4) check('台本', '窓 4: 訂正（fix の span）で章 A が 2:00 で閉じ、中央の括りに「範囲を訂正」の札', /章A/.test(pn.chaps) && !/続いている/.test(pn.chaps) && /〜2:00/.test(pn.chaps) && /範囲を訂正/.test(pn.gfix), pn.chaps.replace(/\n/g, ' ').slice(0, 80) + ' / ' + pn.gfix.slice(0, 80));
+    if (k === 4) check('台本', '窓 4: 訂正（fix の span）で章 A が 2:00 で閉じ、中央の括りに「範囲を訂正」のラベル', /章A/.test(pn.chaps) && !/続いている/.test(pn.chaps) && /〜2:00/.test(pn.chaps) && /範囲を訂正/.test(pn.gfix), pn.chaps.replace(/\n/g, ' ').slice(0, 80) + ' / ' + pn.gfix.slice(0, 80));
     check('R1', '窓 ' + k + ': DOM の行の t が単調非減少', monotone, ts.join(','));
     check('R2b', '窓 ' + k + ': 未来の行が DOM に無い（t ≦ ' + heardUntil + '）', future.length === 0, JSON.stringify(future));
-    check('一筋', '窓 ' + k + ': 判断した範囲の札（S' + k + '）', edge && edge.n === k, pn.edge);
+    check('一筋', '窓 ' + k + ': 判断した範囲のラベル（S' + k + '）', edge && edge.n === k, pn.edge);
     check('一筋', '窓 ' + k + ': 右の逐語が確定分だけ（件数 = 判断した発話数、最大 t < 窓の終わり）', edge && pn.feedCount === edge.l1 && feedMax < heardUntil, 'feed=' + pn.feedCount + ' lines[1]=' + (edge && edge.l1) + ' feedMax=' + feedMax);
     check('一筋', '窓 ' + k + ': 逐語からカードへの飛び先がある', pn.feedJumps.length >= k, pn.feedJumps.slice(-3).join(' '));
     // 左: 保留と最上位。mock は n 奇数で hold、age≧60 で close、n=1 で top
@@ -209,9 +209,9 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
     if (k === 4) check('一筋', '窓 4: H2 はまだ開いている（立ててから 59 秒）', /H2/.test(pn.holds) && !/H2/.test(pn.closed), pn.holds.replace(/\n/g, ' ').slice(0, 120));
     if (k === 5) check('一筋', '窓 5: H2 が決着に移った（89 秒）', /H2/.test(pn.closed) && !/H2/.test(pn.holds), pn.closed.replace(/\n/g, ' ').slice(0, 120));
     check('一筋', '窓 ' + k + ': 左の保留の欄が前の窓から変わった', prevHolds === null || prevHolds !== pn.holds, '');
-    check('一筋', '窓 ' + k + ': 考えたこと（note）が出ている', /試験用の分析役/.test(pn.notex), pn.notex.slice(0, 40));
-    check('一筋', '窓 ' + k + ': 未確定の窓 0 件', /^0 件/.test(pn.stGaps), pn.stGaps);
-    check('一筋', '窓 ' + k + ': 分析役の欄に「S' + k + ' を書いた」', new RegExp('S' + k + ' を書いた').test(pn.anmsgs), pn.anmsgs.replace(/\n/g, ' ').slice(0, 160));
+    check('一筋', '窓 ' + k + ': 考えたこと（note）が出ている', /テスト用のダミー/.test(pn.notex), pn.notex.slice(0, 40));
+    check('一筋', '窓 ' + k + ': 未確定の区切り 0 件', /^0 件/.test(pn.stGaps), pn.stGaps);
+    check('一筋', '窓 ' + k + ': 分析役の欄に「S' + k + ' の区切りを書いた」', new RegExp('S' + k + ' の区切りを書いた').test(pn.anmsgs), pn.anmsgs.replace(/\n/g, ' ').slice(0, 160));
     if (k === 4) check('検査の一致', '窓 4: verify.js も P24 の警告を出す（rt.py status と同じ）。規則の id は畳んだ欄の中にあり、見えている文には無い', /P24/.test(pn.anraw) && !/P24/.test(pn.anmsgs) && /警告 1 件/.test(pn.anmsgs), pn.anmsgs.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + pn.anraw.slice(0, 120));
     check('画面の言葉', '窓 ' + k + ': 分析役の欄の見えている文に英字の項目名が無い', !/[A-Za-z]{2,}/.test(pn.anmsgs), pn.anmsgs.replace(/\n/g, ' ').slice(0, 200));
     perWindow[perWindow.length - 1].anmsgs = pn.anmsgs;
@@ -226,7 +226,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
   const rowsAll = await readRows(page);
   check('一筋', '「すべてのカード」で 6 行（カード 5 ＋ 括り 1）すべて見える', rowsAll.length === 6 && rowsAll.every(function (r) { return !r.hidden; }) && rowsAll.filter(function (r) { return /^C\d/.test(r.id); }).length === 5 && rowsAll.filter(function (r) { return /^章/.test(r.id); }).length === 1, JSON.stringify(rowsAll.map(function (r) { return [r.id, r.t, r.hidden]; })));
   const marks = await page.evaluate(function () { return Array.from(document.querySelectorAll('#rows .mark')).map(function (m) { return m.textContent; }); });
-  check('R5', '印は ● と ◆ だけ', marks.every(function (m) { return m === '●' || m === '◆'; }), Array.from(new Set(marks)).join(''));
+  check('R5', '記号は ● と ◆ だけ', marks.every(function (m) { return m === '●' || m === '◆'; }), Array.from(new Set(marks)).join(''));
 
   // R7: 縦線と文字の矩形が交差しない
   const r7 = await page.evaluate(function () {
@@ -253,7 +253,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
   });
   check('R7', '縦線と文字の矩形が交差しない（節点の記号 ●◆ は除く）', r7.ok, r7.why);
   const r7marks = await page.evaluate(function () { const s = document.querySelector('.itl-spine').getBoundingClientRect(); return Array.from(document.querySelectorAll('#rows .mark')).map(function (m) { const r = m.getBoundingClientRect(); return (Math.min(r.right, s.right) - Math.max(r.left, s.left)) > 0; }); });
-  check('R7', '（参考）縦線の上に乗っている印の数', true, r7marks.filter(Boolean).length + ' / ' + r7marks.length + '（深さ 0 の印は縦線の上、深さ 1 は右へずれる）');
+  check('R7', '（参考）縦線の上に乗っている記号の数', true, r7marks.filter(Boolean).length + ' / ' + r7marks.length + '（深さ 0 の記号は縦線の上、深さ 1 は右へずれる）');
 
   // R10（中身がある状態）
   for (const w of [400, 1024, 1920]) {
@@ -351,7 +351,7 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
   await page.click('#export');
   await page.waitForFunction(function () { return /保存先を選ばなかった|落とした|保存した/.test(document.getElementById('recmsg').textContent); }, null, { timeout: 5000 });
   const recCancel = await page.evaluate(function () { return document.getElementById('recmsg').textContent; });
-  check('書き出し', '2 つとも取りやめ: 「保存先を選ばなかった。記録はこの画面の中にだけある」と言い、「保存した」と言わない', /保存先を選ばなかった。記録はこの画面の中にだけある/.test(recCancel) && !/落とした|保存した/.test(recCancel), recCancel);
+  check('書き出し', '2 つとも取りやめ: 「保存先を選ばなかった。記録はこのブラウザの中にだけある」と言い、「保存した」と言わない', /保存先を選ばなかった。記録はこのブラウザの中にだけある/.test(recCancel) && !/落とした|保存した/.test(recCancel), recCancel);
   await page.evaluate(function () { globalThis.__pickerPlan = ['save', 'cancel']; globalThis.__pickerCalls = 0; });
   await page.click('#export');
   await page.waitForFunction(function () { return /だけ保存した/.test(document.getElementById('recmsg').textContent); }, null, { timeout: 5000 });
@@ -370,8 +370,8 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
   // 落ちたファイルの名前は、file:// からだと「download」になる（headless の Chromium で見た）。中身で素材ログかを見る
   const slowFiles = [];
   for (const d of downloads.slice(dlSlow)) slowFiles.push({ name: d.suggestedFilename(), src: !/"e":"open"/.test(fs.readFileSync(await d.path(), 'utf8').split('\n')[0]) });
-  check('書き出し', '1 つ目の画面で迷って 2 つ目の画面が開けない: 判断ログは選んだ保存先に、素材ログはダウンロードのフォルダに落としたと、ファイルごとに言う（名前の付け直しも）',
-    /縦の一筋\.jsonl は、選んだ保存先に保存した/.test(recSlow) && /縦の一筋\.src\.jsonl は、保存の画面を開けなかったので、ダウンロードのフォルダに落とした/.test(recSlow) &&
+  check('書き出し', '1 つ目の画面で迷って 2 つ目の画面が開けない: 判断ログは選んだ保存先に、素材ログはダウンロードのフォルダに保存したと、ファイルごとに言う（名前の付け直しも）',
+    /縦の一筋\.jsonl は、選んだ保存先に保存した/.test(recSlow) && /縦の一筋\.src\.jsonl は、保存の画面を開けなかったので、ダウンロードのフォルダに保存した/.test(recSlow) &&
       /縦の一筋\.src\.jsonl に付け直す/.test(recSlow) && !/保存先を選んだ）/.test(recSlow) && slowFiles.length === 1 && slowFiles[0].src &&
       (slowFiles[0].name === '縦の一筋.src.jsonl' || slowFiles[0].name === 'download'),
     recSlow + ' / 落ちたファイル ' + JSON.stringify(slowFiles));
@@ -386,4 +386,4 @@ function toSec(s) { const p = s.split(':').map(Number); return p.length === 3 ? 
   fs.writeFileSync(path.join(OUT, 'e2e_result.json'), JSON.stringify(out, null, 1));
   console.log(JSON.stringify({ total: results.length, ng: ng.length, saved: saved, recmsg: recmsg }, null, 1));
   process.exit(ng.length ? 1 : 0);
-})().catch(function (e) { console.error('試験そのものが落ちた: ' + (e && e.stack || e)); process.exit(2); });
+})().catch(function (e) { console.error('テストそのものが例外で止まりました: ' + (e && e.stack || e)); process.exit(2); });

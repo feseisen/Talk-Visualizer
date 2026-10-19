@@ -1,60 +1,60 @@
 #!/usr/bin/env node
 /*
- * e2e_bridge_install.js — 拡張「橋」を、利用者と同じ道筋で入れる・置き換える（Chromium headed、xvfb の下）。claude.ai のタブを先に
+ * e2e_bridge_install.js — 拡張機能「ブリッジ」を、利用者と同じ道筋で入れる・置き換える（Chromium headed、xvfb の下）。claude.ai のタブを先に
  *                         開いておき、拡張機能の画面（chrome://extensions）に ZIP を OS のドラッグで落とす。開いていたタブを読み込み
- *                         直さずに、枠（アーティファクトの iframe）が拡張に気づくかを通しで確かめる
+ *                         直さずに、アーティファクトの iframe が拡張機能に気づくかを通しで確かめる
  *
- *   xvfb-run -a node tests/e2e/e2e_bridge_install.js [道具の根のパス] [出力フォルダ]
+ *   xvfb-run -a node tests/e2e/e2e_bridge_install.js [ツールのルートフォルダのパス] [出力フォルダ]
  *   （playwright と Chromium と python3（libX11）が要る。Chromium の場所は環境変数 CHROMIUM_PATH で渡す。無ければ playwright の既定。
- *     OS のドラッグは X11 の XDND なので、X の画面が要る（headless では走らない）。出力フォルダの既定は os.tmpdir() の下）
+ *     OS のドラッグは X11 の XDND なので、X の画面が要る（headless では動かない）。出力フォルダの既定は os.tmpdir() の下）
  *
  * 作り:
  *   - プロファイルは毎回まっさら（出力フォルダの下に作り、終わりに消す）。playwright が既定で付ける --disable-extensions は外す
- *     （利用者のブラウザには無い）。拡張は --load-extension で読み込まない——利用者と同じく、拡張機能の画面に ZIP を落として入れる
+ *     （利用者のブラウザには無い）。拡張機能は --load-extension で読み込まない——利用者と同じく、拡張機能の画面に ZIP を落として入れる
  *   - 通信はしない。https://claude.ai と https://<uuid>.frame.claudeusercontent.com の応答は playwright の route で返し（親ページは
- *     e2e_bridge_ext.js と同じ形の CSP と permissions-policy、中身は枠の iframe 1 つ）、ほかの宛先への要求は断って記録する（1 件でも
+ *     e2e_bridge_ext.js と同じ形の CSP と permissions-policy、中身はアーティファクトの iframe 1 つ）、ほかの宛先への要求は断って記録する（1 件でも
  *     あれば不合格）。ページの外で Chromium が自分で出す要求（更新の確かめなど）は route に見えないので、--host-resolver-rules で
  *     すべての名前を引けなくしてある（route で返す要求は名前を引かない）
- *   - 枠は e2e_artifact.js と同じく、組み上げた kiku-artifact.html を骨で包み、頭に偽の window.claude（use はすべて null）と、
- *     届いた kiku-bridge の知らせを時刻つきで記録する口を置く。親ページの主の世界には、枠から届いた kiku の知らせ（ping）を
- *     時刻つきで記録する口を、page.evaluate で置く（本物と同じ CSP の下でも evaluate は通る。waitForFunction は通らない）
- *   - ZIP は build_bridge.py の make_zip() で作り、zip_name() の名前で出力フォルダに書く。版を変えた ZIP（新しい版・古い版）は、
- *     拡張のフォルダを出力フォルダに写して manifest の version だけを書き換え、同じ make_zip()（build_bridge.py の HERE を写しに
+ *   - アーティファクトは e2e_artifact.js と同じく、組み上げた kiku-artifact.html を骨で包み、頭にモックの window.claude（use はすべて null）と、
+ *     届いた kiku-bridge の知らせを時刻つきで記録する仕組みを置く。親ページの主の世界には、アーティファクトから届いた kiku の知らせ（ping）を
+ *     時刻つきで記録する仕組みを、page.evaluate で置く（本物と同じ CSP の下でも evaluate は通る。waitForFunction は通らない）
+ *   - ZIP は build_bridge.py の make_zip() で作り、zip_name() の名前で出力フォルダに書く。バージョンを変えた ZIP（新しいバージョン・古いバージョン）は、
+ *     拡張機能のフォルダを出力フォルダにコピーして manifest の version だけを書き換え、同じ make_zip()（build_bridge.py の HERE をそのコピーに
  *     向けて）で作る。key は元のまま（ID が同じになる）。秘密鍵は作らない・使わない
- *   - ZIP は xdnd_drop.py（同じフォルダ。X11 の XDND を ctypes で話す）で、拡張機能の画面の窓に落とす。DevTools の
+ *   - ZIP は xdnd_drop.py（同じフォルダ。X11 の XDND を ctypes で話す）で、拡張機能の画面のウィンドウにドロップする。DevTools の
  *     Input.dispatchDragEvent では、ページは File を受け取るが Chromium がドラッグ元のパスを持たず、入らない（Chromium 141 で実測）
  *   - デベロッパーモードは、拡張機能の画面のトグル（extensions-toolbar の #devMode）を押してオンにする
  *
  * 確かめること:
- *   (形)       manifest の key から出る ID が aaaamjmfpajoeghckebjabnkgggdmige。枠のページが埋め込む ZIP（KIKU_BRIDGE_ZIP）が
- *              make_zip() と 1 バイトも違わず、名前は zip_name()、版は manifest の version（利用者が落とすのはこの ZIP）
- *   (入れる前)  先に開いた claude.ai のタブの枠に、拡張を入れる 3 つの手順（#ask-setup）が出る。タブに操作部（#kiku-bridge-host）は無い
+ *   (形)       manifest の key から出る ID が aaaamjmfpajoeghckebjabnkgggdmige。アーティファクトのページが埋め込む ZIP（KIKU_BRIDGE_ZIP）が
+ *              make_zip() と 1 バイトも違わず、名前は zip_name()、バージョンは manifest の version（利用者がドロップするのはこの ZIP）
+ *   (入れる前)  先に開いた claude.ai のタブのアーティファクトに、拡張機能を入れる 3 つの手順（#ask-setup）が出る。タブに操作パネル（#kiku-bridge-host）は無い
  *   (入れる)    まっさらなプロファイルで、画面のトグルでデベロッパーモードをオンにし、ZIP を落とすと: 拡張機能の画面が受け取り
- *              （installDroppedFile に誤りが無い）、拡張はちょうど 1 つ、ID は key のもの、版は manifest の version、有効。
+ *              （installDroppedFile にエラーが無い）、拡張機能はちょうど 1 つ、ID は key のもの、バージョンは manifest の version、有効。
  *              確かめの画面は要らない（こちらは何も押さずに、落としてから 10 秒以内に有効になる。拡張機能の画面に開いた dialog も無い）。
- *              読み込み直していない claude.ai のタブに操作部がちょうど 1 つ入り（background.js の差し込み）、枠は有効になってから
- *              10 秒以内に手順を消し、落ち着いた後（枠の ping 1 回分おいて読む。一瞬だけ出た文では合格にしない）に「拡張と
- *              つながっています」と出している。枠に届く here の ver は入れた版。タブも枠も読み込み直していない
- *   (置き換える) 版を 1 つ上げた ZIP（0.2.1）を同じように落とすと: 拡張はちょうど 1 つ、ID は同じ、版は新しい版、有効。
- *              読み込み直していないタブで、操作部はちょうど 1 つ。枠から v:2 の ping を 1 回送ると、1 秒のあいだに here が
- *              ちょうど 1 つ返り、その ver は新しい版（前の版の送り手が退いていなければ 2 つ返る）。枠の持つ ZIP の版（0.2.0）より
- *              古くないので、「新しい版があります」（#ask-update-row）は出ない
- *   (古い版)    別のまっさらなプロファイルで、版を 1 つ下げた ZIP（0.1.9。中身は今の版と同じで version だけ違う）を同じように入れると、
- *              枠は読み込み直さずに手順を消し、「拡張の新しい版（0.2.0）があります（いまは 0.1.9…」を出す
+ *              読み込み直していない claude.ai のタブに操作パネルがちょうど 1 つ入り（background.js の差し込み）、アーティファクトは有効になってから
+ *              10 秒以内に手順を消し、落ち着いた後（アーティファクトの ping 1 回分おいて読む。一瞬だけ出た文では合格にしない）に「拡張機能と
+ *              つながっています」と出している。アーティファクトに届く here の ver は入れたバージョン。タブもアーティファクトも読み込み直していない
+ *   (置き換える) バージョンを 1 つ上げた ZIP（0.2.1）を同じようにドロップすると: 拡張機能はちょうど 1 つ、ID は同じ、バージョンは 1 つ上げたもの、有効。
+ *              読み込み直していないタブで、操作パネルはちょうど 1 つ。アーティファクトから v:2 の ping を 1 回送ると、1 秒のあいだに here が
+ *              ちょうど 1 つ返り、その ver は 1 つ上げたもの（前のバージョンの送り手が終了していなければ 2 つ返る）。アーティファクトの持つ ZIP のバージョン（0.2.0）より
+ *              古くないので、「新しいバージョンがあります」（#ask-update-row）は出ない
+ *   (古いバージョン)    別のまっさらなプロファイルで、バージョンを 1 つ下げた ZIP（0.1.9。中身は今の拡張機能と同じで、manifest の version だけ違う）を同じように入れると、
+ *              アーティファクトは読み込み直さずに手順を消し、「拡張機能の新しいバージョン（0.2.0）があります（いまは 0.1.9…」を出す
  *   (通信)     route で返したもののほかに、ページからの要求が 1 件も無い
- *   (誤り)     claude.ai のタブ（親と枠）の pageerror と console error が 0 件
- *   (環境)     合否にせず記録する: Chromium の版、終わりのデベロッパーモード（2 つのプロファイルとも。トグルの見た目と設定の両方）、
- *              ZIP を展開した置き場、拡張から届いた here の where、枠の文の移り変わり、入るまで・気づくまでの時間
+ *   (エラー)     claude.ai のタブ（親とアーティファクト）の pageerror と console error が 0 件
+ *   (環境)     合否にせず記録する: Chromium のバージョン、終わりのデベロッパーモード（2 つのプロファイルとも。トグルの見た目と設定の両方）、
+ *              ZIP を展開した置き場、拡張機能から届いた here の where、アーティファクトの文の移り変わり、入るまで・気づくまでの時間
  *
  * 確かめないこと: Windows・macOS の Chrome、本物の Chrome（Chromium ではない）での入り方。ウェブストアからの入り方。会社の決まり
- *   （ポリシー）で拡張やデベロッパーモードを止められている PC。ファイルマネージャーからのドラッグそのもの（同じ XDND を自分で話す）。
- *   枠の「拡張を保存する」で ZIP が落ちること（e2e_artifact.js の (m) が偽の保存で確かめる）。chrome://extensions を開く・トグルを
- *   見つけるといった人の操作の分かりやすさ。ブラウザを閉じて開き直した後に残るか。0.1.0（決まりの版 1）からの置き換え。
- *   古い版を入れたプロファイルへ新しい版を落とし直すこと（古い版の組は知らせが出るところまで）。画面共有と音声認識（e2e_bridge_ext.js）
+ *   （ポリシー）で拡張機能やデベロッパーモードを止められている PC。ファイルマネージャーからのドラッグそのもの（同じ XDND を自分で話す）。
+ *   アーティファクトの「拡張機能を保存する」で ZIP が落ちること（e2e_artifact.js の (m) がモックの保存で確かめる）。chrome://extensions を開く・トグルを
+ *   見つけるといった人の操作の分かりやすさ。ブラウザを閉じて開き直した後に残るか。0.1.0（決まりのバージョン 1）からの置き換え。
+ *   古いバージョンを入れたプロファイルへ新しいバージョンを落とし直すこと（古いバージョンの組は知らせが出るところまで）。画面共有と音声認識（e2e_bridge_ext.js）
  *
  * 結果は JSON で標準出力に出す（各項目は標準エラーに「合格／不合格 [組] 名前」。xvfb-run は中で "$@" 2>&1 とするので、
  * その下では両方が標準出力に混ざる。全部の結果は出力フォルダの e2e_bridge_install_result.json にも書く）。1 件でも落ちれば
- * 終了コード 1、試験そのものが落ちれば 2。全体は 300 秒で打ち切る（打ち切りも不合格）。一回はおよそ 20 秒
+ * 終了コード 1、テストそのものが例外で止まれば 2。全体は 300 秒で打ち切る（打ち切りも不合格）。一回はおよそ 20 秒
  */
 'use strict';
 const path = require('path');
@@ -74,9 +74,9 @@ const TOTAL_MS = 300000;
 // manifest の key で固定した ID（置き換えは落とし直すだけ、という約束の元）。key を変えればここで落ちる
 const EXPECTED_ID = 'aaaamjmfpajoeghckebjabnkgggdmige';
 const INSTALL_MS = 10000;   // 落としてから有効になるまでの上限
-const SEEN_MS = 10000;      // 有効になってから枠が気づくまでの上限
+const SEEN_MS = 10000;      // 有効になってからアーティファクトが気づくまでの上限
 const PING_WINDOW_MS = 1000;
-// 枠の origin（uuid は作り物）と、親ページの CSP の nonce（作り物）
+// アーティファクトの origin（uuid は作り物）と、親ページの CSP の nonce（作り物）
 const UUID = '0f0f0f0f-0000-4000-8000-000000000002';
 const FRAME_HOST = UUID + '.frame.claudeusercontent.com';
 const FRAME_ORIGIN = 'https://' + FRAME_HOST;
@@ -96,7 +96,7 @@ function fact(name, value) {
   console.error('環境 ' + name + ' = ' + String(v).slice(0, 400));
 }
 
-// 一時のもの（プロファイル・版を変えた拡張の写し）は終わりに消す。証拠（結果の JSON・screenshot・ZIP）は出力フォルダに残す
+// 一時のもの（プロファイル・バージョンを変えた拡張機能のコピー）は終わりに消す。証拠（結果の JSON・screenshot・ZIP）は出力フォルダに残す
 const temps = [];
 const contexts = [];
 function tempDir(tag) { const d = fs.mkdtempSync(path.join(OUT, tag + '-')); temps.push(d); return d; }
@@ -117,7 +117,7 @@ async function closeAll() {
   contexts.length = 0;
 }
 
-// ---- 偽の window.claude（枠の頭で走る。能力は全部 null）。橋から届いた知らせを時刻つきで記録する ----
+// ---- モックの window.claude（アーティファクトの先頭で動く。機能は全部 null）。ブリッジから届いた知らせを時刻つきで記録する ----
 const FAKE = `
 (function () {
   const F = globalThis.__fake = { uses: [], inbound: [], mark: null, inIframe: (function () { try { return window.top !== window; } catch (e) { return true; } })() };
@@ -129,7 +129,7 @@ const FAKE = `
 })();
 `;
 
-// ---- 本物の claude.ai の応答ヘッダと同じ形（e2e_bridge_ext.js の写し。uuid と nonce だけ自分の枠に合わせた） ----
+// ---- 本物の claude.ai の応答ヘッダと同じ形（e2e_bridge_ext.js のコピー。uuid と nonce だけ自分のアーティファクトに合わせた） ----
 function parentHeaders() {
   const FO = FRAME_ORIGIN;
   return {
@@ -154,7 +154,7 @@ function parentHtml() {
     '<iframe id="f" src="' + FRAME_ORIGIN + '/artifact_wrapped.html"></iframe></body></html>';
 }
 
-// ---- route: claude.ai の親ページと枠だけを返し、ほかは断って記録する ----
+// ---- route: claude.ai の親ページとアーティファクトだけを返し、ほかは断って記録する ----
 async function routeAll(ctx, wrapped, net) {
   await ctx.route('**/*', function (route) {
     const req = route.request();
@@ -175,7 +175,7 @@ async function routeAll(ctx, wrapped, net) {
 
 async function launch(profileDir) {
   const opt = {
-    headless: false, viewport: null,                       // 窓の大きさのまま（X のドラッグの位置と窓が合うように）
+    headless: false, viewport: null,                       // ウィンドウの大きさのまま（X のドラッグの位置とウィンドウが合うように）
     ignoreDefaultArgs: ['--disable-extensions'],           // 利用者のブラウザには無い
     args: ['--window-position=0,0', '--window-size=1280,1000', '--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOUND']
   };
@@ -186,7 +186,7 @@ async function launch(profileDir) {
 }
 
 // ---- 拡張機能の画面（chrome://extensions） ----
-// developerPrivate の知らせと、ページの落とし口が呼ぶ installDroppedFile の結果（誤り）を記録する
+// developerPrivate の知らせと、ページのドロップ先が呼ぶ installDroppedFile の結果（エラー）を記録する
 const INSTRUMENT = function () {
   if (window.__ev) return 'already';
   window.__ev = [];
@@ -269,7 +269,7 @@ async function turnDevModeOn(p) {
   return { before: before, after: after, toggle: await devToggle(p), clickErr: clickErr };
 }
 
-// ---- ZIP を OS のドラッグで落とす（xdnd_drop.py）。落とした後、want の版が有効になるのを待つ ----
+// ---- ZIP を OS のドラッグ＆ドロップで入れる（xdnd_drop.py）。ドロップした後、want のバージョンが有効になるのを待つ ----
 function xdnd(file) {
   let out;
   try { out = execFileSync('python3', ['-I', XDND, file, '--name-contains', 'Extensions'], { encoding: 'utf8', timeout: 30000 }); }
@@ -292,7 +292,7 @@ async function dropZip(p, file, want) {
   }
   await p.waitForTimeout(500);   // 遅れて届く知らせを待つ
   const shot = path.join(OUT, 'drop-' + want + '-xscreen.png');
-  const xs = spawnSync('import', ['-window', 'root', shot], { stdio: 'ignore', timeout: 15000 });   // 窓の外（Chromium の確かめの画面）も写る
+  const xs = spawnSync('import', ['-window', 'root', shot], { stdio: 'ignore', timeout: 15000 });   // ウィンドウの外（Chromium の確認の画面）も写る
   return {
     xd: { ok: xd.ok, dropped: xd.dropped, accepted: (xd.status || []).some(function (s) { return s.accept; }), finished: xd.finished, error: xd.error, why_not: xd.why_not, window: xd.target && xd.target.name },
     t0: t0, tEnabled: tEnabled, msToEnabled: tEnabled ? tEnabled - t0 : null,
@@ -300,20 +300,20 @@ async function dropZip(p, file, want) {
     xshot: xs.status === 0 ? shot : null
   };
 }
-// 落とした結果の確かめ（入れる・置き換える・古い版で同じ）
+// ドロップした結果の確認（入れる・置き換える・古いバージョンで同じ）
 function checkDrop(group, r, zip, want) {
-  check(group, zip.name + ' を OS のドラッグで拡張機能の画面に落とした（窓が受け入れ、落とし終えた）', r.xd.ok && r.xd.dropped && r.xd.accepted, JSON.stringify(r.xd));
+  check(group, zip.name + ' を OS のドラッグ＆ドロップで拡張機能の画面に入れた（ウィンドウが受け入れ、ドロップし終えた）', r.xd.ok && r.xd.dropped && r.xd.accepted, JSON.stringify(r.xd));
   const inst = r.calls.filter(function (c) { return c.name === 'installDroppedFile'; });
-  check(group, '拡張機能の画面が受け取って入れた（installDroppedFile を 1 回呼び、誤りが無い）', inst.length === 1 && !inst[0].cbLastError && !inst[0].threw && !inst[0].rejected, JSON.stringify(r.calls));
+  check(group, '拡張機能の画面が受け取って入れた（installDroppedFile を 1 回呼び、エラーが無い）', inst.length === 1 && !inst[0].cbLastError && !inst[0].threw && !inst[0].rejected, JSON.stringify(r.calls));
   const e = r.info[0] || {};
-  check(group, '拡張はちょうど 1 つで、ID は ' + EXPECTED_ID + '、版は ' + want + '、有効', r.info.length === 1 && e.id === EXPECTED_ID && e.version === want && e.state === 'ENABLED',
+  check(group, '拡張機能はちょうど 1 つで、ID は ' + EXPECTED_ID + '、バージョンは ' + want + '、有効', r.info.length === 1 && e.id === EXPECTED_ID && e.version === want && e.state === 'ENABLED',
     JSON.stringify(r.info.map(function (x) { return { id: x.id, version: x.version, state: x.state, location: x.location, disableReasons: x.disableReasons }; })));
   check(group, '確かめの画面は要らない（こちらは何も押さずに、落としてから ' + INSTALL_MS / 1000 + ' 秒以内に有効になった。拡張機能の画面に開いた dialog も無い）',
     r.msToEnabled != null && r.msToEnabled <= INSTALL_MS && r.dialogs.length === 0, JSON.stringify({ msToEnabled: r.msToEnabled, dialogs: r.dialogs, xshot: r.xshot }));
-  check(group, '入れたときの警告と、拡張の実行時の誤りが無い', !!e.id && (e.installWarnings || []).length === 0 && (e.runtimeErrors || []).length === 0, JSON.stringify({ installWarnings: e.installWarnings, runtimeErrors: e.runtimeErrors }));
+  check(group, '入れたときの警告と、拡張機能の実行時のエラーが無い', !!e.id && (e.installWarnings || []).length === 0 && (e.runtimeErrors || []).length === 0, JSON.stringify({ installWarnings: e.installWarnings, runtimeErrors: e.runtimeErrors }));
 }
 
-// ---- 枠の表（#ask）と、親ページの操作部の数 ----
+// ---- アーティファクトの表（#ask）と、親ページの操作パネルの数 ----
 function frameAsk(F) {
   return F.evaluate(function () {
     const $ = function (id) { return document.getElementById(id); };
@@ -321,10 +321,10 @@ function frameAsk(F) {
   });
 }
 function hostCount(tab) { return tab.evaluate('document.querySelectorAll("#kiku-bridge-host").length'); }
-// cond が満たされるまで（ms まで）枠と親を読み続け、満たされた後も settle ミリ秒は読み続けてから、最後に読んだ形を返す
-// （一瞬だけ出た文で合格にしないため。拡張は立ち上がってすぐ where を調べ直し、here を出し直す）。
+// cond が満たされるまで（ms まで）アーティファクトと親を読み続け、満たされた後も settle ミリ秒は読み続けてから、最後に読んだ形を返す
+// （一瞬だけ出た文で合格にしないため。拡張機能は立ち上がってすぐ where を調べ直し、here を出し直す）。
 // 変わり目を時刻つきで残し、firsts の各条件が初めて満たされた時刻も残す（どれも t0 からのミリ秒）
-const SETTLE_MS = 2500;   // 枠の ping 1 回分（intake.js の LINK_PING_MS 2000）と少し
+const SETTLE_MS = 2500;   // アーティファクトの ping 1 回分（intake.js の LINK_PING_MS 2000）と少し
 async function watchFrame(tab, F, t0, ms, cond, firsts) {
   const trail = [];
   const first = {};
@@ -334,20 +334,20 @@ async function watchFrame(tab, F, t0, ms, cond, firsts) {
     a.hosts = await hostCount(tab);
     const now = Date.now() - t0;
     const key = JSON.stringify([a.setup, a.update, a.text, a.hosts]);
-    if (key !== last) { trail.push(now + 'ms 手順=' + (a.setup ? '出' : '無') + ' 新版=' + (a.update ? '出' : '無') + ' 操作部=' + a.hosts + ' 「' + a.text + '」'); last = key; }
+    if (key !== last) { trail.push(now + 'ms 手順=' + (a.setup ? '出' : '無') + ' 新バージョン=' + (a.update ? '出' : '無') + ' 操作パネル=' + a.hosts + ' 「' + a.text + '」'); last = key; }
     Object.keys(firsts || {}).forEach(function (k) { if (first[k] == null && firsts[k](a)) first[k] = now; });
     if (metAt == null && cond(a)) metAt = now;
     if ((metAt != null && now - metAt >= SETTLE_MS) || (metAt == null && now > ms)) return { ok: cond(a), metAt: metAt, a: a, ms: now, first: first, trail: trail };
     await tab.waitForTimeout(100);
   }
 }
-// 枠に届いた here
+// アーティファクトに届いた here
 function heres(F) { return F.evaluate(function () { return globalThis.__fake.inbound.filter(function (m) { return m.kind === 'here'; }); }); }
-// 親ページの主の世界で、枠から届いた kiku の知らせを記録する口（本物と同じ CSP の下でも evaluate は通る）
+// 親ページの主の世界で、アーティファクトから届いた kiku の知らせを記録する仕組み（本物と同じ CSP の下でも evaluate は通る）
 const PING_REC = '(function(){ if (globalThis.__pings) return false; const P = globalThis.__pings = []; window.addEventListener("message", function (ev) { const d = ev && ev.data;' +
   ' if (d && d.source === "kiku" && ev.origin === ' + JSON.stringify(FRAME_ORIGIN) + ') P.push({ t: Date.now(), kind: d.kind, v: d.v, probe: d.probe || null }); }); return true; })()';
 
-// claude.ai のタブを開き、枠が「入れる 3 つの手順」を出すまで待つ。誤りの集めも付ける
+// claude.ai のタブを開き、アーティファクトが「入れる 3 つの手順」を出すまで待つ。エラーの収集も付ける
 async function openClaudeTab(ctx, label, errs) {
   const tab = ctx.pages()[0] || await ctx.newPage();
   tab.on('pageerror', function (e) { errs.push(label + ': ' + String(e && e.message || e)); });
@@ -358,7 +358,7 @@ async function openClaudeTab(ctx, label, errs) {
   const F = await (await tab.waitForSelector('#f', { timeout: 10000 })).contentFrame();
   await F.waitForSelector('#ask', { state: 'attached', timeout: 15000 });
   await tab.evaluate(PING_REC);
-  // 読み込み直していないことの印（主の世界の変数。読み込み直せば消える）
+  // 読み込み直していないことの目印（主の世界の変数。読み込み直せば消える）
   await tab.evaluate('globalThis.__kikuMark = "' + label + '"');
   await F.evaluate(function (m) { globalThis.__fake.mark = m; }, label);
   let setupErr = null;
@@ -371,7 +371,7 @@ async function notReloaded(c, label) {
   return { ok: tabMark === label && frameMark === label && c.navs.n === c.navsAtLoad, detail: JSON.stringify({ tabMark: tabMark, frameMark: frameMark, mainFrameNavigations: c.navs.n - c.navsAtLoad }) };
 }
 
-// ---- ZIP を作る（build_bridge.py の make_zip。版を変えるものは拡張の写しの manifest の version を書き換えて、HERE を写しに向ける） ----
+// ---- ZIP を作る（build_bridge.py の make_zip。バージョンを変えるものは拡張機能のコピーの manifest の version を書き換えて、HERE をコピーに向ける） ----
 const MAKE_ZIPS_PY = String.raw`
 import importlib.util, json, pathlib, re, shutil, sys
 bb, src, work, out = sys.argv[1:5]
@@ -412,7 +412,7 @@ function idFromKey(b64) {
   const h = crypto.createHash('sha256').update(Buffer.from(b64, 'base64')).digest('hex').slice(0, 32);
   return h.split('').map(function (c) { return String.fromCharCode(97 + parseInt(c, 16)); }).join('');
 }
-// 版を 1 つ上げる・下げる（0.2.0 → 0.2.1・0.1.9）
+// バージョンを 1 つ上げる・下げる（0.2.0 → 0.2.1・0.1.9）
 function bump(v, up) {
   const n = v.split('.').map(Number);
   while (n.length < 3) n.push(0);
@@ -449,12 +449,12 @@ function bump(v, up) {
   const baseB64 = fs.readFileSync(Z.base.path).toString('base64');
   let zipDiff = null;
   if (embedded && embedded.b64 !== baseB64) {
-    // 違うときは、どのファイルが違うかを出す（組み上げた後に拡張のフォルダを直し、build_html.py --artifact を走らせていない、など）
+    // 違うときは、どのファイルが違うかを出す（組み上げた後に拡張機能のフォルダを直し、build_html.py --artifact を実行していない、など）
     const embPath = path.join(zipDir, 'embedded-' + String(embedded.file).replace(/[^\w.-]/g, '_'));
     fs.writeFileSync(embPath, Buffer.from(embedded.b64, 'base64'));
     try { zipDiff = JSON.parse(execFileSync('python3', ['-I', '-B', '-c', ZIP_DIFF_PY, embPath, Z.base.path], { encoding: 'utf8' }).trim()); } catch (e) { zipDiff = '比べられない: ' + String(e && e.message || e).split('\n')[0]; }
   }
-  check('形', '枠のページ（kiku-artifact.html）が埋め込む ZIP は make_zip() と 1 バイトも違わず、名前は ' + Z.base.name + '、版は ' + BASE + '（利用者が落とすのはこの ZIP）',
+  check('形', 'アーティファクトのページ（kiku-artifact.html）が埋め込む ZIP は make_zip() と 1 バイトも違わず、名前は ' + Z.base.name + '、バージョンは ' + BASE + '（利用者がドロップするのはこの ZIP）',
     !!embedded && embedded.b64 === baseB64 && embedded.file === Z.base.name && embedded.version === BASE,
     embedded ? JSON.stringify({ file: embedded.file, version: embedded.version, sameBytes: embedded.b64 === baseB64, embeddedBytes: Buffer.from(embedded.b64, 'base64').length, makeZipBytes: Z.base.bytes, zipDiff: zipDiff }) : 'KIKU_BRIDGE_ZIP が見つからない');
   const wrapped = '<!doctype html><html><head><meta charset="utf-8"><script>' + FAKE + '</script></head><body>' + art + '</body></html>';
@@ -464,13 +464,13 @@ function bump(v, up) {
 
   // ---------- (入れる前) まっさらなプロファイルで、claude.ai のタブを先に開く ----------
   const ctx = await launch(tempDir('profile-install'));
-  fact('Chromium', ctx.browser() ? ctx.browser().version() : '（版を読めない）');
+  fact('Chromium', ctx.browser() ? ctx.browser().version() : '（バージョンを読めない）');
   await routeAll(ctx, wrapped, net);
   const A = await openClaudeTab(ctx, 'claude.ai のタブ', errs);
   {
     const a = await frameAsk(A.F);
-    check('入れる前', '先に開いた claude.ai のタブの枠に、拡張を入れる 3 つの手順（#ask-setup）が出る', !A.setupErr && a.setup && /3 つの手順/.test(a.text), A.setupErr || JSON.stringify(a));
-    check('入れる前', 'タブに操作部（#kiku-bridge-host）は無い（拡張はまだ入っていない）', (await hostCount(A.tab)) === 0);
+    check('入れる前', '先に開いた claude.ai のタブのアーティファクトに、拡張機能を入れる 3 つの手順（#ask-setup）が出る', !A.setupErr && a.setup && /3 つの手順/.test(a.text), A.setupErr || JSON.stringify(a));
+    check('入れる前', 'タブに操作パネル（#kiku-bridge-host）は無い（拡張機能はまだ入っていない）', (await hostCount(A.tab)) === 0);
   }
   await A.tab.screenshot({ path: path.join(OUT, '1_before_install.png') });
 
@@ -478,7 +478,7 @@ function bump(v, up) {
   const E = await openExtensionsPage(ctx);
   {
     const before = await extInfo(E);
-    check('入れる', 'まっさらなプロファイルには拡張が 1 つも無い', before.length === 0, JSON.stringify(before.map(function (x) { return x.id + ' ' + x.version; })));
+    check('入れる', 'まっさらなプロファイルには拡張機能が 1 つも無い', before.length === 0, JSON.stringify(before.map(function (x) { return x.id + ' ' + x.version; })));
     const dm = await turnDevModeOn(E);
     check('入れる', '拡張機能の画面のトグルを押して、デベロッパーモードをオンにした（前はオフ）', dm.before.inDeveloperMode === false && dm.after && dm.after.inDeveloperMode === true && dm.toggle && dm.toggle.checked === true, JSON.stringify(dm));
   }
@@ -490,27 +490,27 @@ function bump(v, up) {
     await A.tab.bringToFront();
     const w = await watchFrame(A.tab, A.F, r1.tEnabled || Date.now(), SEEN_MS,
       function (a) { return !a.setup && a.hosts === 1; },
-      { setupGone: function (a) { return !a.setup; }, host: function (a) { return a.hosts >= 1; }, connectedText: function (a) { return /拡張とつながっています/.test(a.text); } });
+      { setupGone: function (a) { return !a.setup; }, host: function (a) { return a.hosts >= 1; }, connectedText: function (a) { return /拡張機能とつながっています/.test(a.text); } });
     const nr = await notReloaded(A, 'claude.ai のタブ');
-    check('入れる', '読み込み直していない claude.ai のタブに、操作部（#kiku-bridge-host）がちょうど 1 つ入った（background.js の差し込み）', w.a.hosts === 1 && nr.ok, JSON.stringify({ hosts: w.a.hosts, msAfterEnabled: w.first.host }) + ' ' + nr.detail);
-    check('入れる', '枠は読み込み直さずに、有効になってから ' + SEEN_MS / 1000 + ' 秒以内に手順（#ask-setup）を消した（その ' + SETTLE_MS + ' ミリ秒後も消えたまま）', w.first.setupGone != null && w.first.setupGone <= SEEN_MS && !w.a.setup && nr.ok, JSON.stringify({ msAfterEnabled: w.first.setupGone }) + ' ' + nr.detail);
-    check('入れる', '手順が消えた後、枠の文（#ask-text）は「拡張とつながっています」（落ち着いてから読む）', /拡張とつながっています/.test(w.a.text), JSON.stringify({ text: w.a.text, seenAtAnyTime: w.first.connectedText != null }));
-    check('入れる', '「新しい版があります」（#ask-update-row）は出ない（同じ版）', !w.a.update, w.a.updateText);
-    fact('入れた後の枠の文の移り変わり（有効になってからのミリ秒）', w.trail.join(' / '));
+    check('入れる', '読み込み直していない claude.ai のタブに、操作パネル（#kiku-bridge-host）がちょうど 1 つ入った（background.js の差し込み）', w.a.hosts === 1 && nr.ok, JSON.stringify({ hosts: w.a.hosts, msAfterEnabled: w.first.host }) + ' ' + nr.detail);
+    check('入れる', 'アーティファクトは読み込み直さずに、有効になってから ' + SEEN_MS / 1000 + ' 秒以内に手順（#ask-setup）を消した（その ' + SETTLE_MS + ' ミリ秒後も消えたまま）', w.first.setupGone != null && w.first.setupGone <= SEEN_MS && !w.a.setup && nr.ok, JSON.stringify({ msAfterEnabled: w.first.setupGone }) + ' ' + nr.detail);
+    check('入れる', '手順が消えた後、アーティファクトの文（#ask-text）は「拡張機能とつながっています」（落ち着いてから読む）', /拡張機能とつながっています/.test(w.a.text), JSON.stringify({ text: w.a.text, seenAtAnyTime: w.first.connectedText != null }));
+    check('入れる', '「新しいバージョンがあります」（#ask-update-row）は出ない（同じバージョン）', !w.a.update, w.a.updateText);
+    fact('入れた後のアーティファクトの文の移り変わり（有効になってからのミリ秒）', w.trail.join(' / '));
     const hs = await heres(A.F);
-    check('入れる', '枠に届いた here はどれも v:2 で、ver は ' + BASE, hs.length > 0 && hs.every(function (m) { return m.v === 2 && m.ver === BASE; }), hs.length + ' 件: ' + JSON.stringify(hs.slice(-3)));
-    fact('拡張から枠に届いた here（入れたとき。有効になってからのミリ秒と where。はじめの 4 件）', hs.slice(0, 4).map(function (m) { return (m.t - (r1.tEnabled || 0)) + 'ms ' + m.where; }).join(' / '));
+    check('入れる', 'アーティファクトに届いた here はどれも v:2 で、ver は ' + BASE, hs.length > 0 && hs.every(function (m) { return m.v === 2 && m.ver === BASE; }), hs.length + ' 件: ' + JSON.stringify(hs.slice(-3)));
+    fact('拡張機能からアーティファクトに届いた here（入れたとき。有効になってからのミリ秒と where。はじめの 4 件）', hs.slice(0, 4).map(function (m) { return (m.t - (r1.tEnabled || 0)) + 'ms ' + m.where; }).join(' / '));
   }
   await A.tab.screenshot({ path: path.join(OUT, '2_installed.png') });
 
-  // ---------- (置き換える) 版を 1 つ上げた ZIP を落とす ----------
+  // ---------- (置き換える) バージョンを 1 つ上げた ZIP をドロップする ----------
   const r2 = await dropZip(E, Z.newer.path, NEWER);
   checkDrop('置き換える', r2, Z.newer, NEWER);
   if (r2.info[0]) fact('ZIP を展開した置き場（置き換えたとき）', r2.info[0].path);
   fact('落としてから有効になるまで（置き換えたとき）', r2.msToEnabled == null ? '有効にならなかった' : r2.msToEnabled + ' ミリ秒');
   {
     await A.tab.bringToFront();
-    // 新しい版の here が届くまで待つ（届かなければ、その旨を下の確かめが言う）
+    // 新しいバージョンの here が届くまで待つ（届かなければ、その旨を下の確かめが言う）
     const t0 = r2.tEnabled || Date.now();
     let got = false;
     while (Date.now() - t0 < SEEN_MS) {
@@ -519,11 +519,11 @@ function bump(v, up) {
     }
     const nr = await notReloaded(A, 'claude.ai のタブ');
     const hosts = await hostCount(A.tab);
-    check('置き換える', '読み込み直していないタブで、操作部（#kiku-bridge-host）はちょうど 1 つ', hosts === 1 && nr.ok, JSON.stringify({ hosts: hosts }) + ' ' + nr.detail);
-    // 枠の中から ping を 1 回送る。周期の ping（2 秒ごと）と重ならないよう、here が届いた直後に送り、送った後に届いた here を
+    check('置き換える', '読み込み直していないタブで、操作パネル（#kiku-bridge-host）はちょうど 1 つ', hosts === 1 && nr.ok, JSON.stringify({ hosts: hosts }) + ' ' + nr.detail);
+    // アーティファクトの中から ping を 1 回送る。周期の ping（2 秒ごと）と重ならないよう、here が届いた直後に送り、送った後に届いた here を
     // 1 秒のあいだ数える（時刻ではなく、送った時点の件数より後ろを数える。同じミリ秒に届いた前の here を数えないため）。
-    // 親の側でも、こちらの ping（印の probe で見分ける）から 1 秒のあいだに届いた ping を数える（周期の ping が紛れ込めば、
-    // その分 here も増えるのが正しい。同じ枠からの postMessage は順に届くので、印より後ろは送った後の ping）
+    // 親の側でも、こちらの ping（目印の probe で見分ける）から 1 秒のあいだに届いた ping を数える（周期の ping が紛れ込めば、
+    // その分 here も増えるのが正しい。同じアーティファクトからの postMessage は順に届くので、目印より後ろは送った後の ping）
     const PROBE = 'install-test-' + Date.now();
     const pr = await A.F.evaluate(function (o) {
       return new Promise(function (resolve) {
@@ -544,15 +544,15 @@ function bump(v, up) {
     const all = await A.tab.evaluate('globalThis.__pings');
     const pi = all.findIndex(function (m) { return m.probe === PROBE; });
     const pings = pi < 0 ? [] : all.slice(pi).filter(function (m) { return m.kind === 'ping' && m.v === 2 && m.t <= all[pi].t + PING_WINDOW_MS; });
-    check('置き換える', '枠から v:2 の ping を 1 回送ると、here がちょうど 1 つ返り、その ver は ' + NEWER + '（送ってから ' + PING_WINDOW_MS + ' ミリ秒のあいだに親に届いた ping と、枠に届いた here の数が等しい）',
+    check('置き換える', 'アーティファクトから v:2 の ping を 1 回送ると、here がちょうど 1 つ返り、その ver は ' + NEWER + '（送ってから ' + PING_WINDOW_MS + ' ミリ秒のあいだに親に届いた ping と、アーティファクトに届いた here の数が等しい）',
       got && pi >= 0 && pr.heres.length === pings.length && pr.heres.every(function (m) { return m.ver === NEWER && m.v === 2; }),
       JSON.stringify({ newVersionHereArrived: got, parentSawProbe: pi >= 0, pingsInWindow: pings.length, heres: pr.heres.map(function (m) { return { ver: m.ver, where: m.where, ms: m.t - pr.t0 }; }), alignedAfterHere: pr.waited }));
     const a = await frameAsk(A.F);
-    check('置き換える', '枠は手順を出さず、「新しい版があります」（#ask-update-row）も出ない（' + NEWER + ' は枠の持つ ' + BASE + ' より古くない）', !a.setup && !a.update && a.box, JSON.stringify(a));
+    check('置き換える', 'アーティファクトは手順を出さず、「新しいバージョンがあります」（#ask-update-row）も出ない（' + NEWER + ' はアーティファクトの持つ ' + BASE + ' より古くない）', !a.setup && !a.update && a.box, JSON.stringify(a));
     const after = (await heres(A.F)).filter(function (m) { return m.t >= t0; });
     const byVer = {};
     after.forEach(function (m) { byVer[m.ver] = (byVer[m.ver] || 0) + 1; });
-    fact('置き換えた後に枠に届いた here の ver（数）', byVer);
+    fact('置き換えた後にアーティファクトに届いた here の ver（数）', byVer);
   }
   await A.tab.screenshot({ path: path.join(OUT, '3_replaced.png') });
   {
@@ -562,49 +562,49 @@ function bump(v, up) {
   }
   await closeAll();
 
-  // ---------- (古い版) 別のまっさらなプロファイルで、版を 1 つ下げた ZIP を入れる ----------
+  // ---------- (古いバージョン) 別のまっさらなプロファイルで、バージョンを 1 つ下げた ZIP を入れる ----------
   const ctx2 = await launch(tempDir('profile-older'));
   await routeAll(ctx2, wrapped, net);
-  const C = await openClaudeTab(ctx2, 'claude.ai のタブ（古い版）', errs);
+  const C = await openClaudeTab(ctx2, 'claude.ai のタブ（古いバージョン）', errs);
   {
     const a = await frameAsk(C.F);
-    check('古い版', '先に開いた claude.ai のタブの枠に、拡張を入れる手順が出る', !C.setupErr && a.setup, C.setupErr || JSON.stringify(a));
+    check('古いバージョン', '先に開いた claude.ai のタブのアーティファクトに、拡張機能を入れる手順が出る', !C.setupErr && a.setup, C.setupErr || JSON.stringify(a));
   }
   const E2 = await openExtensionsPage(ctx2);
   {
     const dm = await turnDevModeOn(E2);
-    check('古い版', '拡張機能の画面のトグルを押して、デベロッパーモードをオンにした', dm.after && dm.after.inDeveloperMode === true, JSON.stringify(dm));
+    check('古いバージョン', '拡張機能の画面のトグルを押して、デベロッパーモードをオンにした', dm.after && dm.after.inDeveloperMode === true, JSON.stringify(dm));
   }
   const r3 = await dropZip(E2, Z.older.path, OLDER);
-  checkDrop('古い版', r3, Z.older, OLDER);
+  checkDrop('古いバージョン', r3, Z.older, OLDER);
   {
     await C.tab.bringToFront();
     const w = await watchFrame(C.tab, C.F, r3.tEnabled || Date.now(), SEEN_MS, function (a) { return !a.setup && a.update; }, { setupGone: function (a) { return !a.setup; }, update: function (a) { return a.update; } });
-    const nr = await notReloaded(C, 'claude.ai のタブ（古い版）');
-    const want = '拡張の新しい版（' + BASE + '）があります（いまは ' + OLDER;
-    check('古い版', '枠は読み込み直さずに手順を消し、' + SEEN_MS / 1000 + ' 秒以内に「' + want + '…」を出す', w.ok && w.a.updateText.indexOf(want) === 0 && nr.ok,
+    const nr = await notReloaded(C, 'claude.ai のタブ（古いバージョン）');
+    const want = '拡張機能の新しいバージョン（' + BASE + '）があります（いまは ' + OLDER;
+    check('古いバージョン', 'アーティファクトは読み込み直さずに手順を消し、' + SEEN_MS / 1000 + ' 秒以内に「' + want + '…」を出す', w.ok && w.a.updateText.indexOf(want) === 0 && nr.ok,
       JSON.stringify({ msAfterEnabled: w.first, updateText: w.a.updateText, text: w.a.text }) + ' ' + nr.detail);
-    fact('古い版を入れた後の枠の文の移り変わり（有効になってからのミリ秒）', w.trail.join(' / '));
+    fact('古いバージョンを入れた後のアーティファクトの文の移り変わり（有効になってからのミリ秒）', w.trail.join(' / '));
   }
   await C.tab.screenshot({ path: path.join(OUT, '4_older.png') });
   {
     const pc = await profileConfig(E2);
     const tg = await devToggle(E2);
-    fact('終わりのデベロッパーモード（古い版のプロファイル）', { inDeveloperMode: pc.inDeveloperMode, toggleChecked: tg && tg.checked, controlledByPolicy: pc.isDeveloperModeControlledByPolicy });
+    fact('終わりのデベロッパーモード（古いバージョンのプロファイル）', { inDeveloperMode: pc.inDeveloperMode, toggleChecked: tg && tg.checked, controlledByPolicy: pc.isDeveloperModeControlledByPolicy });
   }
   await closeAll();
 
-  // ---------- (通信) (誤り) ----------
-  check('通信', 'route で返したもの（claude.ai の親ページ・枠・favicon）のほかに、ページからの要求が無い', net.refused.length === 0,
+  // ---------- (通信) (エラー) ----------
+  check('通信', 'route で返したもの（claude.ai の親ページ・アーティファクト・favicon）のほかに、ページからの要求が無い', net.refused.length === 0,
     net.refused.length + ' 件: ' + JSON.stringify(net.refused.slice(0, 10)));
   fact('route で返した要求', Array.from(new Set(net.served)).join(' ・ ') + '（' + net.served.length + ' 件）');
-  check('誤り', 'claude.ai のタブ（親と枠）の pageerror と console error が無い', errs.length === 0, errs.length + ' 件: ' + errs.join(' | ').slice(0, 600));
+  check('エラー', 'claude.ai のタブ（親とアーティファクト）の pageerror と console error が無い', errs.length === 0, errs.length + ' 件: ' + errs.join(' | ').slice(0, 600));
   fact('一回の所要時間', ((Date.now() - tStart) / 1000).toFixed(1) + ' 秒');
 
   clearTimeout(killer);
   finish();
 })().catch(function (e) {
-  console.error('試験そのものが落ちた: ' + (e && e.stack || e));
-  check('試験', '最後まで走った', false, String(e && e.message || e));
+  console.error('テストそのものが例外で止まりました: ' + (e && e.stack || e));
+  check('テスト', '最後まで実行できた', false, String(e && e.message || e));
   Promise.race([closeAll(), new Promise(function (r) { setTimeout(r, 5000); })]).then(function () { finish(2); });
 });

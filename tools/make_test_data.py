@@ -2,9 +2,9 @@
 """tests/_data.js を作る。
 
 ブラウザで tests/tests.html を file:// で開いたとき fetch が効かないので、
-規則表・試験ケース・fixture を 1 つの JS に埋め込んでおく。
+規則表・テストケース・fixture を 1 つの JS に埋め込んでおく。
 
-使い方（道具の根で。kiku.html のあるフォルダ）:
+使い方（ツールのルートフォルダで。kiku.html のあるフォルダ）:
     python tools/make_test_data.py
 
 読むもの:  format/rules.json、tests/cases/*.json、tests/fixtures/meeting10.jsonl、
@@ -78,7 +78,7 @@ def main():
     body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     # </script> が中に現れても壊れないように逃がす
     body = body.replace("</", "<\\/")
-    # 対になっていないサロゲート（わざと壊した値の試験に使う）は UTF-8 で書けないので、\uXXXX の形で逃がす
+    # 対になっていないサロゲート（わざと壊した値のテストに使う）は UTF-8 で書けないので、\uXXXX の形で逃がす
     body = re.sub("[\ud800-\udfff]", lambda m: "\\u%04x" % ord(m.group()), body)
     js = (
         "/* 生成物。手で直さない。tools/make_test_data.py が format/rules.json・tests/cases・tests/fixtures から作る */\n"
@@ -89,7 +89,7 @@ def main():
         "})();\n"
     )
     out = TESTS / "_data.js"
-    # 一時ファイルに書いてから置き換える（書いている途中で試験のページや node が読んでも、半端な中身を見ない。
+    # 一時ファイルに書いてから置き換える（書いている途中でテストのページや node が読んでも、半端な中身を見ない。
     # 途中で落ちても元の _data.js は残る）
     tmp = out.with_name(out.name + f".{os.getpid()}.tmp")
     try:

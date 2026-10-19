@@ -2,7 +2,7 @@
 /*
  * e2e_routes.js — kiku.html の他の経路・入口を画面から押す（Chromium headless、file://）
  *
- *   node tests/e2e/e2e_routes.js [道具の根のパス] [出力フォルダ]
+ *   node tests/e2e/e2e_routes.js [ツールのルートフォルダのパス] [出力フォルダ]
  *   （playwright と Chromium が要る。Chromium の場所は環境変数 CHROMIUM_PATH で渡す。無ければ playwright の既定）
  *
  * A. 手動の輪（L3）: 入口=ファイル。「次の窓を流す」→ プロンプトが出る → 返事を貼って「取り込む」→ S1 が書かれる。
@@ -10,14 +10,14 @@
  * B. 人が書く（L0）: 入口=ファイル。「次の窓を流す」→ フォームでカードを足して「この窓を書く」→ S1 が書かれる。
  *    所感が空のままでは送れない
  * C. 打つ／貼る（T0）＋ 内蔵の模擬: 窓幅 5 秒。textarea に打って Enter → 5 秒で窓が閉じ、模擬が S1 を書く
- * D. 聞き終える: C の続きで「停止」→ end が書かれ、札が「聞き終えた」
+ * D. 聞き終える: C の続きで「停止」→ end が書かれ、ラベルが「聞き終えた」
  * E. ファイル入口の穴: 貼った全文が聞き始めた後の DOM に残らない。窓幅より長い沈黙でも「次の窓を流す」が
  *    発話の入る次の窓まで進む。gap の最小バッチすら書けない窓（壁時計の巻き戻しで P08）は捨てず次の窓に
  *    合流させ、3 窓続けば聞き取りを止めて大きく知らせる
- * F. ブラウザ音声認識（模擬の認識器）: 認識の切断・再開の行（i の無い出来事）が逐語に日本語の札で出て、追体験で T を
+ * F. ブラウザ音声認識（模擬の認識器）: 認識の切断・再開の行（i の無い出来事）が逐語に日本語のラベルで出て、追体験で T を
  *    戻すと消え、戻し直しても二重にならない。ライブで聞いた記録の追体験は壁時計で畳む
  * G. 手動の輪の壊れた返事と追体験: 機械向けの形でない返事・判断の並びが無い返事も同じ窓の 1 回に数え、3 回で未確定の窓。
- *    画面の文は日本語で、分析役に返した文は畳んだ欄に。追体験で T を戻すと、運転状態の札「未確定の窓」は T で畳んだ状態から
+ *    画面の文は日本語で、分析役に返した文は畳んだ欄に。追体験で T を戻すと、運転状態のラベル「未確定の窓」は T で畳んだ状態から
  *    数え（左の欄と食い違わない）、手動の輪のプロンプト欄と分析役の欄に T より先の窓が出ない（DOM にも無い）。
  *    ライブに戻すと、預けたプロンプトがそのまま戻り、返事を取り込める
  * H. 打つ／貼る（ライブ）の終わりと中断: 打ってすぐ「停止」→ 最後の窓は聞き終えた秒までで閉じ、聞き終える前に
@@ -34,14 +34,14 @@
  *    （済んだ発話と読めない行の記録を二重に入れない。窓は前の続き）。素材が違う・短い・読み込んでいない・入口が違う、は断る
  * M. 窓幅は 5〜180 の整数の秒。小数・範囲の外は聞き始めずに断る
  * N. 中断の間に打った行（打つ／貼る、窓幅 5）: 中断の前・中断の間・再開の後の 3 行がすべて素材ログに残り、中断の間の行は
- *    再開した後の最初の窓に入る。中断の間も欄は打てて、入口の札が「打った行は捨てない」と言う。
+ *    再開した後の最初の窓に入る。中断の間も欄は打てて、入口のラベルが「打った行は捨てない」と言う。
  *    中断の間に打ったまま「停止」を押しても、その行は最後の窓に入る
  * O. 話者の切り出し（打つ／貼る）: 「司会: 始めます」「司会：始めます」は話者「司会」。「15:00までに…」「9:00 から…」
  *    「16:9 の…」「https://…」「0:05 司会: …」は行の全体が話者無しの本文。「結論：A案」は話者「結論」（形からは区別できない）。
- *    画面の説明も、半角の「:」のあとの空白と、時刻・住所で始まる行のことを言う
+ *    画面の説明も、半角の「:」のあとの空白と、時刻・URL で始まる行のことを言う
  * P. 時刻で始まる本文の行（ファイル）: 前の発話の続きとして読み、入口の欄に行の番号を残す
  * Q. WebVTT の素材（ファイル）: 発話・窓・窓ごとの知らせの文・end の t が共通の期待値と rt.py と同じ
- * R. ライブで遅れて閉じる窓の終わりは窓幅の目盛り。中断中の札を知らせで上書きしない。end の t は rt.py と同じ
+ * R. ライブで遅れて閉じる窓の終わりは窓幅の目盛り。中断中のラベルを知らせで上書きしない。end の t は rt.py と同じ
  * S. 音声の入口で中断と再開を素早く繰り返しても、動く認識は 1 つで、同じ発話が二重にならない
  * T. 40 件の上限で切れる窓: 後ろの窓に回った発話の知らせを、前の窓の入口の欄に出さない
  * U. 音声の入口の「停止」: 認識の終わりの知らせを 3 秒まで待ち、その間に届いた確定の結果も最後の窓に入れる。
@@ -55,14 +55,14 @@
  * Y. 音声の入口で中断し、古い認識の終わりの知らせが来る前に再開して、そのまま聞き終える（K29）: 古い認識が 3 秒の中で返した
  *    結果は最後の窓に入り、3 秒より後に返した結果は記録に入れずに素材ログの出来事 late として残って知らせの欄に出る。聞き終えた
  *    後は late のほかの出来事を素材ログに足さない。聞き終えて別の記録を開いた後に届いた結果は、前の記録の素材ログに残る
- * Z. 音声をどこで文字にするか（模擬の認識器）: この PC の中で文字にできるなら承知の印なしで始まり processLocally を立てる。
- *    できない（調べる口が無い）なら承知の印が無いと聞き始めず記録も作らない。日本語の部品はボタンで入れられ、入ったら端末内で
+ * Z. 音声をどこで文字にするか（模擬の認識器）: この PC の中で文字にできるなら承知のチェックなしで始まり processLocally を立てる。
+ *    できない（調べる API が無い）なら承知のチェックが入っていないと聞き始めず記録も作らない。日本語の音声認識データはボタンでダウンロードでき、ダウンロードし終えたら端末内で
  *    始まる。端末内で始めた後に「言語が使えない」と言われたら再開せず、提供元のサーバーへ切り替えず、「止まっている」と出す。
  *    終わりの知らせが来ない形（Chromium の実物）でも同じに止まり、「停止」は 3 秒待たずに進む（Z2b）。
  *    認識の通信が止められている形では、始め直しの待ちを延ばして 5 回で止め、素材ログの行は限られ、入口を「打つ／貼る」に
  *    して「聞き取りを開始」を押すと同じ記録の続きを書ける（Z5）。「聞き取りを開始」を押してから記録を開き終えるまでは入口と音声の
- *    行き先の欄を変えられず、その間に入口が音声に変わっても承知の印が無ければ認識を作らない（Z4。保存を遅らせて確かめる）
- * AA. API の設定の断り: 鍵が空・OpenAI 互換のモデルが空・Anthropic で住所の欄に何かある、は聞き始めず（「接続を試す」も送らず）、
+ *    行き先の欄を変えられず、その間に入口が音声に変わっても承知のチェックが無ければ認識を作らない（Z4。保存を遅らせて確かめる）
+ * AA. API の設定の断り: API キーが空・OpenAI 互換のモデルが空・Anthropic で「送り先の URL」の欄に何かある、は聞き始めず（「接続を試す」も送らず）、
  *    外へ要求を出さない。分析役を変えると「接続を試す」の結果の文を消す。API の設定の欄と手動の輪の欄が、外へ何を渡すかを言う。
  *    「記録を消す」で読み込み直した後に、消したことを 1 行で言う
  */
@@ -113,12 +113,12 @@ async function loadFixture(page) {
 (async function main() {
   const browser = await chromium.launch(LAUNCH);
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  // 設定は「設定と記録」の引き出しの中（2026-10-10 の作り直し）。試験は欄を直に操作するので、引き出しを開いておく
+  // 設定は「設定と記録」の引き出しの中（2026-10-10 の作り直し）。テストは欄を直に操作するので、引き出しを開いておく
   await ctx.addInitScript(function () { document.addEventListener('DOMContentLoaded', function () { const d = document.getElementById('settings'); if (d) d.open = true; }); });
 
   // ---------- A. 手動の輪 ----------
   {
-    const f = await fresh(ctx, '手動の輪の試験'); const page = f.page;
+    const f = await fresh(ctx, '手動の輪のテスト'); const page = f.page;
     await page.selectOption('#route', 'manual');
     await loadFixture(page);
     await page.click('#start');
@@ -130,7 +130,7 @@ async function loadFixture(page) {
     check('L3', 'プロンプトが出た（指示文＋状態＋窓）', prompt.length > 5000 && /では始めます/.test(prompt) && /"next_ids"/.test(prompt), prompt.length + ' 字（指示文の後ろ ' + packPart.length + ' 字）');
     check('L3', '状態と窓の部分に総尺・残り・先の発話が無い', !/総尺|残り|"i":\s*1[1-9]|"i":\s*[2-9]\d|10:00|"t":\s*6\d\d/.test(packPart), packPart.slice(0, 200));
     const an0 = await txt(page, 'an-msgs');
-    const wm = /窓 (\d+):(\d\d)〜(\d+):(\d\d)（(\d+) 発話）/.exec(an0);
+    const wm = /区切り (\d+):(\d\d)〜(\d+):(\d\d)（発言 (\d+) 件）/.exec(an0);
     const w0 = wm ? Number(wm[1]) * 60 + Number(wm[2]) : 0, w1 = wm ? Number(wm[3]) * 60 + Number(wm[4]) : 30, nl = wm ? Number(wm[5]) : 0;
     check('L3', '分析役の欄に手順（手動の輪は 60 秒窓）', /プロンプトを出した/.test(an0) && w1 - w0 === 60, an0.replace(/\n/g, ' '));
     // わざと壊れた返事（未来の時刻）→ 検証に落ちて出し直し
@@ -140,17 +140,17 @@ async function loadFixture(page) {
     await page.waitForTimeout(200);
     const an1 = await txt(page, 'an-msgs');
     const raw1 = await rawTxt(page);
-    check('L3', '未来の時刻のカードは P09 で落ち、出し直し 2 回目（違反文は畳んだ欄「分析役に返した文（そのまま）」に）', /出し直し 2 回目/.test(an1) && /分析役に返した文（そのまま）/.test(raw1) && /P09/.test(raw1) && !/P07/.test(raw1), an1.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + raw1.slice(0, 120));
+    check('L3', '未来の時刻のカードは P09 で落ち、送り直し 2 回目（違反文は畳んだ欄「整理する AI に返したメッセージ（原文）」に）', /送り直し 2 回目/.test(an1) && /整理する AI に返したメッセージ（原文）/.test(raw1) && /P09/.test(raw1) && !/P07/.test(raw1), an1.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + raw1.slice(0, 120));
     check('画面の言葉', '手動の輪: 見えている文に規則の id も英字の項目名も無い', !/[A-Za-z]{2,}|P\d\d/.test(an1), an1.replace(/\n/g, ' ').slice(0, 200));
     const prompt2 = await page.evaluate(function () { return document.getElementById('man-prompt').value; });
     check('L3', '出し直しのプロンプトに違反文が載る', /"attempt":\s*2/.test(prompt2) && /P09/.test(prompt2), '');
     // 正しい返事（返事の全体を囲み ```json … ``` で 1 回だけ包んだもの → parseReply が外して読む。囲みの外の前置きは読まない）
-    const good = '```json\n' + JSON.stringify({ step: { t: [w0, w1] }, events: [{ e: 'card', id: 'C1', t: w0, d: 0, role: 'claim', who: '日向', src: [1, 2, 3], li: null, ti: '手動の輪の試験カード', b: '三点の宣言。' }, { e: 'hold', id: 'H1', t: w0 + 20, who: '栗原', q: '三社の反応はどう割れているのか' }], note: { x: '手動の輪の試験。予測はしない。' } }, null, 1) + '\n```';
+    const good = '```json\n' + JSON.stringify({ step: { t: [w0, w1] }, events: [{ e: 'card', id: 'C1', t: w0, d: 0, role: 'claim', who: '日向', src: [1, 2, 3], li: null, ti: '手動の輪のテストカード', b: '三点の宣言。' }, { e: 'hold', id: 'H1', t: w0 + 20, who: '栗原', q: '三社の反応はどう割れているのか' }], note: { x: '手動の輪のテスト。予測はしない。' } }, null, 1) + '\n```';
     await page.fill('#man-reply', good);
     await page.click('#man-apply');
-    await page.waitForFunction(function () { return /S1 を書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /S1 の区切りを書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
     const edge = await txt(page, 'edge');
-    check('L3', '返事を取り込んで S1 が書かれた（' + nl + ' 発話）', /S1/.test(edge) && (await rowCount(page)) === 1 && new RegExp('1〜' + nl + ' 発話目').test(edge), edge);
+    check('L3', '返事を取り込んで S1 が書かれた（' + nl + ' 発話）', /S1/.test(edge) && (await rowCount(page)) === 1 && new RegExp('1〜' + nl + ' 番目の発言').test(edge), edge);
     const holds = await txt(page, 'holds');
     check('L3', '左に H1', /H1/.test(holds), holds.replace(/\n/g, ' '));
     check('L3', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
@@ -159,7 +159,7 @@ async function loadFixture(page) {
 
   // ---------- B. 人が書く ----------
   {
-    const f = await fresh(ctx, '人が書く試験'); const page = f.page;
+    const f = await fresh(ctx, '人が書くテスト'); const page = f.page;
     await page.selectOption('#route', 'human');
     await loadFixture(page);
     await page.click('#start');
@@ -177,13 +177,13 @@ async function loadFixture(page) {
     check('L0', '足したものの一覧', /人が書いたカード/.test(hl) && /人が立てた問い/.test(hl), hl);
     await page.fill('#h-note', '人が書いた窓');
     await page.click('#h-write');
-    await page.waitForFunction(function () { return /S1 を書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /S1 の区切りを書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
     check('L0', 'S1 が書かれ、行が 1 つ', (await rowCount(page)) === 1 && /S1/.test(await txt(page, 'edge')), await txt(page, 'edge'));
     const holds = await txt(page, 'holds');
     check('L0', '左に H1（番号は自動）', /H1　人が立てた問い/.test(holds), holds.replace(/\n/g, ' '));
     const noteAfter = await page.evaluate(function () { return document.getElementById('h-note').value; });
     check('L0', '書いたあと所感の欄は空になる（前の窓の所感を次に持ち越さない）', noteAfter === '', JSON.stringify(noteAfter));
-    // 2 つ目の窓: 所感が空のままでは送れない（道具が埋めない）
+    // 2 つ目の窓: 所感が空のままでは送れない（ツールが埋めない）
     await page.click('#file-next');
     await page.waitForFunction(function () { return /0:30〜1:00/.test(document.getElementById('h-win').textContent); }, null, { timeout: 5000 });
     await page.selectOption('#h-xid', 'H1');
@@ -192,11 +192,11 @@ async function loadFixture(page) {
     await page.click('#h-write');
     await page.waitForTimeout(300);
     const anEmpty = await txt(page, 'an-msgs');
-    check('L0', '所感が空だと「所感を一行書く」と言って送らない（S2 は書かれない）', /所感を一行書く/.test(anEmpty) && !/S2 を書いた/.test(anEmpty) && (await rowCount(page)) === 1 && /S1/.test(await txt(page, 'edge')), anEmpty.replace(/\n/g, ' ').slice(0, 120));
-    check('L0', '所感が空でも足したもの（決着）は消えない', /決着 H1/.test(await txt(page, 'h-list')), await txt(page, 'h-list'));
+    check('L0', '所感が空だと「所感を一行書く」と言って送らない（S2 は書かれない）', /所感を一行書く/.test(anEmpty) && !/S2 の区切りを書いた/.test(anEmpty) && (await rowCount(page)) === 1 && /S1/.test(await txt(page, 'edge')), anEmpty.replace(/\n/g, ' ').slice(0, 120));
+    check('L0', '所感が空でも足したもの（答え）は消えない', /答えを付けた問い H1/.test(await txt(page, 'h-list')), await txt(page, 'h-list'));
     await page.fill('#h-note', '人が書いた 2 つ目の窓');
     await page.click('#h-write');
-    await page.waitForFunction(function () { return /S2 を書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /S2 の区切りを書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
     const closed = await txt(page, 'closed');
     check('L0', 'S2 で H1 を閉じた（決着の欄に）', /H1/.test(closed) && /人が閉じた/.test(closed), closed.replace(/\n/g, ' ').slice(0, 120));
     check('L0', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
@@ -205,44 +205,44 @@ async function loadFixture(page) {
 
   // ---------- C/D. 打つ／貼る ＋ mock（5 秒窓）→ 聞き終える ----------
   {
-    const f = await fresh(ctx, '打つ入口の試験'); const page = f.page;
+    const f = await fresh(ctx, '打つ入口のテスト'); const page = f.page;
     await page.selectOption('#route', 'mock');
     await page.selectOption('#intake', 'text');
     await page.fill('#win', '5');
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('ta').disabled; }, null, { timeout: 10000 });
     await page.click('#ta');
-    await page.keyboard.type('日向: 打つ入口の試験です。');
+    await page.keyboard.type('日向: 打つ入口のテストです。');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(300);
     const feedOf = function () { return page.evaluate(function () { return Array.from(document.querySelectorAll('#feed .fl')).filter(function (n) { return !n.hidden && !n.classList.contains('interim'); }).map(function (n) { return n.innerText; }); }); };
     const feed1 = await feedOf();
     const wait1 = await page.evaluate(function () { const n = document.querySelector('#feed .fl.interim'); return n && !n.hidden ? n.innerText : ''; });
-    check('T0', 'Enter で確定しても、窓として渡すまでは右の逐語に出ない（窓を待っている数だけ出る）', feed1.length === 0 && /区切りを待っている発話 1 件/.test(wait1), JSON.stringify(feed1) + ' / ' + wait1);
+    check('T0', 'Enter で確定しても、窓として渡すまでは右の逐語に出ない（窓を待っている数だけ出る）', feed1.length === 0 && /まだ整理していない発言 1 件/.test(wait1), JSON.stringify(feed1) + ' / ' + wait1);
     await page.keyboard.type('二つ目の発話。');
     await page.keyboard.press('Enter');
     // 5 秒窓が閉じて mock が書くまで待つ
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent); }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent); }, null, { timeout: 15000 });
     check('T0', '5 秒窓が閉じ、mock が S1 を書いた', (await rowCount(page)) === 1, await txt(page, 'edge'));
     const feed2 = await feedOf();
-    check('T0', '窓として渡したあと、逐語に話者つきで 2 発話が出た', feed2.length === 2 && /日向/.test(feed2[0]) && /打つ入口の試験です/.test(feed2[0]) && /二つ目の発話/.test(feed2[1]), JSON.stringify(feed2));
+    check('T0', '窓として渡したあと、逐語に話者つきで 2 発話が出た', feed2.length === 2 && /日向/.test(feed2[0]) && /打つ入口のテストです/.test(feed2[0]) && /二つ目の発話/.test(feed2[1]), JSON.stringify(feed2));
     const stWin = await txt(page, 'st-win');
-    check('T0', '札の窓幅が 5 秒', /^5 秒/.test(stWin), stWin);
+    check('T0', 'ラベルの窓幅が 5 秒', /^5 秒/.test(stWin), stWin);
     // 聞き終える
     await page.click('#end');
     await page.waitForFunction(function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 15000 });
-    check('D', '「停止」で end が書かれ、札が「聞き終えた」', true, await txt(page, 'setupmsg'));
+    check('D', '「停止」で end が書かれ、ラベルが「聞き終えた」', true, await txt(page, 'setupmsg'));
     const holdhead = await txt(page, 'holdhead');
     check('D', '左の見出しが「答えが出ないまま終わった問い」', /答えが出ないまま終わった問い/.test(holdhead), holdhead);
     // 再読込して同じ名前で始めると「もう聞き終えている」
     await page.reload();
     await page.waitForTimeout(500);
     const rec = await page.evaluate(function () { return Array.from(document.querySelectorAll('#past option')).map(function (o) { return o.value; }).join('、'); });
-    check('D', '再読込後、このブラウザに残っている記録の名前が「前の記録」の一覧に出る', /打つ入口の試験/.test(rec), rec);
-    await page.fill('#name', '打つ入口の試験');
+    check('D', '再読込後、このブラウザに残っている記録の名前が「前の記録」の一覧に出る', /打つ入口のテスト/.test(rec), rec);
+    await page.fill('#name', '打つ入口のテスト');
     await page.selectOption('#route', 'mock');
     await page.click('#start');
-    await page.waitForFunction(function () { return /聞き終えている/.test(document.getElementById('setupmsg').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /聞き終えています/.test(document.getElementById('setupmsg').textContent); }, null, { timeout: 5000 });
     check('D', '聞き終えた記録には続きを書かせない', true, await txt(page, 'setupmsg'));
     check('T0', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
@@ -263,20 +263,20 @@ async function loadFixture(page) {
     check('貼り付け', '聞き始めたら貼り付け欄の値が空（全文を DOM に残さない）', d0.paste === '', JSON.stringify(d0.paste).slice(0, 60));
     check('貼り付け', '聞き始めた時点で、先の発話の文字が画面にも DOM にも無い', d0.text.indexOf('九分五十秒') < 0 && d0.html.indexOf('九分五十秒') < 0 && d0.html.indexOf('沈黙のあとの発話') < 0, '');
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
-    check('沈黙', '窓 1: 発話 1〜1（0:00〜0:30）', /いま 1〜1 発話目/.test(await txt(page, 'edge')), await txt(page, 'edge'));
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    check('沈黙', '窓 1: 発話 1〜1（0:00〜0:30）', /いま 1〜1 番目の発言/.test(await txt(page, 'edge')), await txt(page, 'edge'));
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S2）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S2）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     const edge2 = await txt(page, 'edge');
     const clock2 = await txt(page, 'clock');
-    check('沈黙', '窓幅より長い沈黙（0:05→1:10）でも 1 回押せば発話の入る窓 1:00〜1:30 に進む（S2 は発話 2〜3）', /いま 2〜3 発話目/.test(edge2) && clock2 === '1:30', edge2 + ' / いま ' + clock2);
+    check('沈黙', '窓幅より長い沈黙（0:05→1:10）でも 1 回押せば発話の入る窓 1:00〜1:30 に進む（S2 は発話 2〜3）', /いま 2〜3 番目の発言/.test(edge2) && clock2 === '1:30', edge2 + ' / いま ' + clock2);
     const rows2 = await page.evaluate(function () { return Array.from(document.getElementById('rows').children).map(function (c) { return c._t; }); });
     check('沈黙', '発話の無い窓（0:30〜1:00）には step もカードも書かれない', rows2.length === 3 && rows2.indexOf(70) >= 0 && !rows2.some(function (t) { return t >= 30 && t < 60; }), rows2.join(','));
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S3）/.test(document.getElementById('edge').textContent); }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S3）/.test(document.getElementById('edge').textContent); }, null, { timeout: 10000 });
     await page.waitForFunction(function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 10000 });
     const rows3 = await page.evaluate(function () { return Array.from(document.getElementById('rows').children).map(function (c) { return c._t; }); });
-    check('沈黙', '8 分の沈黙を 1 回で送り、9:50 の発話が最後の窓 S3 になって聞き終える', /いま 4〜4 発話目/.test(await txt(page, 'edge')) && rows3.indexOf(590) >= 0, await txt(page, 'edge') + ' rows=' + rows3.join(','));
+    check('沈黙', '8 分の沈黙を 1 回で送り、9:50 の発話が最後の窓 S3 になって聞き終える', /いま 4〜4 番目の発言/.test(await txt(page, 'edge')) && rows3.indexOf(590) >= 0, await txt(page, 'edge') + ' rows=' + rows3.join(','));
     check('貼り付け', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
   }
@@ -309,7 +309,7 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     // 壁時計を 20 秒戻す → 次の窓は返事が正しくても P08 で 3 回落ち、gap の最小バッチも P08 で落ちる
     await page.evaluate(function () { globalThis.__clockOffset = -20000; });
     await page.click('#file-next');
@@ -317,16 +317,16 @@ async function loadFixture(page) {
     const anReq = await txt(page, 'an-msgs');
     const rawReq = await rawTxt(page);
     const edgeReq = await txt(page, 'edge');
-    check('合流', 'gap の最小バッチも落ちた窓は「記録の検査で止まった」と知らせ（P08 の文は畳んだ欄に）、捨てずに次の窓へ合流させる', /記録の検査で止まった/.test(anReq) && /P08/.test(rawReq) && !/P08/.test(anReq) && /次の窓に合流させる/.test(anReq) && /続けて 1 窓目/.test(anReq), anReq.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + rawReq.slice(0, 120));
-    check('合流', '記録は S1 のまま（嘘の行を書かない）で、入口はまだ聞いている', /（S1）/.test(edgeReq) && /聞いている/.test(await txt(page, 'st-listen')), edgeReq);
+    check('合流', 'gap の最小バッチも落ちた窓は「記録の検査に通らなかった」と知らせ（P08 の文は畳んだ欄に）、捨てずに次の窓へ合流させる', /記録の検査に通らなかった/.test(anReq) && /P08/.test(rawReq) && !/P08/.test(anReq) && /次の区切りに合流させる/.test(anReq) && /続けて 1 回目/.test(anReq), anReq.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + rawReq.slice(0, 120));
+    check('合流', '記録は S1 のまま（嘘の行を書かない）で、入口はまだ聞いている', /（区切り S1）/.test(edgeReq) && /聞いている/.test(await txt(page, 'st-listen')), edgeReq);
     // 壁時計を戻す → 次に押すと、戻した発話と次の窓の発話が 1 つの窓になり、行の連番が切れない（P04 が起きない）
     await page.evaluate(function () { globalThis.__clockOffset = 0; });
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S2）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S2）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 15000 });
     const edgeMerged = await txt(page, 'edge');
     const an2 = await txt(page, 'an-msgs');
-    const m2 = /いま (\d+)〜(\d+) 発話目/.exec(edgeMerged);
-    check('合流', '合流した窓が S2 として書かれ、発話は S1 の続き（7〜）から', m2 && Number(m2[1]) === 7 && Number(m2[2]) > 9 && /S2 を書いた/.test(an2) && !/P04/.test(an2), edgeMerged + ' / ' + an2.replace(/\n/g, ' ').slice(0, 80));
+    const m2 = /いま (\d+)〜(\d+) 番目の発言/.exec(edgeMerged);
+    check('合流', '合流した窓が S2 として書かれ、発話は S1 の続き（7〜）から', m2 && Number(m2[1]) === 7 && Number(m2[2]) > 9 && /S2 の区切りを書いた/.test(an2) && !/P04/.test(an2), edgeMerged + ' / ' + an2.replace(/\n/g, ' ').slice(0, 80));
     const stWin = await txt(page, 'st-win');
     check('合流', '合流した窓の幅は 1 窓分より広い（0:30〜1:30）', /0:30〜1:30/.test(an2) || /1:30/.test(await txt(page, 'clock')), an2.replace(/\n/g, ' ').slice(0, 80) + ' / ' + stWin);
     // もう一度壁時計を戻し、3 窓続けて書けなければ止まる
@@ -335,19 +335,19 @@ async function loadFixture(page) {
       await page.click('#file-next');
       await page.waitForFunction(function (k) {
         const a = document.getElementById('an-msgs').textContent;
-        return (k < 3 && new RegExp('続けて ' + k + ' 窓目').test(a) && !document.getElementById('file-next').disabled) || (k === 3 && !document.getElementById('halt').hidden);
+        return (k < 3 && new RegExp('続けて ' + k + ' 回目').test(a) && !document.getElementById('file-next').disabled) || (k === 3 && !document.getElementById('halt').hidden);
       }, k, { timeout: 15000 });
     }
     const haltBox = await page.evaluate(function () { const h = document.getElementById('halt'); return { hidden: h.hidden, text: h.textContent, size: parseFloat(getComputedStyle(h).fontSize) }; });
-    check('停止', '3 窓続けて書けないと、大きな知らせ「止まった（記録に書けない）。記録を書き出して原因を調べる」が出る', !haltBox.hidden && haltBox.text === '止まった（記録に書けない）。記録を書き出して原因を調べる' && haltBox.size >= 18, JSON.stringify(haltBox));
+    check('停止', '3 窓続けて書けないと、大きな知らせ「聞き取りを止めました（記録に書き込めません）。「設定と記録」の「書き出す」で記録を保存してください」が出る', !haltBox.hidden && haltBox.text === '聞き取りを止めました（記録に書き込めません）。「設定と記録」の「書き出す」で記録を保存してください' && haltBox.size >= 18, JSON.stringify(haltBox));
     const stL = await txt(page, 'st-listen'), stI = await txt(page, 'st-intake');
-    check('停止', '札が「聞いている」のままにならない（聞く: 止まった、入口: 止まっている）', /止まった（記録に書けない）/.test(stL) && /止まっている/.test(stI), stL + ' / ' + stI);
+    check('停止', 'ラベルが「聞いている」のままにならない（聞き取り: 止まった、入口: 止まっている）', /止まった（記録に書けない）/.test(stL) && /止まっている/.test(stI), stL + ' / ' + stI);
     const btn = await page.evaluate(function () { return { next: document.getElementById('file-next').disabled, start: document.getElementById('start').disabled, end: document.getElementById('end').disabled, exp: document.getElementById('export').disabled }; });
     check('停止', '次の窓は流せず、聞き始めるも押せないが、書き出すは押せる', btn.next && btn.start && btn.end && !btn.exp, JSON.stringify(btn));
     await page.click('#export');
     await page.waitForFunction(function () { return /落とした|保存/.test(document.getElementById('recmsg').textContent); }, null, { timeout: 5000 });
-    check('停止', '止まった後も記録を書き出せる', /2 つのファイルを落とした/.test(await txt(page, 'recmsg')), await txt(page, 'recmsg'));
-    check('停止', '記録は S2 まで（書けなかった窓の行は無い）', /（S2）/.test(await txt(page, 'edge')), await txt(page, 'edge'));
+    check('停止', '止まった後も記録を書き出せる', /2 つのファイルを保存した/.test(await txt(page, 'recmsg')), await txt(page, 'recmsg'));
+    check('停止', '記録は S2 まで（書けなかった窓の行は無い）', /（区切り S2）/.test(await txt(page, 'edge')), await txt(page, 'edge'));
     check('合流', 'ページ内エラー無し', errs.length === 0, errs.join(' | '));
     await page.close();
   }
@@ -357,7 +357,7 @@ async function loadFixture(page) {
     const page = await ctx.newPage();
     const errs = [];
     page.on('pageerror', function (e) { errs.push(String(e && e.message || e)); });
-    // 認識器を模擬する。start() で globalThis.__sr に自分を置き、試験が onresult / onend を外から呼ぶ
+    // 認識器を模擬する。start() で globalThis.__sr に自分を置き、テストが onresult / onend を外から呼ぶ
     await page.addInitScript(function () {
       function FakeSR() { this.lang = ''; this.continuous = false; this.interimResults = false; }
       FakeSR.prototype.start = function () { const self = this; globalThis.__sr = self; setTimeout(function () { if (self.onstart) self.onstart(); }, 0); };
@@ -367,11 +367,11 @@ async function loadFixture(page) {
     });
     await page.goto('file://' + path.join(KIT, 'kiku.html'));
     await page.waitForTimeout(300);
-    await page.fill('#name', '音声認識の試験');
-    // 経路は「人が書く」: 窓が閉じてから返事を書くまでの遅れを試験が作れる（壁時計で畳む追体験を見るため）
+    await page.fill('#name', '音声認識のテスト');
+    // 経路は「人が書く」: 窓が閉じてから返事を書くまでの遅れをテストが作れる（壁時計で畳む追体験を見るため）
     await page.selectOption('#route', 'human');
     await page.selectOption('#intake', 'speech');
-    // 模擬の認識器には端末内の口が無いので、音声を外へ送る承知の印を付けてから始める
+    // 模擬の認識器には端末内で文字にする機能が無いので、音声を外へ送る承知のチェックを入れてから始める
     await page.check('#speech-cloud');
     await page.fill('#win', '5');
     await page.click('#start');
@@ -391,13 +391,13 @@ async function loadFixture(page) {
     // 5 秒窓が閉じてフォームが出るまで待ち、1.5 秒置いてから（返事が遅れた形で）S1 を書く
     await page.waitForFunction(function () { return /0:00〜0:05/.test(document.getElementById('h-win').textContent); }, null, { timeout: 15000 });
     const feedLive = await liveFeed();
-    check('出来事', 'ライブ: 窓として渡したあと、逐語に発話 2 行と出来事 4 行（始めた・切れた・再開した・始めた）が日本語の札で出る', feedLive.length === 6 && feedLive.filter(function (s) { return /認識を始めた/.test(s); }).length === 2 && feedLive.filter(function (s) { return /認識が切れた/.test(s); }).length === 1 && feedLive.filter(function (s) { return /認識を再開した/.test(s); }).length === 1 && !feedLive.some(function (s) { return /asr_|[A-Za-z]{2,}/.test(s); }), feedLive.join(' | '));
+    check('出来事', 'ライブ: 窓として渡したあと、逐語に発話 2 行と出来事 4 行（始めた・切れた・再開した・始めた）が日本語のラベルで出る', feedLive.length === 6 && feedLive.filter(function (s) { return /認識を始めた/.test(s); }).length === 2 && feedLive.filter(function (s) { return /認識が切れた/.test(s); }).length === 1 && feedLive.filter(function (s) { return /認識を再開した/.test(s); }).length === 1 && !feedLive.some(function (s) { return /asr_|[A-Za-z]{2,}/.test(s); }), feedLive.join(' | '));
     await page.waitForTimeout(1500);
-    await page.fill('#h-cti', '音声の試験カード');
+    await page.fill('#h-cti', '音声のテストカード');
     await page.click('#h-cadd');
-    await page.fill('#h-note', '音声入口の試験。所感。');
+    await page.fill('#h-note', '音声入口のテスト。所感。');
     await page.click('#h-write');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent); }, null, { timeout: 5000 });
     const rowsLive = await rowCount(page);
     check('出来事', 'ライブで S1 が書かれ、中央に 1 行', rowsLive === 1, rowsLive);
     // 追体験: T を 0 に戻すと出来事の行も消え、終端に戻すと二重にならない
@@ -421,7 +421,7 @@ async function loadFixture(page) {
     const rowsEnd = await rowCount(page);
     const feedEnd = await page.evaluate(function () { return Array.from(document.querySelectorAll('#feed .fl')).filter(function (n) { return !n.hidden && !n.classList.contains('interim'); }).map(function (n) { return n.innerText.replace(/\s+/g, ' '); }); });
     check('壁時計', '追体験の終端: S1 のカードが出る', rowsEnd === 1, rowsEnd);
-    // ライブの写しは S1 を書く前なので、カードへの飛び先（→ C1）を除いて並びを比べる
+    // ライブのコピーは S1 を書く前なので、カードへの飛び先（→ C1）を除いて並びを比べる
     const strip = function (a) { return a.map(function (s) { return s.replace(/\s*→ C\d+/g, ''); }).join('|'); };
     check('出来事', '終端に戻し直しても出来事の行は二重にならない（6 行のまま、並びも同じ）', feedEnd.length === 6 && strip(feedEnd) === strip(feedLive), feedEnd.join(' | '));
     await page.click('#views button[data-v="live"]');
@@ -443,7 +443,7 @@ async function loadFixture(page) {
     await page.waitForFunction(function () { return document.getElementById('man-prompt').value.length > 100; }, null, { timeout: 5000 });
     const good1 = JSON.stringify({ step: { t: [0, 60] }, events: [{ e: 'card', id: 'C1', t: 0, d: 0, role: 'claim', who: '日向', src: [1, 2], li: null, ti: '一つ目の窓のカード', b: '' }], note: { x: '一つ目の窓' } });
     await page.fill('#man-reply', good1); await page.click('#man-apply');
-    await page.waitForFunction(function () { return /S1 を書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /S1 の区切りを書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
     // 窓 2（1:00〜2:00）: 機械向けの形でない返事 → 判断の並びが無い返事 → 種類の分からない判断。3 回とも同じ窓の 1 回に数える
     await page.click('#file-next');
     await page.waitForFunction(function () { return /1:00〜2:00/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
@@ -459,10 +459,10 @@ async function loadFixture(page) {
       const shown = await txt(page, 'an-msgs');
       const raw = await rawTxt(page);
       if (k < 2) {
-        check('壊れた返事', (k + 1) + ' 回目の壊れた返事も 1 回に数え、出し直し ' + (k + 2) + ' 回目になる', new RegExp('出し直し ' + (k + 2) + ' 回目').test(shown) && broken[k].shown.test(shown) && broken[k].raw.test(raw), shown.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + raw.slice(0, 120));
+        check('壊れた返事', (k + 1) + ' 回目の壊れた返事も 1 回に数え、送り直し ' + (k + 2) + ' 回目になる', new RegExp('送り直し ' + (k + 2) + ' 回目').test(shown) && broken[k].shown.test(shown) && broken[k].raw.test(raw), shown.replace(/\n/g, ' ').slice(0, 200) + ' / 畳んだ欄: ' + raw.slice(0, 120));
       } else {
         const edge = await txt(page, 'edge');
-        check('壊れた返事', '3 回目も壊れていたら未確定の窓（S2）として記録して進む', /（S2）/.test(edge) && /未確定の窓として記録して進んだ/.test(shown) && broken[k].shown.test(shown) && broken[k].raw.test(raw), edge + ' / ' + shown.replace(/\n/g, ' ').slice(0, 160));
+        check('壊れた返事', '3 回目も壊れていたら未確定の区切り（S2）として記録して進む', /（区切り S2）/.test(edge) && /未確定の区切りとして記録して進んだ/.test(shown) && broken[k].shown.test(shown) && broken[k].raw.test(raw), edge + ' / ' + shown.replace(/\n/g, ' ').slice(0, 160));
       }
       check('画面の言葉', '壊れた返事 ' + (k + 1) + ' 回目: 見えている文に英字の項目名が無い（機械向けの文は畳んだ欄にだけある）', !/[A-Za-z]{2,}/.test(shown), shown.replace(/\n/g, ' ').slice(0, 200));
     }
@@ -474,11 +474,11 @@ async function loadFixture(page) {
     check('追体験', '（前提）ライブでは窓 3 のプロンプトに 2:08 の発話がある', promptLive.indexOf(FUTURE) >= 0, promptLive.length + ' 字');
     await page.waitForTimeout(1200);
     const gapsLive = await txt(page, 'st-gaps');
-    check('追体験', '（前提）ライブの札「未確定の窓」は 1 件', /^1 件/.test(gapsLive), gapsLive);
+    check('追体験', '（前提）ライブのラベル「未確定の区切り」は 1 件', /^1 件/.test(gapsLive), gapsLive);
     // 追体験へ。T=30 に戻す
     await page.click('#views button[data-v="replay"]');
     await page.evaluate(function () { const s = document.getElementById('scrub'); s.value = 30; s.dispatchEvent(new Event('input', { bubbles: true })); });
-    await page.waitForTimeout(1300);   // 運転状態の札は 1 秒ごとに描き直される
+    await page.waitForTimeout(1300);   // 運転状態のラベルは 1 秒ごとに描き直される
     const r30 = await page.evaluate(function (FUTURE) {
       const vis = function (el) { return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)); };
       const mp = document.getElementById('man-prompt');
@@ -492,16 +492,16 @@ async function loadFixture(page) {
         promptInDom: Array.from(document.querySelectorAll('textarea')).some(function (t) { return t.value.indexOf(FUTURE) >= 0; })
       };
     }, FUTURE);
-    check('追体験', 'T=0:30: 札「未確定の窓」は T で畳んだ状態から数えて 0 件（左の欄「無い」と食い違わない）', /^0 件/.test(r30.stGaps) && /無い/.test(r30.gapsPanel), r30.stGaps + ' / 左: ' + r30.gapsPanel);
-    check('追体験', 'T=0:30: 札「最後の判断から」は、まだ判断が無いと言う', /まだ 1 回も判断していない/.test(r30.stSince), r30.stSince);
+    check('追体験', 'T=0:30: ラベル「未確定の区切り」は T で畳んだ状態から数えて 0 件（左の欄「無い」と食い違わない）', /^0 件/.test(r30.stGaps) && /無い/.test(r30.gapsPanel), r30.stGaps + ' / 左: ' + r30.gapsPanel);
+    check('追体験', 'T=0:30: ラベル「最後の判断から」は、まだ判断が無いと言う', /まだ 1 回も判断していない/.test(r30.stSince), r30.stSince);
     check('追体験', 'T=0:30: 手動の輪のプロンプト欄は見えず、値も空', !r30.promptVisible && r30.promptValue === '', JSON.stringify({ visible: r30.promptVisible, value: r30.promptValue.slice(0, 40) }));
     check('追体験', 'T=0:30: 分析役の欄に先の窓（2:00〜3:00）が出ず、しまってあると言う', !/2:00〜3:00/.test(r30.an) && /しまってある/.test(r30.an), r30.an.replace(/\n/g, ' ').slice(0, 120));
     check('追体験', 'T=0:30: 2:08 の発話が画面にも DOM（入力欄の値を含む）にも無い', !r30.htmlHasFuture && !r30.textHasFuture && !r30.promptInDom, JSON.stringify(r30).slice(0, 160));
-    // T=2:30（未確定の窓 S2 の後）: 札と左の欄がどちらも 1 件
+    // T=2:30（未確定の窓 S2 の後）: ラベルと左の欄がどちらも 1 件
     await page.evaluate(function () { const s = document.getElementById('scrub'); s.value = 150; s.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.waitForTimeout(1300);
     const r150 = await page.evaluate(function () { return { stGaps: document.getElementById('st-gaps').textContent, gaphead: document.getElementById('gaphead').textContent, stSince: document.getElementById('st-since').textContent }; });
-    check('追体験', 'T=2:30: 札「未確定の窓」1 件と左の欄「未確定の窓（1 件）」が揃う', /^1 件/.test(r150.stGaps) && /1 件/.test(r150.gaphead), r150.stGaps + ' / ' + r150.gaphead);
+    check('追体験', 'T=2:30: ラベル「未確定の区切り」1 件と左の欄「未確定の区切り（1 件）」が揃う', /^1 件/.test(r150.stGaps) && /1 件/.test(r150.gaphead), r150.stGaps + ' / ' + r150.gaphead);
     check('追体験', 'T=2:30: ファイルから聞いた記録では「最後の判断から」を出さない（壁時計と素材時間の対応が無い）', r150.stSince === '—', r150.stSince);
     // ライブに戻すと、預けたプロンプトがそのまま戻り、窓 3 の返事を取り込める
     await page.click('#views button[data-v="live"]');
@@ -510,8 +510,8 @@ async function loadFixture(page) {
     check('追体験', 'ライブに戻すと、窓 3 のプロンプトと知らせがそのまま戻る（欄は 1 つだけ）', back.prompt === promptLive && /2:00〜3:00/.test(back.an) && back.n === 1, back.prompt.length + ' 字 / ' + back.an.replace(/\n/g, ' ').slice(0, 80));
     const good3 = JSON.stringify({ step: { t: [120, 180] }, events: [{ e: 'card', id: 'C2', t: 128, d: 0, role: 'counter', who: null, src: [22], li: null, ti: '値段の話だけでよいかという問い直し', b: '' }], note: { x: '三つ目の窓' } });
     await page.fill('#man-reply', good3); await page.click('#man-apply');
-    await page.waitForFunction(function () { return /S3 を書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
-    check('追体験', 'ライブに戻した後、窓 3 の返事を取り込んで S3 が書かれる', /（S3）/.test(await txt(page, 'edge')), await txt(page, 'edge'));
+    await page.waitForFunction(function () { return /S3 の区切りを書いた/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
+    check('追体験', 'ライブに戻した後、窓 3 の返事を取り込んで S3 が書かれる', /（区切り S3）/.test(await txt(page, 'edge')), await txt(page, 'edge'));
     // 追体験の間に裏で窓が進んでも（ここでは窓 4 を出してから追体験へ）、DOM には出ない
     await page.click('#file-next');
     await page.waitForFunction(function () { return /3:00〜4:00/.test(document.getElementById('an-msgs').textContent); }, null, { timeout: 5000 });
@@ -525,7 +525,7 @@ async function loadFixture(page) {
     await page.close();
   }
 
-  // 待って、来なければ false（試験そのものを落とさず、不合格として数える）
+  // 待って、来なければ false（テストそのものを例外で止めず、不合格として数える）
   const waitOr = function (page, f, arg, timeout) { return page.waitForFunction(f, arg, { timeout: timeout }).then(function () { return true; }, function () { return false; }); };
   // 記録（ブラウザの中）を読む。判断ログの行の配列
   const readLog = function (page, name) {
@@ -542,7 +542,7 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('ta').disabled; }, null, { timeout: 10000 });
     await page.click('#ta');
-    await page.keyboard.type('日向: 打ってすぐ終える試験です。');
+    await page.keyboard.type('日向: 打ってすぐ終えるテストです。');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1500);
     await page.click('#end');
@@ -559,7 +559,7 @@ async function loadFixture(page) {
     await page.close();
   }
   {
-    const f = await fresh(ctx, '中断の試験'); const page = f.page;
+    const f = await fresh(ctx, '中断のテスト'); const page = f.page;
     await page.selectOption('#route', 'mock');
     await page.selectOption('#intake', 'text');
     await page.fill('#win', '5');
@@ -568,22 +568,22 @@ async function loadFixture(page) {
     await page.click('#ta');
     await page.keyboard.type('日向: 中断の前の発話。');
     await page.keyboard.press('Enter');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
     await page.waitForTimeout(2500);   // 窓の終わりより時計が進んでから中断する
     await page.click('#pause');
     await page.waitForTimeout(300);
     const st = await txt(page, 'st-listen');
     const an = await txt(page, 'an-msgs');
-    check('中断', '窓を書いたあと時間をおいて「中断する」→ 記録に書けて、札が「中断中」', /中断中/.test(st) && !/記録の検査で止まった/.test(an), st + ' / ' + an.replace(/\n/g, ' ').slice(0, 120));
-    await page.$eval('#resume', function (b) { b.click(); });   // 中断に失敗していると隠れたままなので、押せなくても試験は続ける
+    check('中断', '窓を書いたあと時間をおいて「中断する」→ 記録に書けて、ラベルが「一時停止中」', /一時停止中/.test(st) && !/記録の検査に通らなかった/.test(an), st + ' / ' + an.replace(/\n/g, ' ').slice(0, 120));
+    await page.$eval('#resume', function (b) { b.click(); });   // 中断に失敗していると隠れたままなので、押せなくてもテストは続ける
     await page.click('#ta');
     await page.keyboard.type('日向: 再開した後の発話。');
     await page.keyboard.press('Enter');
-    const s2 = await waitOr(page, function () { return /（S2）/.test(document.getElementById('edge').textContent); }, null, 15000);
+    const s2 = await waitOr(page, function () { return /（区切り S2）/.test(document.getElementById('edge').textContent); }, null, 15000);
     check('中断', '再開した後の窓が S2 として書かれる', s2, await txt(page, 'an-msgs'));
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
-    const log = await readLog(page, '中断の試験');
+    const log = await readLog(page, '中断のテスト');
     const steps = log.filter(function (e) { return e.e === 'step'; });
     const pause = log.filter(function (e) { return e.e === 'pause'; })[0];
     check('中断', '中断は読み終えた所（S1 の終わり）に置かれ、再開後の窓はそこから先', pause && steps.length === 2 && pause.t === steps[0].t[1] && steps[1].t[0] >= pause.t, JSON.stringify({ pause: pause && pause.t, steps: steps.map(function (s) { return s.t; }) }));
@@ -606,13 +606,13 @@ async function loadFixture(page) {
     await page.waitForTimeout(300);
     const st = await txt(page, 'st-listen');
     await page.$eval('#resume', function (b) { b.click(); });
-    const s1 = await waitOr(page, function () { return /（S1）/.test(document.getElementById('edge').textContent); }, null, 15000);
+    const s1 = await waitOr(page, function () { return /（区切り S1）/.test(document.getElementById('edge').textContent); }, null, 15000);
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
     const log = await readLog(page, '最初の窓の前の中断');
     const pause = log.filter(function (e) { return e.e === 'pause'; })[0];
     const steps = log.filter(function (e) { return e.e === 'step'; });
-    check('中断', '最初の窓より前の中断は 0 に置かれて書け、再開後の S1 に中断前の発話が入る', /中断中/.test(st) && pause && pause.t === 0 && s1 && steps.length >= 1 && steps[0].lines[0] === 1 && steps[0].t[0] === 0, JSON.stringify({ st: st, pause: pause && pause.t, steps: steps.map(function (x) { return [x.t, x.lines]; }) }));
+    check('中断', '最初の窓より前の中断は 0 に置かれて書け、再開後の S1 に中断前の発話が入る', /一時停止中/.test(st) && pause && pause.t === 0 && s1 && steps.length >= 1 && steps[0].lines[0] === 1 && steps[0].t[0] === 0, JSON.stringify({ st: st, pause: pause && pause.t, steps: steps.map(function (x) { return [x.t, x.lines]; }) }));
     check('中断', 'ページ内エラー無し（最初の窓の前の中断）', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
   }
@@ -629,7 +629,7 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
     const ended = await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 20000);
     const log = await readLog(page, '時刻の打ち間違い');
@@ -655,7 +655,7 @@ async function loadFixture(page) {
     const r0 = await feedAt(0), r30 = await feedAt(30), r3000 = await feedAt(3000), rEnd = await feedAt(3030);
     check('追体験の逐語', 'T=0:00: まだ何も渡していないので逐語は空', r0.n === 0, r0.text.slice(0, 80));
     check('追体験の逐語', 'T=0:30: S1 が渡した 2 発話だけ', r30.n === 2 && /一番目/.test(r30.text) && !/三番目/.test(r30.html), r30.n + ' 行');
-    check('追体験の逐語', 'T=50:00: S2 までに渡した 42 発話だけ。時刻が T 以下でも、S3 で渡した 43 番目以降は DOM にも無い', r3000.n === 42 && r3000.html.indexOf('43番目の発話') < 0 && r3000.html.indexOf('60番目の発話') < 0 && /3〜42 発話目/.test(r3000.edge), r3000.n + ' 行 / ' + r3000.edge);
+    check('追体験の逐語', 'T=50:00: S2 までに渡した 42 発話だけ。時刻が T 以下でも、S3 で渡した 43 番目以降は DOM にも無い', r3000.n === 42 && r3000.html.indexOf('43番目の発話') < 0 && r3000.html.indexOf('60番目の発話') < 0 && /3〜42 番目の発言/.test(r3000.edge), r3000.n + ' 行 / ' + r3000.edge);
     check('追体験の逐語', '終端（50:30）: 60 発話すべて', rEnd.n === 60, rEnd.n + ' 行');
     check('40 件', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
@@ -671,8 +671,8 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
-    check('終わりちょうど', '最初の窓は 0:00〜0:30 で発話 1〜2 だけ（0:30 の発話は、最後の発話でも次の窓）', /いま 1〜2 発話目/.test(await txt(page, 'edge')), await txt(page, 'edge'));
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    check('終わりちょうど', '最初の窓は 0:00〜0:30 で発話 1〜2 だけ（0:30 の発話は、最後の発話でも次の窓）', /いま 1〜2 番目の発言/.test(await txt(page, 'edge')), await txt(page, 'edge'));
     await page.click('#file-next');
     await page.waitForFunction(function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 10000 });
     const log = await readLog(page, '終わりちょうどの発話');
@@ -716,7 +716,7 @@ async function loadFixture(page) {
     check('読めない行', '入口の欄に「読めない行があった（3 行目）」が残る', !notice1.hidden && /読めない行があった（3 行目）/.test(notice1.text), JSON.stringify(notice1));
     await page.fill('#h-note', '窓 1 の所感');
     await page.click('#h-write');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
     await page.waitForFunction(function () { return /50:00〜50:00/.test(document.getElementById('h-win').textContent); }, null, { timeout: 10000 });
     const k2 = await feedLines(page);
@@ -725,9 +725,9 @@ async function loadFixture(page) {
     const nUtt = k2.lines.filter(function (x) { return /番目の発話/.test(x); }).length;
     check('逐語は渡した窓まで', '窓 2（打ち間違いの窓。40 発話で切れる）: ライブの逐語は渡した 43 発話まで。44 番目以降と結論の発話は DOM に無い', nUtt === 43 && k2.html.indexOf('44番目の発話') < 0 && k2.html.indexOf('結論は案B') < 0, nUtt + ' 発話 / ' + k2.lines.slice(-2).join(' | '));
     check('逐語は渡した窓まで', '人が書く欄の窓も 40 発話（4〜43 番目）で、結論の発話は無い', /四番目の発話/.test(hwin) && /43番目の発話/.test(hwin) && !/44番目の発話|結論は案B/.test(hwin), hwin.slice(0, 60) + '…' + hwin.slice(-40));
-    check('逐語は渡した窓まで', '区切りを待っている発話の数だけを知らせる（17 件）', /区切りを待っている発話 17 件/.test(k2.waiting), k2.waiting);
+    check('逐語は渡した窓まで', 'まだ整理していない発言の数だけを知らせる（17 件）', /まだ整理していない発言 17 件/.test(k2.waiting), k2.waiting);
     // 入口の欄は、いまの窓の知らせを rt.py と同じ文で出し、前の窓の知らせは種類と行番号だけを 1 行に残す（説明の文は繰り返さない）
-    check('時刻の飛び', '入口の欄に、この窓の「時刻が飛んでいる行（5・6 行目）」が出て、窓 1 の読めない行は「前の窓までの知らせ」の 1 行に残る（説明の文は繰り返さない）', /時刻が飛んでいる行（5・6 行目）/.test(notice2) && /前の窓までの知らせ：読めない行（3 行目）/.test(notice2) && !/読めない行があった/.test(notice2), notice2.replace(/\n/g, ' | '));
+    check('時刻の飛び', '入口の欄に、この窓の「時刻が飛んでいる行（5・6 行目）」が出て、窓 1 の読めない行は「前の区切りまでの知らせ」の 1 行に残る（説明の文は繰り返さない）', /時刻が飛んでいる行（5・6 行目）/.test(notice2) && /前の区切りまでの知らせ：読めない行（3 行目）/.test(notice2) && !/読めない行があった/.test(notice2), notice2.replace(/\n/g, ' | '));
     const srcK = await readSrc(page, '人が書く打ち間違い');
     const unr = srcK.filter(function (l) { return l.i == null && l.ev === 'unreadable'; });
     check('読めない行', '素材ログに読めない行の記録が 1 件（行の番号と中身）', unr.length === 1 && unr[0].line === 3 && /打ち間違えた行/.test(unr[0].raw), JSON.stringify(unr));
@@ -749,11 +749,11 @@ async function loadFixture(page) {
     check('読めないバイト', '窓 1: 入口の欄に「読めないバイトを含む行（2 行目）」の文が出る', /読めないバイトを含む行（2 行目）。発話にしていない/.test(b1), b1.replace(/\n/g, ' | '));
     await page.fill('#h-note', '窓 1 の所感');
     await page.click('#h-write');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
     await page.waitForFunction(function () { return /0:30〜/.test(document.getElementById('h-win').textContent); }, null, { timeout: 10000 });
     const b2 = await page.evaluate(function () { return document.getElementById('intakenotice').innerText; });
-    check('読めないバイト', '窓 2: 窓 1 の読めないバイトを含む行が「前の窓までの知らせ」の 1 行に残る（説明の文は繰り返さない）', /前の窓までの知らせ：読めないバイトを含む行（2 行目）/.test(b2) && !/発話にしていない/.test(b2), b2.replace(/\n/g, ' | '));
+    check('読めないバイト', '窓 2: 窓 1 の読めないバイトを含む行が「前の区切りまでの知らせ」の 1 行に残る（説明の文は繰り返さない）', /前の区切りまでの知らせ：読めないバイトを含む行（2 行目）/.test(b2) && !/発話にしていない/.test(b2), b2.replace(/\n/g, ' | '));
     const srcB = await readSrc(page, '読めないバイトの前の窓');
     const ub = srcB.filter(function (l) { return l.i == null && l.ev === 'unreadable'; });
     check('読めないバイト', '素材ログに読めない行の出来事が 1 件（2 行目）。発話は 3 件', ub.length === 1 && ub[0].line === 2 && srcB.filter(function (l) { return l.i != null; }).length === 3, JSON.stringify(srcB));
@@ -782,7 +782,7 @@ async function loadFixture(page) {
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     for (let k = 1; k <= 2; k++) {
       await page.click('#file-next');
-      await page.waitForFunction(function (k) { return new RegExp('（S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, { timeout: 10000 });
+      await page.waitForFunction(function (k) { return new RegExp('（区切り S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, { timeout: 10000 });
     }
     const before = await readSrc(page, NAME);
     // 読み込み直して、同じ名前・同じ素材で聞き始める
@@ -795,10 +795,10 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     const sm = await txt(page, 'setupmsg'), im = await txt(page, 'intakemsg');
-    check('続きから', '同じ名前・同じ素材: 続きからと言い、前に聞いた 2 発話を読み飛ばす', /続きから/.test(sm) && /2 発話は前に聞いたので読み飛ばす/.test(sm) && /前に聞いた 2 発話を読み飛ばした/.test(im), sm + ' / ' + im);
+    check('続きから', '同じ名前・同じ素材: 続きからと言い、前に聞いた 2 発話を読み飛ばす', /続きから/.test(sm) && /2 件の発言は、前に聞いたので読み飛ばします/.test(sm) && /前に聞いた 2 件の発言を読み飛ばした/.test(im), sm + ' / ' + im);
     for (let k = 3; k <= 4; k++) {
       await page.click('#file-next');
-      await page.waitForFunction(function (k) { return new RegExp('（S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, { timeout: 10000 });
+      await page.waitForFunction(function (k) { return new RegExp('（区切り S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, { timeout: 10000 });
     }
     const after = await readSrc(page, NAME);
     const logL = await readLog(page, NAME);
@@ -820,18 +820,18 @@ async function loadFixture(page) {
       await page.selectOption('#intake', intake);
       if (text != null) await paste(page, text);
       await page.click('#start');
-      await page.waitForFunction(function () { return /続きから聞けない/.test(document.getElementById('setupmsg').textContent); }, null, { timeout: 5000 }).catch(function () {});
+      await page.waitForFunction(function () { return /続きから聞けません/.test(document.getElementById('setupmsg').textContent); }, null, { timeout: 5000 }).catch(function () {});
       return { sm: await txt(page, 'setupmsg'), listen: await txt(page, 'st-listen') };
     };
     const shortM = M.split('\n').slice(0, 4).join('\n') + '\n';
     const r1 = await tryResume('file', M2);
-    check('続きから', '素材の頭が素材ログと合わない: 「続きから聞けない」と理由（本文が違う）を出し、聞き始めない', /続きから聞けない/.test(r1.sm) && /合わない/.test(r1.sm) && /本文/.test(r1.sm) && !/聞いている/.test(r1.listen), r1.sm + ' / ' + r1.listen);
+    check('続きから', '素材の頭が素材ログと合わない: 「続きから聞けません」と理由（本文が違う）を出し、聞き始めない', /続きから聞けません/.test(r1.sm) && /合いません/.test(r1.sm) && /本文/.test(r1.sm) && !/聞いている/.test(r1.listen), r1.sm + ' / ' + r1.listen);
     const r2 = await tryResume('file', null);
-    check('続きから', '素材を読み込んでいない: 前と同じ素材を読み込んでから、と言う', /続きから聞けない/.test(r2.sm) && /素材ファイルを読み込んでから/.test(r2.sm), r2.sm);
+    check('続きから', '素材を読み込んでいない: 前と同じ素材を読み込んでから、と言う', /続きから聞けません/.test(r2.sm) && /同じファイルを読み込んでから/.test(r2.sm), r2.sm);
     const r3 = await tryResume('file', shortM);
-    check('続きから', '素材が素材ログより短い: 断る', /続きから聞けない/.test(r3.sm) && /少ない/.test(r3.sm), r3.sm);
+    check('続きから', '素材が素材ログより短い: 断る', /続きから聞けません/.test(r3.sm) && /少ない/.test(r3.sm), r3.sm);
     const r4 = await tryResume('text', null);
-    check('続きから', 'ファイルから聞いた記録の続きを打つ入口で聞こうとすると断る', /続きから聞けない/.test(r4.sm) && /ファイル/.test(r4.sm) && !/聞いている/.test(r4.listen), r4.sm);
+    check('続きから', 'ファイルから聞いた記録の続きを打つ入口で聞こうとすると断る', /続きから聞けません/.test(r4.sm) && /ファイル/.test(r4.sm) && !/聞いている/.test(r4.listen), r4.sm);
     const last = await readSrc(page, NAME);
     check('続きから', '断った回は素材ログを増やさない', last.length === after.length, last.length + ' / ' + after.length);
     check('続きから', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
@@ -840,7 +840,7 @@ async function loadFixture(page) {
 
   // ---------- M. 窓幅は整数の秒 ----------
   {
-    const f = await fresh(ctx, '窓幅の試験'); const page = f.page;
+    const f = await fresh(ctx, '窓幅のテスト'); const page = f.page;
     await page.selectOption('#route', 'mock');
     await page.selectOption('#intake', 'text');
     for (const v of ['7.5', '4', '181']) {
@@ -848,16 +848,16 @@ async function loadFixture(page) {
       await page.click('#start');
       await page.waitForTimeout(150);
       const sm = await txt(page, 'setupmsg'), st = await txt(page, 'st-listen');
-      check('窓幅', '窓幅 ' + v + ' は「5〜180 の整数の秒」と言って聞き始めない', /5〜180 の整数の秒/.test(sm) && !/聞いている/.test(st), sm + ' / ' + st);
+      check('窓幅', '窓幅 ' + v + ' は「5〜180 の整数（秒）」と言って聞き始めない', /5〜180 の整数（秒）/.test(sm) && !/聞いている/.test(st), sm + ' / ' + st);
     }
     const names = await page.evaluate(function () { return globalThis.TSV_RECORD.listNames(); });
-    check('窓幅', '断った回は記録を作らない', names.indexOf('窓幅の試験') < 0, JSON.stringify(names));
+    check('窓幅', '断った回は記録を作らない', names.indexOf('窓幅のテスト') < 0, JSON.stringify(names));
     check('窓幅', 'ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
   }
 
   // ---------- N. 中断の間に打った行（捨てない。再開した後の最初の窓に入る） ----------
-  // 記録はブラウザの保存領域へ非同期に書かれるので、札が「聞き終えた」になった直後に読むと end がまだ無いことがある。
+  // 記録はブラウザの保存領域へ非同期に書かれるので、ラベルが「聞き終えた」になった直後に読むと end がまだ無いことがある。
   // end が読めるまで（最大 5 秒）読み直す
   const readLogEnded = async function (page, name) {
     let log = [];
@@ -879,23 +879,23 @@ async function loadFixture(page) {
     await page.click('#ta');
     await page.keyboard.type('日向: 中断の前の発話。');
     await page.keyboard.press('Enter');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
     await page.waitForTimeout(1500);
     await page.click('#pause');
     await page.waitForTimeout(300);
     const st = await page.evaluate(function () { return { listen: document.getElementById('st-listen').textContent, taDisabled: document.getElementById('ta').disabled, msg: document.getElementById('intakemsg').textContent }; });
-    check('中断の間の行', '中断した後も打つ欄は打てて、入口の札が「打った行は捨てない」と言う', /中断中/.test(st.listen) && !st.taDisabled && /捨てない/.test(st.msg) && /再開した後の最初の窓/.test(st.msg), JSON.stringify(st));
+    check('中断の間の行', '中断した後も打つ欄は打てて、入口のラベルが「打った行は捨てずに取っておき」と言う', /一時停止中/.test(st.listen) && !st.taDisabled && /捨てずに取っておき/.test(st.msg) && /再開した後の最初の区切り/.test(st.msg), JSON.stringify(st));
     await page.click('#ta');
     await page.keyboard.type('月見: 中断の間に打った行。');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(6500);   // 中断の間は、窓の幅より長く待っても窓を閉じない
     const mid = await page.evaluate(function () { return { ta: document.getElementById('ta').value, edge: document.getElementById('edge').textContent, feed: document.getElementById('feed').innerText }; });
-    check('中断の間の行', '中断の間は、窓の幅より長く待っても次の窓を出さず、行は窓を待つ発話として数える', /（S1）/.test(mid.edge) && /区切りを待っている発話 1 件/.test(mid.feed) && mid.ta === '', JSON.stringify(mid).slice(0, 200));
+    check('中断の間の行', '中断の間は、窓の幅より長く待っても次の窓を出さず、行は窓を待つ発話として数える', /（区切り S1）/.test(mid.edge) && /まだ整理していない発言 1 件/.test(mid.feed) && mid.ta === '', JSON.stringify(mid).slice(0, 200));
     await page.$eval('#resume', function (b) { b.click(); });
     await page.waitForTimeout(200);
     const msgR = await txt(page, 'intakemsg');
-    check('中断の間の行', '再開すると、札が中断の間の行は次の窓に入ると言う', /中断の間に打った行は、次の窓に入る/.test(msgR), msgR);
-    const s2 = await waitOr(page, function () { return /（S2）/.test(document.getElementById('edge').textContent); }, null, 15000);
+    check('中断の間の行', '再開すると、ラベルが中断の間の行は次の窓に入ると言う', /一時停止の間に打った行は、次の区切りに入る/.test(msgR), msgR);
+    const s2 = await waitOr(page, function () { return /（区切り S2）/.test(document.getElementById('edge').textContent); }, null, 15000);
     check('中断の間の行', '再開した後、次の時計の刻みで窓が閉じて S2 が書かれる', s2, await txt(page, 'edge'));
     await page.click('#ta');
     await page.keyboard.type('日向: 再開した後の発話。');
@@ -928,7 +928,7 @@ async function loadFixture(page) {
     await page.click('#ta');
     await page.keyboard.type('日向: 中断の前の発話。');
     await page.keyboard.press('Enter');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
     await page.waitForTimeout(1200);
     await page.click('#pause');
     await page.waitForTimeout(300);
@@ -953,7 +953,7 @@ async function loadFixture(page) {
     await page.selectOption('#intake', 'text');
     await page.fill('#win', '30');
     const help = await page.evaluate(function () { return document.querySelector('#in-text p.soft').textContent; });
-    check('話者', '打つ入口の説明が、半角の「:」のあとの空白と、時刻・住所で始まる行のことを言う', /半角の「:」のあとに空白/.test(help) && /全角の「：」/.test(help) && /15:00までに/.test(help) && /話者は無し/.test(help), help);
+    check('話者', '打つ入口の説明が、半角の「:」のあとの空白と、時刻・URL で始まる行のことを言う', /半角の「:」のあとに空白/.test(help) && /全角の「：」/.test(help) && /15:00までに/.test(help) && /話者は無し/.test(help), help);
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('ta').disabled; }, null, { timeout: 10000 });
     const lines = [
@@ -1003,7 +1003,7 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     const notice = await page.evaluate(function () { const e = document.getElementById('intakenotice'); return { text: e.innerText, hidden: e.hidden }; });
     check('時刻で始まる本文の行', '時刻だけの行と本文の行の書き方: 入口の欄に「時刻で始まる行は本文として読んだ（3 行目）」が残る', !notice.hidden && /時刻で始まる行は本文として読んだ（3 行目）/.test(notice.text), JSON.stringify(notice));
     const src = (await readSrc(page, NAME)).filter(function (l) { return l.i != null; });
@@ -1040,7 +1040,7 @@ async function loadFixture(page) {
   };
 
   // ---------- Q. WebVTT の素材をファイルの入口で読む（tests/fixtures/material_vtt.vtt と、その期待値） ----------
-  // 発話の列・窓・窓ごとの知らせの文が、共通の期待値（rt.py の試験と同じ material_vtt.expect.json）と一字違わず同じ。
+  // 発話の列・窓・窓ごとの知らせの文が、共通の期待値（rt.py のテストと同じ material_vtt.expect.json）と一字違わず同じ。
   // 入口の欄の「前の窓までの知らせ」の行は除いて比べる。end の t は直前の窓の終わり（ファイルの記録）
   {
     const NAME = 'WebVTT の素材';
@@ -1061,12 +1061,12 @@ async function loadFixture(page) {
       await page.click('#file-next');
       const last = k === exp.windows.length;
       const ok = await waitOr(page, last ? function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }
-        : function (k) { return new RegExp('（S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, 15000);
-      perWin.push({ ok: ok, box: (await boxLines(page)).filter(function (l) { return !/^前の窓までの知らせ/.test(l); }) });
+        : function (k) { return new RegExp('（区切り S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, 15000);
+      perWin.push({ ok: ok, box: (await boxLines(page)).filter(function (l) { return !/^前の区切りまでの知らせ/.test(l); }) });
     }
     const log = await readLogEnded(page, NAME);
     const src = (await readSrc(page, NAME)).filter(function (l) { return l.i != null; }).map(function (l) { return { i: l.i, t: l.t, who: l.who, text: l.text }; });
-    check('WebVTT', '発話の列が期待値と一字違わず同じ（' + exp.utterances.length + ' 発話。話者の札・識別子・NOTE・&amp; の戻し・時刻の揃え）', JSON.stringify(src) === JSON.stringify(exp.utterances), JSON.stringify(src).slice(0, 300));
+    check('WebVTT', '発話の列が期待値と一字違わず同じ（' + exp.utterances.length + ' 発話。話者のタグ・識別子・NOTE・&amp; の戻し・時刻の揃え）', JSON.stringify(src) === JSON.stringify(exp.utterances), JSON.stringify(src).slice(0, 300));
     const steps = log.filter(function (e) { return e.e === 'step'; }).map(function (x) { return { t: x.t, lines: x.lines }; });
     check('WebVTT', '窓が期待値と同じ（' + JSON.stringify(exp.windows.map(function (w) { return w.t; })) + '）', JSON.stringify(steps) === JSON.stringify(exp.windows.map(function (w) { return { t: w.t, lines: w.lines }; })), JSON.stringify(steps));
     exp.windows.forEach(function (w, k) {
@@ -1083,8 +1083,8 @@ async function loadFixture(page) {
     await page.close();
   }
 
-  // ---------- R. ライブで遅れて閉じる窓の終わり・中断中の札・end の t（打つ／貼る、窓幅 5） ----------
-  // 0:05 に S1 を書いて中断し、中断の間に表の行を貼る（入口の札は「中断中。打った行は捨てない」のまま。1 列目の時刻の知らせは
+  // ---------- R. ライブで遅れて閉じる窓の終わり・中断中のラベル・end の t（打つ／貼る、窓幅 5） ----------
+  // 0:05 に S1 を書いて中断し、中断の間に表の行を貼る（入口のラベルは「中断中。打った行は捨てない」のまま。1 列目の時刻の知らせは
   // 下の欄だけ）。0:16 すぎに再開すると、窓の終わりは時計の秒（0:16・0:17）ではなく窓幅の刻みの 0:15。rt.py の
   // compute_window に同じ記録と時計を渡すと同じ窓になる。end の t は rt.py の end_t と同じ
   {
@@ -1100,7 +1100,7 @@ async function loadFixture(page) {
     await page.click('#ta');
     await page.keyboard.type('日向: 中断の前の発話。');
     await page.keyboard.press('Enter');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
     await untilSec(6.2);
     await page.click('#pause');
     await page.waitForTimeout(200);
@@ -1108,10 +1108,10 @@ async function loadFixture(page) {
     await page.press('#ta', 'Enter');
     await page.waitForTimeout(300);
     const lab = await page.evaluate(function () { const n = document.getElementById('intakenotice'); return { msg: document.getElementById('intakemsg').textContent, notice: n.hidden ? '' : n.innerText, listen: document.getElementById('st-listen').textContent }; });
-    check('中断中の札', '中断の間に表の行を貼っても、入口の札は「中断中。打った行は捨てない」のまま。1 列目の時刻の知らせは下の欄にだけ出る', /中断中/.test(lab.listen) && /^中断中。打った行は捨てない/.test(lab.msg) && !/1 列目の時刻/.test(lab.msg) && /1 列目の時刻は使わない/.test(lab.notice), JSON.stringify(lab));
+    check('中断中のラベル', '中断の間に表の行を貼っても、入口のラベルは「一時停止中。打った行は捨てずに取っておき…」のまま。1 列目の時刻の知らせは下の欄にだけ出る', /一時停止中/.test(lab.listen) && /^一時停止中。打った行は捨てずに取っておき/.test(lab.msg) && !/1 列目の時刻/.test(lab.msg) && /1 列目の時刻は使わない/.test(lab.notice), JSON.stringify(lab));
     await untilSec(16.3);
     await page.$eval('#resume', function (b) { b.click(); });
-    const s2 = await waitOr(page, function () { return /（S2）/.test(document.getElementById('edge').textContent); }, null, 15000);
+    const s2 = await waitOr(page, function () { return /（区切り S2）/.test(document.getElementById('edge').textContent); }, null, 15000);
     const logS2 = await readLog(page, NAME);
     const srcS2 = await readSrc(page, NAME);
     const st2 = logS2.filter(function (e) { return e.e === 'step'; });
@@ -1156,7 +1156,7 @@ async function loadFixture(page) {
     await page.fill('#name', NAME);
     await page.selectOption('#route', 'mock');
     await page.selectOption('#intake', 'speech');
-    // 模擬の認識器には端末内の口が無いので、音声を外へ送る承知の印を付けてから始める
+    // 模擬の認識器には端末内で文字にする機能が無いので、音声を外へ送る承知のチェックを入れてから始める
     await page.check('#speech-cloud');
     await page.fill('#win', '5');
     await page.click('#start');
@@ -1165,7 +1165,7 @@ async function loadFixture(page) {
     const say = function (text) { return page.evaluate(function (text) { const live = globalThis.__srs.filter(function (r) { return !r.ended; }); live.forEach(function (sr) { const r = [{ transcript: text }]; r.isFinal = true; sr.onresult({ resultIndex: 0, results: [r] }); }); return live.length; }, text); };
     await page.waitForTimeout(200);
     await say('中断の前の発話。');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
     await page.click('#pause');
     await page.waitForTimeout(150);
     await page.$eval('#resume', function (b) { b.click(); });
@@ -1224,10 +1224,10 @@ async function loadFixture(page) {
         await page.click('#file-next');
         shown = await waitOr(page, function (w) { return document.getElementById('h-win').textContent.indexOf(w) >= 0; }, want[k][0], 10000);
       }
-      boxes.push({ shown: shown, box: (await boxLines(page)).filter(function (l) { return !/^前の窓までの知らせ/.test(l); }) });
+      boxes.push({ shown: shown, box: (await boxLines(page)).filter(function (l) { return !/^前の区切りまでの知らせ/.test(l); }) });
       await page.fill('#h-note', '窓 ' + (k + 1) + ' の所感');
       await page.click('#h-write');
-      await page.waitForFunction(function (k) { return new RegExp('（S' + k + '）').test(document.getElementById('edge').textContent); }, k + 1, { timeout: 10000 });
+      await page.waitForFunction(function (k) { return new RegExp('（区切り S' + k + '）').test(document.getElementById('edge').textContent); }, k + 1, { timeout: 10000 });
     }
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 10000);
     const log = await readLogEnded(page, NAME);
@@ -1251,7 +1251,7 @@ async function loadFixture(page) {
     page.on('pageerror', function (e) { errs.push(String(e && e.message || e)); });
     await page.addInitScript(function (cfg) {
       globalThis.__srs = [];
-      globalThis.__inflight = null;   // stop() の後に確定の結果として返す発話（試験が置く）
+      globalThis.__inflight = null;   // stop() の後に確定の結果として返す発話（テストが置く）
       function FakeSR() { this.lang = ''; this.continuous = false; this.interimResults = false; this.ended = false; this.stopped = false; }
       FakeSR.prototype.start = function () { const self = this; globalThis.__srs.push(self); globalThis.__sr = self; setTimeout(function () { if (self.onstart) self.onstart(); }, 0); };
       // 仕様の順: stop → それまでの音声の確定の結果 → 終わりの知らせ。どちらも遅れて届く（cfg.resultMs・cfg.endMs）
@@ -1271,7 +1271,7 @@ async function loadFixture(page) {
     await page.fill('#name', name);
     await page.selectOption('#route', 'mock');
     await page.selectOption('#intake', 'speech');
-    // 模擬の認識器には端末内の口が無いので、音声を外へ送る承知の印を付けてから始める
+    // 模擬の認識器には端末内で文字にする機能が無いので、音声を外へ送る承知のチェックを入れてから始める
     await page.check('#speech-cloud');
     await page.fill('#win', String(cfg.win || 30));
     await page.click('#start');
@@ -1288,13 +1288,13 @@ async function loadFixture(page) {
     const page = s.page;
     await page.waitForTimeout(200);
     await s.say('最初の発話。');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent); }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent); }, null, { timeout: 15000 });
     await page.waitForTimeout(300);
     await page.evaluate(function () { globalThis.__inflight = '聞き終える直前に話した発話。'; });
     await page.click('#end');
     await page.waitForTimeout(100);
     const during = await page.evaluate(function () { return { end: document.getElementById('end').disabled, pause: document.getElementById('pause').disabled, msg: document.getElementById('intakemsg').textContent }; });
-    check('音声の聞き終え', '待つ間は「停止」「中断する」を押せず、入口の札が終わりの知らせを待っていると言う', during.end && during.pause && /終わりの知らせを待っている/.test(during.msg), JSON.stringify(during));
+    check('音声の聞き終え', '待つ間は「停止」「中断する」を押せず、入口のラベルが「音声認識が終わるのを待っている」と言う', during.end && during.pause && /音声認識が終わるのを待っている/.test(during.msg), JSON.stringify(during));
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
     const log = await readLogEnded(page, NAME);
     const src = await readSrc(page, NAME);
@@ -1333,7 +1333,7 @@ async function loadFixture(page) {
     const ev = src.filter(function (l) { return l.ev === 'asr_stop_timeout'; })[0];
     check('音声の聞き終え', '素材ログに「待ちきれなかった」出来事が残る（待った長さ 3000 ミリ秒）', ev && ev.ms === 3000, JSON.stringify(ev));
     const feed = await page.evaluate(function () { return document.getElementById('feed').innerText; });
-    check('音声の聞き終え', '逐語の欄には日本語の札で出る（英字の符号は出さない）', /認識の終わりを待ちきれずに聞き終えた/.test(feed) && !/asr_/.test(feed), feed.replace(/\n/g, ' | ').slice(0, 300));
+    check('音声の聞き終え', '逐語の欄には日本語のラベルで出る（英字の符号は出さない）', /認識の終わりを待ちきれずに聞き終えた/.test(feed) && !/asr_/.test(feed), feed.replace(/\n/g, ' | ').slice(0, 300));
     const utts = src.filter(function (l) { return l.i != null; });
     const steps = log.filter(function (e) { return e.e === 'step'; });
     const covered = utts.every(function (l) { return steps.some(function (x) { return l.i >= x.lines[0] && l.i <= x.lines[1]; }); });
@@ -1344,10 +1344,10 @@ async function loadFixture(page) {
 
   // ---------- V. ライブの最後の窓の終わりは聞き終えた時計の秒（K23。打つ／貼る、窓幅 5、中断のあと再開せずに聞き終える） ----------
   // 0:05 に S1 を書いて中断し、中断の間に 1 行打って、再開せずに聞き終える。最後の窓の終わりは時計の秒（刻みの 0:10 ではない）。
-  // 幅は open.window × 3 まで（0:22 に聞き終えたら 0:05〜0:20）。rt.py に同じ並びと同じ時計を渡し（試験の時計）、next --last の
+  // 幅は open.window × 3 まで（0:22 に聞き終えたら 0:05〜0:20）。rt.py に同じ並びと同じ時計を渡し（テストの時計）、next --last の
   // 窓が同じことと、end の t が rt.py の end_t と同じことを確かめる
   const isoOf = function (sec) { return new Date(Math.round(sec * 1000)).toISOString().replace(/\.\d{3}Z$/, 'Z'); };
-  // rt.py の live を、ページと同じ並び・同じ時計で通す（試験の時計 KIKU_TEST_CLOCK=1 と --now。出力フォルダの下に書く）
+  // rt.py の live を、ページと同じ並び・同じ時計で通す（テストの時計 KIKU_TEST_CLOCK=1 と --now。出力フォルダの下に書く）
   const rtLiveReplay = function (input) {
     const code = [
       'import json, os, subprocess, sys',
@@ -1428,7 +1428,7 @@ async function loadFixture(page) {
     await page.click('#ta');
     await page.keyboard.type('日向: 中断の前の発話。');
     await page.keyboard.press('Enter');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
     await untilSec(6.2);
     await page.click('#pause');
     await untilSec(7.3);
@@ -1484,7 +1484,7 @@ async function loadFixture(page) {
       return globalThis.TSV_RECORD.listNames().then(function (names) { const r = globalThis.TSV_RECORD.makeRecord(name); return r.load().then(function () { return { names: names, log: r.log.length, src: r.src.length, listen: document.getElementById('st-listen').textContent }; }); });
     }, NAME);
     check('発話の無い素材', m + ': 記録を作らない（判断ログも素材ログも 0 行、残っている記録の名前にも無い）', st.log === 0 && st.src === 0 && st.names.indexOf(NAME) < 0 && !/聞いている/.test(st.listen), JSON.stringify(st));
-    check('発話の無い素材', m + ': 上の札に断りの文を出す（「先に素材のファイルを読み込む」とは言わない）', sm.indexOf(exp.refuse[0]) >= 0 && !/先に素材のファイルを読み込む/.test(sm), sm);
+    check('発話の無い素材', m + ': 上のラベルに断りの文を出す（「先に文字起こしを読み込んでください」とは言わない）', sm.indexOf(exp.refuse[0]) >= 0 && !/先に文字起こしを読み込んで/.test(sm), sm);
     check('発話の無い素材', m + ': 知らせの欄の文が共通の期待値（refuse）と一字違わず同じ', JSON.stringify(box) === JSON.stringify(exp.refuse), JSON.stringify(box));
     const rtR = (function () {
       const code = ['import json, sys', 'sys.path.insert(0, sys.argv[1])', 'import rt', 'print(json.dumps(rt.material_refusal(sys.argv[2]), ensure_ascii=False))'].join('\n');
@@ -1517,7 +1517,7 @@ async function loadFixture(page) {
     })();
     const st = await page.evaluate(function (name) { const r = globalThis.TSV_RECORD.makeRecord(name); return r.load().then(function () { return { log: r.log.length, src: r.src.length }; }); }, NAME);
     check('発話の無い素材', '空白だけを貼る: 貼ったときに、発話が 1 つも無いので聞き始められないと言う', /貼った文字をファイルとして使う/.test(im) && /発話が 1 つも無い/.test(im), im);
-    check('発話の無い素材', '空白だけを貼る: 聞き始めると「先に読み込む」ではなく、rt.py と同じ断りの文で断り、記録を作らない', !/先に素材のファイルを読み込む/.test(sm) && Array.isArray(rtR) && sm.indexOf(rtR[0]) >= 0 && JSON.stringify(box) === JSON.stringify(rtR) && st.log === 0 && st.src === 0, JSON.stringify({ sm: sm, box: box, rt: rtR, st: st }));
+    check('発話の無い素材', '空白だけを貼る: 聞き始めると「先に読み込んでください」ではなく、rt.py と同じ断りの文で断り、記録を作らない', !/先に文字起こしのファイルを読み込んで/.test(sm) && Array.isArray(rtR) && sm.indexOf(rtR[0]) >= 0 && JSON.stringify(box) === JSON.stringify(rtR) && st.log === 0 && st.src === 0, JSON.stringify({ sm: sm, box: box, rt: rtR, st: st }));
     check('発話の無い素材', '空白だけを貼る: ページ内エラー無し', f.errs.length === 0, f.errs.join(' | '));
     await page.close();
   }
@@ -1537,7 +1537,7 @@ async function loadFixture(page) {
       await page.click('#file-next');
       const lastW = k === exp.windows.length;
       await waitOr(page, lastW ? function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }
-        : function (k) { return new RegExp('（S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, 15000);
+        : function (k) { return new RegExp('（区切り S' + k + '）').test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, k, 15000);
     }
     const log = await readLogEnded(page, NAME);
     const src = (await readSrc(page, NAME)).filter(function (l) { return l.i != null; }).map(function (l) { return { i: l.i, t: l.t, who: l.who, text: l.text }; });
@@ -1566,7 +1566,7 @@ async function loadFixture(page) {
     await paste(page, text);
     await page.click('#start');
   };
-  const nowBox = async function (page) { return (await boxLines(page)).filter(function (l) { return !/^前の窓までの知らせ/.test(l); }); };
+  const nowBox = async function (page) { return (await boxLines(page)).filter(function (l) { return !/^前の区切りまでの知らせ/.test(l); }); };
   {
     // X1: 40 件の上限で次の窓に回った発話（43 番目）に付いた知らせ。S1 を書いたあと、S2 を渡す前に読み込み直す
     const NAME = '続きからの知らせ（上限）';
@@ -1582,7 +1582,7 @@ async function loadFixture(page) {
     await openFile(page, NAME, 'mock', text);
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     const box1 = await nowBox(page);
     await page.reload();
     await page.waitForTimeout(400);
@@ -1590,7 +1590,7 @@ async function loadFixture(page) {
     await page.waitForFunction(function () { return !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     const sm = await txt(page, 'setupmsg');
     await page.click('#file-next');
-    await page.waitForFunction(function () { return /（S2）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
+    await page.waitForFunction(function () { return /（区切り S2）/.test(document.getElementById('edge').textContent) && !document.getElementById('file-next').disabled; }, null, { timeout: 10000 });
     const box2 = await nowBox(page);
     const log = await readLog(page, NAME);
     const steps = log.filter(function (e) { return e.e === 'step'; }).map(function (x) { return [x.t, x.lines]; });
@@ -1660,7 +1660,7 @@ async function loadFixture(page) {
     await page.fill('#name', name);
     await page.selectOption('#route', 'mock');
     await page.selectOption('#intake', 'speech');
-    // 模擬の認識器には端末内の口が無いので、音声を外へ送る承知の印を付けてから始める
+    // 模擬の認識器には端末内で文字にする機能が無いので、音声を外へ送る承知のチェックを入れてから始める
     await page.check('#speech-cloud');
     await page.fill('#win', String(win || 5));
     await page.click('#start');
@@ -1671,7 +1671,7 @@ async function loadFixture(page) {
     const run = async function (oldText) {
       await page.waitForTimeout(200);
       await say('中断の前の発話。');
-      await page.waitForFunction(function () { return /（S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
+      await page.waitForFunction(function () { return /（区切り S1）/.test(document.getElementById('edge').textContent) && !document.getElementById('pause').disabled; }, null, { timeout: 15000 });
       await page.evaluate(function (t) { globalThis.__srs[0].inflight = t; }, oldText);
       await page.click('#pause');
       const t0 = Date.now();
@@ -1715,7 +1715,7 @@ async function loadFixture(page) {
     const evs = src.filter(function (l) { return l.i == null; }).map(function (l) { return l.ev; });
     check('古い認識の結果', '3 秒の中で終わったので、待ちきれなかった出来事も late も残らない', evs.indexOf('asr_stop_timeout') < 0 && evs.indexOf('late') < 0, JSON.stringify(evs));
     const box = await boxLines(page);
-    check('古い認識の結果', '入口の知らせの欄に、待ちきれなかった知らせも捨てた知らせも出ない', !box.some(function (l) { return /待っても来なかった|捨てました/.test(l); }), JSON.stringify(box));
+    check('古い認識の結果', '入口の知らせの欄に、待ちきれなかった知らせも、素材ログにだけ残した知らせも出ない', !box.some(function (l) { return /待っても来なかった|素材ログにだけ残した/.test(l); }), JSON.stringify(box));
     check('古い認識の結果', 'ページ内エラー無し', s.errs.length === 0, s.errs.join(' | '));
     await page.close();
   }
@@ -1743,9 +1743,9 @@ async function loadFixture(page) {
     const after = evAfter(src, 'asr_stop_timeout');
     check('古い認識の結果', '上限の後: 聞き終えた後は late のほかの出来事（古い認識の終わりなど）を素材ログに足さない', JSON.stringify(after) === JSON.stringify(['late']), JSON.stringify(after));
     const box = await boxLines(page);
-    check('古い認識の結果', '上限の後: 知らせの欄に、待ちきれなかったことと、聞き終えた後の結果を 1 件捨てたことが出る（intake.js の文と同じ）', box.indexOf(consts.stop) >= 0 && box.indexOf(consts.late1) >= 0 && consts.late1 === '聞き終えた後に届いた認識の結果を 1 件捨てました（記録の外）', JSON.stringify(box));
+    check('古い認識の結果', '上限の後: 知らせの欄に、待ちきれなかったことと、聞き終えた後に届いた結果が 1 件あったことが出る（intake.js の文と同じ）', box.indexOf(consts.stop) >= 0 && box.indexOf(consts.late1) >= 0 && consts.late1 === '聞き終えた後に届いた認識の結果が 1 件あった。構造には入れず、素材ログにだけ残した', JSON.stringify(box));
     const feed = await page.evaluate(function () { return document.getElementById('feed').innerText; });
-    check('古い認識の結果', '上限の後: 逐語の欄に、記録の外の結果として本文つきで出る（英字の符号は出さない）', feed.indexOf('聞き取りを止めた後に届いた認識の結果。記録の外：' + OLD) >= 0 && !/asr_|late/.test(feed), feed.replace(/\n/g, ' | ').slice(-300));
+    check('古い認識の結果', '上限の後: 逐語の欄に、構造には入れていない結果として本文つきで出る（英字の符号は出さない）', feed.indexOf('聞き取りを止めた後に届いた認識の結果。構造には入れていない：' + OLD) >= 0 && !/asr_|late/.test(feed), feed.replace(/\n/g, ' | ').slice(-300));
     check('古い認識の結果', '上限の後: ページ内エラー無し', s.errs.length === 0, s.errs.join(' | '));
     await page.close();
   }
@@ -1772,17 +1772,17 @@ async function loadFixture(page) {
     check('古い認識の結果', '別の記録の後: 場面の確かめ（次の記録を開いたのは、古い結果が届く前: 中断から ' + opened + ' ミリ秒）', opened < 7000, opened);
     check('古い認識の結果', '別の記録の後: 遅れた結果は前の記録の素材ログに late として残る', srcOld.filter(function (l) { return l.ev === 'late' && l.text === OLD; }).length === 1 && srcOld.filter(function (l) { return l.i != null && l.text === OLD; }).length === 0, JSON.stringify(srcOld.filter(function (l) { return l.i == null; })));
     check('古い認識の結果', '別の記録の後: 新しい記録の素材ログには何も入らない（発話も出来事も）', srcNew.every(function (l) { return l.text !== OLD && l.ev !== 'late'; }), JSON.stringify(srcNew));
-    check('古い認識の結果', '別の記録の後: 知らせの欄に、前の記録の素材ログに残したことを出す（黙らない）', box.indexOf('前の記録「' + NAME + '」で聞き終えた後に届いた認識の結果を 1 件、その記録の素材ログに残しました（記録の外）') >= 0 && !box.some(function (l) { return /^聞き終えた後に届いた/.test(l); }), JSON.stringify(box));
+    check('古い認識の結果', '別の記録の後: 知らせの欄に、前の記録の素材ログに残したことを出す（黙らない）', box.indexOf('前の記録「' + NAME + '」で聞き終えた後に届いた認識の結果を 1 件、その記録の素材ログに残した（構造には入れていない）') >= 0 && !box.some(function (l) { return /^聞き終えた後に届いた/.test(l); }), JSON.stringify(box));
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
     check('古い認識の結果', '別の記録の後: ページ内エラー無し', s.errs.length === 0, s.errs.join(' | '));
     await page.close();
   }
 
-  // ---------- Z. 音声をどこで文字にするか（模擬の認識器）: この PC の中で文字にできれば外へ出さず、できなければ承知の印が要る ----------
-  // mode: 'none'（端末内を調べる口が無い）・'available'・'downloadable'（install で available になる）・'hang'（install が終わらない）・
-  //       'netfail'（口が無く、始めるとすぐ「通信が切れた」で終わる。職場の PC で認識の通信が止められている形）
-  // 試験が認識に dead を立ててから誤りを知らせると、その認識は stop() にも abort() にも終わりの知らせを出さない
+  // ---------- Z. 音声をどこで文字にするか（模擬の認識器）: この PC の中で文字にできれば外へ出さず、できなければ承知のチェックが要る ----------
+  // mode: 'none'（端末内で文字にできるかを調べる API が無い）・'available'・'downloadable'（install で available になる）・'hang'（install が終わらない）・
+  //       'netfail'（調べる API が無く、始めるとすぐ「通信が切れた」で終わる。職場の PC で認識の通信が止められている形）
+  // テストが認識に dead を立ててからエラーを知らせると、その認識は stop() にも abort() にも終わりの知らせを出さない
   // （Chromium の端末内の認識で、日本語が無いときに見た形）
   const whereScript = function (mode) {
     return function (mode) {
@@ -1827,45 +1827,45 @@ async function loadFixture(page) {
   };
   const vis = function (page, id) { return page.evaluate(function (id) { const e = document.getElementById(id); return !!e && !e.hidden && e.offsetParent !== null; }, id); };
   {
-    // Z1: 端末内を調べる口が無い（Edge・古い Chrome の形）。印が無ければ聞き始めず、記録も作らない。印を付ければ始まり、local は立てない
-    const NAME = '音声の行き先（口が無い）';
+    // Z1: 端末内で文字にできるかを調べる API が無い（Edge・古い Chrome の形）。チェックが入っていなければ聞き始めず、記録も作らない。チェックを入れれば始まり、local は立てない
+    const NAME = '音声の行き先（調べる API が無い）';
     const w = await wherePage(NAME, 'none');
     const page = w.page;
     const where = await txt(page, 'speechwhere');
-    check('音声の行き先', '口が無い: 入口の欄が「提供元のサーバーへ送ることになる」と言い、承知の印を出す', /提供元のサーバーへ送ることになる/.test(where) && await vis(page, 'speech-cloudrow') && !(await vis(page, 'speech-installrow')), where);
+    check('音声の行き先', '調べる API が無い: 入口の欄が「提供元のサーバーへ送ることになる」と言い、承知のチェックボックスを出す', /提供元のサーバーへ送ることになる/.test(where) && await vis(page, 'speech-cloudrow') && !(await vis(page, 'speech-installrow')), where);
     await page.click('#start');
     await page.waitForTimeout(300);
     const m1 = await txt(page, 'setupmsg');
     const n1 = await page.evaluate(function () { return globalThis.__srs.length; });
     const src1 = await readSrc(page, NAME);
-    check('音声の行き先', '口が無い: 印が無ければ聞き始めない（認識を作らず、記録も作らない）', /承知する印が要る/.test(m1) && n1 === 0 && src1.length === 0, m1 + ' / 認識 ' + n1 + ' / 素材ログ ' + src1.length);
+    check('音声の行き先', '調べる API が無い: チェックが入っていなければ聞き始めない（認識を作らず、記録も作らない）', /承知するチェックが要ります/.test(m1) && n1 === 0 && src1.length === 0, m1 + ' / 認識 ' + n1 + ' / 素材ログ ' + src1.length);
     await page.check('#speech-cloud');
     await page.click('#start');
     await page.waitForFunction(function () { return !!globalThis.__sr && /聞いている/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 5000 });
     const r = await page.evaluate(function () { return { local: globalThis.__sr.processLocally, lang: globalThis.__sr.lang, msg: document.getElementById('intakemsg').textContent, dis: document.getElementById('speech-cloud').disabled }; });
-    check('音声の行き先', '口が無い: 印を付けると始まり、processLocally は立てない。札が「提供元のサーバーへ送られている」と言う', r.local !== true && r.lang === 'ja-JP' && /提供元のサーバーへ送られている/.test(r.msg), JSON.stringify(r));
-    check('音声の行き先', '口が無い: 聞いている間は印を変えられない', r.dis === true, r.dis);
+    check('音声の行き先', '調べる API が無い: チェックを入れると始まり、processLocally は立てない。ラベルが「提供元のサーバーへ送られている」と言う', r.local !== true && r.lang === 'ja-JP' && /提供元のサーバーへ送られている/.test(r.msg), JSON.stringify(r));
+    check('音声の行き先', '調べる API が無い: 聞いている間はチェックを変えられない', r.dis === true, r.dis);
     await page.waitForTimeout(100);
     const src2 = await readSrc(page, NAME);
-    check('音声の行き先', '口が無い: 素材ログの認識の始まりに local:false', src2.some(function (l) { return l.ev === 'asr_start' && l.local === false; }), JSON.stringify(src2));
+    check('音声の行き先', '調べる API が無い: 素材ログの認識の始まりに local:false', src2.some(function (l) { return l.ev === 'asr_start' && l.local === false; }), JSON.stringify(src2));
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
-    check('音声の行き先', '口が無い: ページ内エラー無し', w.errs.length === 0, w.errs.join(' | '));
+    check('音声の行き先', '調べる API が無い: ページ内エラー無し', w.errs.length === 0, w.errs.join(' | '));
     await page.close();
   }
   {
-    // Z2: この PC の中で文字にできる。印は出さず、印が無くても始まり、processLocally を立てる。言語が使えないと言われたら再開しない
+    // Z2: この PC の中で文字にできる。チェックボックスは出さず、チェックが入っていなくても始まり、processLocally を立てる。言語が使えないと言われたら再開しない
     const NAME = '音声の行き先（端末内）';
     const w = await wherePage(NAME, 'available');
     const page = w.page;
     const where = await txt(page, 'speechwhere');
     const asks = await page.evaluate(function () { return globalThis.__asks; });
-    check('音声の行き先', '端末内: 入口の欄が「この PC の中で文字にする（音声は外へ出ない）」と言い、承知の印を出さない', /この PC の中で文字にする（音声は外へ出ない）/.test(where) && !(await vis(page, 'speech-cloudrow')), where);
+    check('音声の行き先', '端末内: 入口の欄が「この PC の中で文字にする（音声は外へ出ない）」と言い、承知のチェックボックスを出さない', /この PC の中で文字にする（音声は外へ出ない）/.test(where) && !(await vis(page, 'speech-cloudrow')), where);
     check('音声の行き先', '端末内: 調べるときは ja-JP と processLocally:true で尋ねる', asks.length >= 1 && asks.every(function (q) { return q === JSON.stringify({ langs: ['ja-JP'], processLocally: true }); }), JSON.stringify(asks));
     await page.click('#start');
     await page.waitForFunction(function () { return !!globalThis.__sr && /聞いている/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 5000 });
     const r = await page.evaluate(function () { return { local: globalThis.__sr.processLocally, msg: document.getElementById('intakemsg').textContent }; });
-    check('音声の行き先', '端末内: 印が無くても始まり、processLocally を立てる。札が「この PC の中で文字にしている」と言う', r.local === true && /この PC の中で文字にしている/.test(r.msg), JSON.stringify(r));
+    check('音声の行き先', '端末内: チェックが無くても始まり、processLocally を立てる。ラベルが「この PC の中で文字にしている」と言う', r.local === true && /この PC の中で文字にしている/.test(r.msg), JSON.stringify(r));
     await page.waitForTimeout(100);
     // 端末内で始めた後に「言語が使えない」: 再開しない（提供元のサーバーへ黙って切り替えない）
     await page.evaluate(function () { const s = globalThis.__sr; s.onerror({ error: 'language-not-supported' }); s.onend(); });
@@ -1882,22 +1882,22 @@ async function loadFixture(page) {
     await page.close();
   }
   {
-    // Z3: 日本語の部品を入れればできる。ボタンを出し、押すと install を呼び、入ったら端末内で始まる
-    const NAME = '音声の行き先（部品を入れる）';
+    // Z3: 日本語の音声認識データをダウンロードすればできる。ボタンを出し、押すと install を呼び、ダウンロードし終えたら端末内で始まる
+    const NAME = '音声の行き先（音声認識データをダウンロードする）';
     const w = await wherePage(NAME, 'downloadable');
     const page = w.page;
     const where0 = await txt(page, 'speechwhere');
-    check('音声の行き先', '部品無し: 「日本語の部品を入れる」と承知の印の両方を出す', /日本語の部品を入れる/.test(where0) && await vis(page, 'speech-installrow') && await vis(page, 'speech-cloudrow'), where0);
+    check('音声の行き先', '音声認識データ無し: 「日本語の音声認識データをダウンロードする」と承知のチェックボックスの両方を出す', /日本語の音声認識データをダウンロードする/.test(where0) && await vis(page, 'speech-installrow') && await vis(page, 'speech-cloudrow'), where0);
     await page.click('#speech-install');
-    await page.waitForFunction(function () { return /日本語の部品が入った/.test(document.getElementById('speechmsg').textContent); }, null, { timeout: 5000 });
+    await page.waitForFunction(function () { return /日本語の音声認識データをダウンロードした/.test(document.getElementById('speechmsg').textContent); }, null, { timeout: 5000 });
     await page.waitForTimeout(100);
     const where1 = await txt(page, 'speechwhere');
     const inst = await page.evaluate(function () { return globalThis.__installs; });
-    check('音声の行き先', '部品無し: 押すと install を 1 回呼び、入ったら「この PC の中で文字にする」に変わる', inst === 1 && /この PC の中で文字にする（音声は外へ出ない）/.test(where1) && !(await vis(page, 'speech-cloudrow')), inst + ' / ' + where1);
+    check('音声の行き先', '音声認識データ無し: 押すと install を 1 回呼び、ダウンロードし終えたら「この PC の中で文字にする」に変わる', inst === 1 && /この PC の中で文字にする（音声は外へ出ない）/.test(where1) && !(await vis(page, 'speech-cloudrow')), inst + ' / ' + where1);
     await page.click('#start');
     await page.waitForFunction(function () { return !!globalThis.__sr && /聞いている/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 5000 });
     const loc = await page.evaluate(function () { return globalThis.__sr.processLocally; });
-    check('音声の行き先', '部品無し: 入れた後は端末内で始まる', loc === true, loc);
+    check('音声の行き先', '音声認識データ無し: ダウンロードした後は端末内で始まる', loc === true, loc);
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
     check('音声の行き先', '部品無し: ページ内エラー無し', w.errs.length === 0, w.errs.join(' | '));
@@ -1949,8 +1949,8 @@ async function loadFixture(page) {
     check('続けて失敗', '通信が止められている: 始め直しの待ちを延ばし（合わせて 7 秒ほど）、5 回で止める。素材ログの認識の行は 19 行で止まる',
       stopped && took >= 6500 && r.n === 5 && src1.length === 19 && evs.asr_start === 5 && evs.asr_error === 5 && evs.asr_end === 5 && evs.asr_restart === 4,
       took + ' ミリ秒 / ' + JSON.stringify({ n: r.n, rows: src1.length, evs: evs }));
-    check('続けて失敗', '通信が止められている: 札が、続けて失敗したこと・最後の誤り（network）・入口を「打つ／貼る」にするか「もう一度聞く」を押すことを言い、「止まっている」と出す',
-      /認識の通信が切れた（network）/.test(r.msg) && /「打つ／貼る」/.test(r.msg) && /「もう一度聞く」/.test(r.msg) && r.listen === '止まっている' && !r.start && !r.intake, JSON.stringify(r));
+    check('続けて失敗', '通信が止められている: ラベルが、続けて失敗したこと・最後のエラー（network）・入口を「打つ／貼る」にするか「もう一度聞く」を押すことを言い、「止まっている」と出す',
+      /音声認識の通信に失敗した（network）/.test(r.msg) && /「打つ／貼る」/.test(r.msg) && /「もう一度聞く」/.test(r.msg) && r.listen === '止まっている' && !r.start && !r.intake, JSON.stringify(r));
     await page.waitForTimeout(1500);
     const src2 = await readSrc(page, NAME);
     check('続けて失敗', '通信が止められている: 止めた後は始め直さず、素材ログも増えない', src2.length === src1.length && (await page.evaluate(function () { return globalThis.__srs.length; })) === 5, src2.length);
@@ -1979,7 +1979,7 @@ async function loadFixture(page) {
   }
   {
     // Z4: 「聞き取りを開始」を押してから記録を開き終えるまで（ブラウザ内の保存を 1.5 秒遅らせる）。その間は入口・音声の行き先の欄と
-    //     「聞き取りを開始」を押せない。画面を通さずに入口を音声に書き換えても、承知の印が無ければ認識を作らず、記録にも何も書かない
+    //     「聞き取りを開始」を押せない。画面を通さずに入口を音声に書き換えても、承知のチェックが無ければ認識を作らず、記録にも何も書かない
     const NAME = '押してから開くまで';
     const DELAY = 1500;
     const page = await ctx.newPage();
@@ -2017,7 +2017,7 @@ async function loadFixture(page) {
     await page.selectOption('#intake', 'text');
     await page.click('#start');
     const during = await page.evaluate(function () { const d = function (id) { return document.getElementById(id).disabled; }; return { intake: d('intake'), cloud: d('speech-cloud'), install: d('speech-install'), start: d('start'), route: d('route'), name: d('name'), msg: document.getElementById('setupmsg').textContent }; });
-    check('押してから開くまで', '記録を開いている間は、入口・音声の行き先の欄・「聞き取りを開始」を押せない', during.intake && during.cloud && during.install && during.start && during.route && during.name && /記録を開いている/.test(during.msg), JSON.stringify(during));
+    check('押してから開くまで', '記録を開いている間は、入口・音声の行き先の欄・「聞き取りを開始」を押せない', during.intake && during.cloud && during.install && during.start && during.route && during.name && /記録を開いています/.test(during.msg), JSON.stringify(during));
     // 画面を通さずに入口を音声に書き換える（欄が押せない間にも変わった場合の守りを確かめる）
     await page.evaluate(function () { const s = document.getElementById('intake'); s.value = 'speech'; s.dispatchEvent(new Event('change', { bubbles: true })); });
     await page.waitForTimeout(DELAY + 1000);
@@ -2025,15 +2025,15 @@ async function loadFixture(page) {
     await page.evaluate(function () { globalThis.__slowIdb = false; });
     const src0 = await readSrc(page, NAME);
     const log0 = await readLog(page, NAME);
-    check('押してから開くまで', '開いている間に入口が音声に変わっても、承知の印が無ければ認識を作らず（音声を外へ送らず）、記録にも何も書かず、聞いていない状態に戻る',
-      after.srs.length === 0 && !after.tick && after.listen !== '聞いている' && /承知する印が要る/.test(after.msg) && /記録には何も書いていない/.test(after.msg) && !after.start && !after.intake && !after.cloud && src0.length === 0 && log0.length === 0,
+    check('押してから開くまで', '開いている間に入口が音声に変わっても、承知のチェックが無ければ認識を作らず（音声を外へ送らず）、記録にも何も書かず、聞いていない状態に戻る',
+      after.srs.length === 0 && !after.tick && after.listen !== '聞いている' && /承知するチェックが要ります/.test(after.msg) && /記録には何も書いていません/.test(after.msg) && !after.start && !after.intake && !after.cloud && src0.length === 0 && log0.length === 0,
       JSON.stringify(after) + ' / 素材ログ ' + src0.length + ' / 判断ログ ' + log0.length);
-    // 断った後は、印を付けて押し直せば始まる（印があるので提供元のサーバーへ送る。端末内の印は立てない）
+    // 断った後は、チェックを入れて押し直せば始まる（チェックがあるので提供元のサーバーへ送る。端末内のフラグは立てない）
     await page.check('#speech-cloud');
     await page.click('#start');
     await page.waitForFunction(function () { return /聞いている/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 5000 });
     const srs = await page.evaluate(function () { return globalThis.__srs; });
-    check('押してから開くまで', '印を付けて押し直すと始まる。認識はどれも、端末内で文字にするか、印が付いているときだけ作っている',
+    check('押してから開くまで', 'チェックを入れて押し直すと始まる。認識はどれも、端末内で文字にするか、チェックが入っているときだけ作っている',
       srs.length === 1 && srs.every(function (x) { return x.pl === true || x.tick === true; }), JSON.stringify(srs));
     await page.click('#end');
     await waitOr(page, function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, 15000);
@@ -2041,12 +2041,12 @@ async function loadFixture(page) {
     await page.close();
   }
 
-  // ---------- AA. API の設定の断り: 鍵が空・OpenAI 互換のモデルが空・Anthropic に住所 ----------
+  // ---------- AA. API の設定の断り: API キーが空・OpenAI 互換のモデルが空・Anthropic に送り先の URL ----------
   {
     const f = await fresh(ctx, 'API の断り');
     const page = f.page;
     await page.evaluate(function () { try { localStorage.removeItem('kiku.key'); localStorage.removeItem('kiku.api'); sessionStorage.removeItem('kiku.key'); } catch (e) { /* 無視 */ } });
-    // 要求を数える（送ったら試験が分かる。どこへも届かせない）
+    // 要求を数える（送ったらテストが分かる。どこへも届かせない）
     await page.route(/^https?:/, function (route) { return route.abort(); });
     let sent = 0;
     page.on('request', function (r) { if (!/^file:/.test(r.url())) sent++; });
@@ -2055,23 +2055,23 @@ async function loadFixture(page) {
     await page.selectOption('#route', 'anthropic');
     await page.fill('#api-key', '');
     let r = await tryStart();
-    check('API の断り', '鍵が空なら聞き始めない（記録も作らない）', /API の鍵が空/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
+    check('API の断り', 'API キーが空なら聞き始めない（記録も作らない）', /API キーが空/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
     await page.fill('#api-key', 'x');
     await page.fill('#api-url', 'https://example.invalid/v1');
     r = await tryStart();
-    check('API の断り', 'Anthropic で住所の欄に何かあれば聞き始めない（いつも api.anthropic.com に送るため）', /送り先の住所を変えられない/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
+    check('API の断り', 'Anthropic で URL の欄に何かあれば聞き始めない（いつも api.anthropic.com に送るため）', /送り先の URL を変えられません/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
     await page.click('#api-test');
     await page.waitForTimeout(300);
     const t1 = await txt(page, 'api-msg');
-    check('API の断り', 'Anthropic で住所があると「接続を試す」も送らずに断る', /送り先の住所を変えられない/.test(t1) && sent === 0, t1 + ' / 要求 ' + sent);
+    check('API の断り', 'Anthropic で URL があると「接続を試す」も送らずに断る', /送り先の URL を変えられません/.test(t1) && sent === 0, t1 + ' / 要求 ' + sent);
     await page.selectOption('#route', 'openai');
     const t2 = await txt(page, 'api-msg');
     check('API の断り', '分析役を変えると、前の分析役で「接続を試す」を押した結果の文を消す', t2 === '', JSON.stringify(t2));
     await page.fill('#api-model', '');
     r = await tryStart();
-    check('API の断り', 'OpenAI 互換でモデルが空なら聞き始めない', /モデル名が要る/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
+    check('API の断り', 'OpenAI 互換でモデルが空なら聞き始めない', /モデル名が要ります/.test(r.msg) && !/聞いている/.test(r.listen) && r.rows === 0, JSON.stringify(r));
     const notice = await page.evaluate(function () { return { api: document.getElementById('apibox').innerText, open: document.getElementById('apibox').open }; });
-    check('API の断り', 'API の設定の欄が開き、窓ごとに何を送るかを書いてある', notice.open && /区切りが閉じるたびに/.test(notice.api) && /API の提供元へ送る/.test(notice.api), notice.api.slice(0, 200));
+    check('API の断り', 'API の設定の欄が開き、窓ごとに何を送るかを書いてある', notice.open && /区切りが終わるたびに/.test(notice.api) && /API の提供元へ送ります/.test(notice.api), notice.api.slice(0, 200));
     check('API の断り', 'どの断りでも外へ要求を出していない', sent === 0, sent);
     await page.fill('#api-key', ''); await page.fill('#api-url', ''); await page.fill('#api-model', '');
     await page.dispatchEvent('#api-key', 'change');
@@ -2091,7 +2091,7 @@ async function loadFixture(page) {
 
   {
     // 「記録を消す」: 読み込み直した後に、消したことを 1 行で言う（もう一度読み込んだら言わない）
-    const NAME = '消す試験';
+    const NAME = '消すテスト';
     const f = await fresh(ctx, NAME);
     const page = f.page;
     await page.selectOption('#route', 'mock');
@@ -2102,7 +2102,7 @@ async function loadFixture(page) {
     await page.click('#end');
     await page.waitForFunction(function () { return /聞き終えた/.test(document.getElementById('st-listen').textContent); }, null, { timeout: 15000 });
     const before = (await readLog(page, NAME)).length;
-    // 確認は画面の中（「本当に消す」）。画面の外の確認（window.confirm）は枠の中では出ないので使っていない
+    // 確認は画面の中（「本当に消す」）。画面の外の確認（window.confirm）はアーティファクトの中では出ないので使っていない
     await page.click('#clear');
     const ask = await txt(page, 'recmsg');
     check('記録を消す', '押すとまず画面の中で確かめ、まだ消さない', /消すなら「本当に消す」/.test(ask) && (await readLog(page, NAME)).length === before, ask);
@@ -2110,7 +2110,7 @@ async function loadFixture(page) {
     await page.waitForTimeout(500);
     const m1 = await txt(page, 'recmsg');
     const after = (await readLog(page, NAME)).length;
-    check('記録を消す', '消した後に読み込み直すと、「「消す試験」の記録を消した」と 1 行で言う（記録は消えている）', before > 0 && after === 0 && /「消す試験」の記録を消した。/.test(m1), before + ' → ' + after + ' / ' + m1);
+    check('記録を消す', '消した後に読み込み直すと、「「消すテスト」の記録を消した」と 1 行で言う（記録は消えている）', before > 0 && after === 0 && /「消すテスト」の記録を消した。/.test(m1), before + ' → ' + after + ' / ' + m1);
     await page.reload();
     await page.waitForTimeout(500);
     const m2 = await txt(page, 'recmsg');
@@ -2152,7 +2152,7 @@ async function loadFixture(page) {
     await page.click('#start');
     await page.waitForTimeout(500);
     const r2 = await page.evaluate(function () { return { mode: document.body.dataset.mode, msg: document.getElementById('setupmsg').textContent }; });
-    check('貼り付けの後', 'ファイルを読み込まずに貼った後、ファイルの入口で始めると「先に素材のファイルを読み込む」と断る', r2.mode !== 'live' && /先に素材のファイルを読み込む/.test(r2.msg), JSON.stringify(r2));
+    check('貼り付けの後', 'ファイルを読み込まずに貼った後、ファイルの入口で始めると「先に文字起こしを読み込んでください」と断る', r2.mode !== 'live' && /先に文字起こしを読み込んでください/.test(r2.msg), JSON.stringify(r2));
     // 同じ秒に 2 度始めても、自動の名前は前の記録と重ならない（番号を足す）
     await page.selectOption('#intake', 'text');
     await page.evaluate(function () { return new Promise(function (r) { setTimeout(r, 1000 - (Date.now() % 1000) + 20); }); });
@@ -2177,4 +2177,4 @@ async function loadFixture(page) {
   fs.writeFileSync(path.join(OUT, 'e2e_routes_result.json'), JSON.stringify({ results: results, ng: ng.length, total: results.length }, null, 1));
   console.log(JSON.stringify({ total: results.length, ng: ng.length }));
   process.exit(ng.length ? 1 : 0);
-})().catch(function (e) { console.error('試験そのものが落ちた: ' + (e && e.stack || e)); process.exit(2); });
+})().catch(function (e) { console.error('テストそのものが例外で止まりました: ' + (e && e.stack || e)); process.exit(2); });

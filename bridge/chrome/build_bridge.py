@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""build_bridge.py — 拡張「橋」の組み立て。
+"""build_bridge.py — 拡張機能「ブリッジ」の組み立て。
 
-    python3 kit/bridge/chrome/build_bridge.py              kit/src/intake.js を kit/bridge/chrome/intake.js に写す（頭に「生成物」のコメントを足す）
-    python3 kit/bridge/chrome/build_bridge.py --check      写しが元と一致するか、版の控え（zip.lock）が今の中身と版に合うかを確かめるだけ（違えば終了コード 1）
-    python3 kit/bridge/chrome/build_bridge.py --lock       版の控え（zip.lock）を今の中身と版で書き直す（中身が変わったのに版が同じなら書かずに終了コード 1）
-    python3 kit/bridge/chrome/build_bridge.py --zip <出力>  拡張の ZIP を書く（manifest.json を ZIP の根に置く。中身は make_zip と同じ。--check が通らなければ書かない）
+    python3 kit/bridge/chrome/build_bridge.py              kit/src/intake.js を kit/bridge/chrome/intake.js にコピーする（先頭に「生成物」のコメントを足す）
+    python3 kit/bridge/chrome/build_bridge.py --check      コピーが元と一致するか、バージョンの控え（zip.lock）が今の中身とバージョンに合うかを確かめるだけ（違えば終了コード 1）
+    python3 kit/bridge/chrome/build_bridge.py --lock       バージョンの控え（zip.lock）を今の中身とバージョンで書き直す（中身が変わったのにバージョンが同じなら書かずに終了コード 1）
+    python3 kit/bridge/chrome/build_bridge.py --zip <出力>  拡張機能の ZIP を書く（manifest.json を ZIP のルートに置く。中身は make_zip と同じ。--check が通らなければ書かない）
 
-写した intake.js はリポジトリに入れる（拡張は kit/src を読めないため）。kit/src/intake.js を直したら、この道具を走らせて写しを作り直す。
+コピーした intake.js はリポジトリに入れる（拡張機能は kit/src を読めないため）。kit/src/intake.js を直したら、このツールを実行してコピーを作り直す。
 
 ZIP（make_zip）: manifest.json と、manifest が読むファイル（content_scripts の js、background の service_worker）と README.md を、
-名前の順に、日時を 1980-01-01 に揃えて詰める。同じ中身からはいつも同じバイト列になる（build_html.py --artifact が枠に埋め込み、
-枠の「拡張を保存する」がこの ZIP を渡す。ZIP は chrome://extensions に落とせば入る——README）。
+名前の順に、日時を 1980-01-01 に揃えて詰める。同じ中身からはいつも同じバイト列になる（build_html.py --artifact がアーティファクトに埋め込み、
+アーティファクトの「拡張機能を保存する」がこの ZIP を渡す。ZIP は chrome://extensions にドラッグ＆ドロップすればインストールされる——README）。
 
-版の控え（zip.lock）: 拡張が動かすもの（ZIP の中身から README.md を除いたもの。manifest.json は version を除いて読む）の
-SHA-256 と、そのときの版を置く。枠は manifest の version を比べて「新しい版があります」を出すので、中身を変えて版を上げ忘れると、
-古い拡張を入れたままの人に新しい版が知らされない。それを --check（と build_html.py --artifact・--zip）で止める。
+バージョンの控え（zip.lock）: 拡張機能が動かすもの（ZIP の中身から README.md を除いたもの。manifest.json は version を除いて読む）の
+SHA-256 と、そのときのバージョンを置く。アーティファクトは manifest の version を比べて「新しいバージョンがあります」を出すので、中身を変えてバージョンを上げ忘れると、
+古い拡張機能をインストールしたままの人に新しいバージョンが知らされない。それを --check（と build_html.py --artifact・--zip）で止める。
 直し方: manifest.json の version を上げてから --lock。
 """
 import hashlib
@@ -27,8 +27,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC = HERE.parent.parent / "src" / "intake.js"
 DST = HERE / "intake.js"
-HEAD = ("/* kit/bridge/chrome/intake.js: 生成物。build_bridge.py が kit/src/intake.js から写す。"
-        "手で直さず、kit/src/intake.js を直してから build_bridge.py を走らせる */\n")
+HEAD = ("/* kit/bridge/chrome/intake.js: 生成物。build_bridge.py が kit/src/intake.js からコピーする。"
+        "手で直さず、kit/src/intake.js を直してから build_bridge.py を実行する */\n")
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 LOCK = HERE / "zip.lock"
 
@@ -38,17 +38,17 @@ def expected() -> str:
 
 
 def copy_problem():
-    """写しの食い違い（無ければ None）"""
+    """コピーの食い違い（無ければ None）"""
     if not DST.exists():
-        return "写しが無い: bridge/chrome/intake.js（build_bridge.py で作る）"
+        return "コピーが無い: bridge/chrome/intake.js（build_bridge.py で作る）"
     if DST.read_text(encoding="utf-8") != expected():
-        return "写しが元と違う: bridge/chrome/intake.js は src/intake.js と一致しない（build_bridge.py で作り直す）"
+        return "コピーが元と違う: bridge/chrome/intake.js は src/intake.js と一致しない（build_bridge.py で作り直す）"
     return None
 
 
 def version_key(v: str) -> tuple:
     """"0.2.10" → (0, 2, 10, 0)。数でない欄は 0 と読み、4 つの欄に 0 で埋める（manifest の version は数を . でつないだ 1〜4 つの欄。
-    枠の versionLess（src/intake.js）も 4 つの欄に埋めて比べるので、"0.2.0" と "0.2.0.0" はどちらでも同じ版になる）"""
+    アーティファクト側の versionLess（src/intake.js）も 4 つの欄に埋めて比べるので、"0.2.0" と "0.2.0.0" はどちらでも同じバージョンになる）"""
     out = []
     for part in str(v).split("."):
         out.append(int(part) if part.isdigit() else 0)
@@ -57,7 +57,7 @@ def version_key(v: str) -> tuple:
 
 
 def content_hash() -> str:
-    """拡張が動かすものの SHA-256（ZIP の中身から README.md を除く。manifest.json は version を除き、鍵の順に並べて読む。改行は LF に揃える）"""
+    """拡張機能が動かすものの SHA-256（ZIP の中身から README.md を除く。manifest.json は version を除き、キーの順に並べて読む。改行は LF に揃える）"""
     h = hashlib.sha256()
     for name in zip_files():
         if name == "README.md":
@@ -82,20 +82,20 @@ def read_lock():
 
 
 def lock_problem():
-    """版の控えの食い違い（無ければ None）"""
+    """バージョンの控えの食い違い（無ければ None）"""
     lock = read_lock()
     ver = manifest()["version"]
     if lock is None:
-        return "版の控えが無い・読めない: bridge/chrome/zip.lock（build_bridge.py --lock で作る）"
+        return "バージョンの控えが無い・読めない: bridge/chrome/zip.lock（build_bridge.py --lock で作る）"
     same = lock["content"] == content_hash()
     if version_key(lock["version"]) == version_key(ver):
         if same:
             return None
-        return ("拡張の中身が変わったのに版が " + ver + " のまま（枠が「新しい版があります」を出せない）。"
+        return ("拡張機能の中身が変わったのにバージョンが " + ver + " のまま（アーティファクトが「新しいバージョンがあります」を出せない）。"
                 "manifest.json の version を上げてから build_bridge.py --lock")
     if version_key(ver) < version_key(lock["version"]):
-        return "版が下がった: zip.lock は " + lock["version"] + "、manifest.json は " + ver
-    return "版を " + lock["version"] + " から " + ver + " に上げた。build_bridge.py --lock で zip.lock を書き直す"
+        return "バージョンが下がった: zip.lock は " + lock["version"] + "、manifest.json は " + ver
+    return "バージョンを " + lock["version"] + " から " + ver + " に上げた。build_bridge.py --lock で zip.lock を書き直す"
 
 
 def check() -> int:
@@ -104,7 +104,7 @@ def check() -> int:
         print(p)
     if bad:
         return 1
-    print("一致: bridge/chrome/intake.js は src/intake.js の写し。zip.lock は版 %s の中身と合う" % manifest()["version"])
+    print("一致: bridge/chrome/intake.js は src/intake.js のコピー。zip.lock はバージョン %s の中身と合う" % manifest()["version"])
     return 0
 
 
@@ -117,13 +117,13 @@ def write_lock() -> int:
     ver = manifest()["version"]
     digest = content_hash()
     if lock is not None and version_key(ver) < version_key(lock["version"]):
-        print("書かなかった: 版が " + lock["version"] + " から " + ver + " に下がる（入れてある拡張より古い版は、枠が新しい版と見なさない）")
+        print("書かなかった: バージョンが " + lock["version"] + " から " + ver + " に下がる（インストールしてある拡張機能より古いバージョンは、アーティファクトが新しいバージョンと見なさない）")
         return 1
     if lock is not None and lock["content"] != digest and version_key(ver) <= version_key(lock["version"]):
-        print("書かなかった: 中身が変わったのに版が " + lock["version"] + " から上がっていない（manifest.json の version を上げる）")
+        print("書かなかった: 中身が変わったのにバージョンが " + lock["version"] + " から上がっていない（manifest.json の version を上げる）")
         return 1
     LOCK.write_text(json.dumps({"version": ver, "content": digest}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
-    print("書いた: bridge/chrome/zip.lock（版 %s）" % ver)
+    print("書いた: bridge/chrome/zip.lock（バージョン %s）" % ver)
     return 0
 
 
@@ -142,7 +142,7 @@ def zip_files() -> list:
         names.add(sw)
     missing = sorted(n for n in names if not (HERE / n).is_file())
     if missing:
-        raise FileNotFoundError("拡張の ZIP に入れるファイルが無い: " + ", ".join(missing))
+        raise FileNotFoundError("拡張機能の ZIP に入れるファイルが無い: " + ", ".join(missing))
     return sorted(names)
 
 
@@ -182,7 +182,7 @@ def main(argv) -> int:
         print("書いた: %s（%d バイト、%s）" % (out, len(data), ", ".join(zip_files())))
         return 0
     DST.write_text(expected(), encoding="utf-8", newline="\n")
-    print("写した: bridge/chrome/intake.js（%d バイト）" % DST.stat().st_size)
+    print("コピーした: bridge/chrome/intake.js（%d バイト）" % DST.stat().st_size)
     p = lock_problem()
     if p:
         print("まだ: " + p)

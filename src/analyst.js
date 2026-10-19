@@ -1,11 +1,11 @@
 /*
- * analyst.js — 分析役（読み手）への共通の口
+ * analyst.js — 分析役（読み手）を呼ぶ共通の入口
  *
- * 共通の口:
+ * 共通の入口:
  *   const an = makeAnalyst(cfg);                  // cfg.kind で実装を選ぶ（下の表）
  *   const r  = await an.analyze(pack, prefix);    // → {step, events, note, raw, usage, think}
- *   // pack   状態の最小表現（format/pack.md の形。道具が作る）
- *   // prefix 固定の指示（prompts/analyst.md の全文。キャッシュに乗る接頭辞）
+ *   // pack   状態の最小表現（format/pack.md の形。ツールが作る）
+ *   // prefix 固定の指示（prompts/analyst.md の全文。キャッシュに載る接頭辞）
  *   // step   {t:[a,b]}        events  イベントの配列（schema.json の形）   note  {x}
  *   // raw    分析役が返した文字列そのもの（記録・調査用）
  *   // usage  {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens}（取れた分だけ。無ければ null）
@@ -13,14 +13,14 @@
  *   返事の形（JSON として読めるか・step/events/note があるか・欄の値の入れ子が 32 段までか）だけをここで見る。
  *   読み方は rt.py と同じ（format/FORMAT.md「返事の読み方」。全体の ``` の囲みは 1 回だけ外し、前置き・後書きは読まない）。
  *   中身の正しさ（時刻・id・上限）は verify.js（rt.py）が落とす。
- *   誤りの文は 2 つ持つ: 分析役に返す機械向けの文（parseReply の error、投げた Error の message。項目名をそのまま使う）と、
+ *   エラーの文は 2 つ持つ: 分析役に返す機械向けの文（parseReply の error、投げた Error の message。項目名をそのまま使う）と、
  *   画面に出す日本語の文（parseReply の msg、投げた Error の screen。英字の項目名を出さない）。
- *   投げた Error に fatal:true が付いていれば、もう一度呼んでも同じに落ちる誤り（この画面に口が無い・閲覧者が許していない）。
+ *   投げた Error に fatal:true が付いていれば、もう一度呼んでも同じに落ちるエラー（この画面に Claude を呼び出す機能が無い・閲覧者が許していない）。
  *   app 側は 3 回の再試行をせずに止めてよい。付いていなければ再試行できる。
  *
  * 返事 → 追記（記録の形）:
- *   const batch = toBatch(reply, window);     // window = {n, lines:[i,j], t:[a,b]}（道具が決めた窓。n は書くステップ番号）
- *   // rt.py の reply_to_batch と同じ直し方: step に n・lines を道具が埋め（t は返事の step.t）、think が空でない文字列なら
+ *   const batch = toBatch(reply, window);     // window = {n, lines:[i,j], t:[a,b]}（ツールが決めた窓。n は書くステップ番号）
+ *   // rt.py の reply_to_batch と同じ直し方: step に n・lines をツールが埋め（t は返事の step.t）、think が空でない文字列なら
  *   // 載せ（上限の 2000 字で切る）、card の li が null なら欄ごと落とし（記録では「無い」と同じ）、
  *   // note は {x} が文字列のときだけ {e:'note', t: step.t[1], x} として末尾に置く。
  *   // 返事に無いものを補わない（step.t が無ければ無いまま → 検査器が落とす）。
@@ -29,23 +29,23 @@
  *   'anthropic'  L1。fetch で https://api.anthropic.com/v1/messages を直に叩く
  *   'openai'     L1。OpenAI 互換の <base>/chat/completions を直に叩く（Azure 等）
  *   'manual'     L3。プロンプトを1つの文字列にして人に渡し、貼られた返事を読む（cfg.ask を通す）
- *   'claude'     この画面を開いている Claude に問う（claude.ai のアーティファクトの枠の中だけ。鍵は要らず、閲覧者の使用量を使う）。
- *                口は 2 つあり、最初の analyze で 1 回だけ決めて覚える:
+ *   'claude'     この画面を開いている Claude に問う（claude.ai のアーティファクトの中だけ。API キーは要らず、閲覧者の使用量を使う）。
+ *                呼び出し方は 2 つあり、最初の analyze で 1 回だけ決めて覚える:
  *                  (1) claude.use が関数 → sample = await claude.use('sample')。null なら、この画面では問えない（fatal）
  *                  (2) use が無く claude.complete が関数 → 古い形（チャットで作るアーティファクト）。complete(prompt) → 文字列
- *                  (3) どちらも無い → この画面には口が無い（枠の外で開いている。fatal）
- *                問いは makePrompt（手動の輪と同じ 1 本の文字列）。返事は parseReply で読む（囲みは 1 回だけ外す）。
- *                返事の形・誤りの種類は、束ねた型定義（artifact-capabilities の sample.d.ts）に合わせてある:
+ *                  (3) どちらも無い → この画面には Claude を呼び出す機能が無い（アーティファクトの外で開いている。fatal）
+ *                問いは makePrompt（「手動でチャットに貼る」と同じ 1 つの文字列）。返事は parseReply で読む（囲みは 1 回だけ外す）。
+ *                返事の形・エラーの種類は、束ねた型定義（artifact-capabilities の sample.d.ts）に合わせてある:
  *                  sample(prompt, {modelTier, cache:false, signal}) → {text, truncated, modelTierApplied}
  *                  失敗は {code, message, text?} の素のオブジェクトで来る（Error ではない）。code で分ける（message では分けない）
- *                sample は閲覧者の同意を最初の呼び出しで求める（呼び出しは閲覧者が決めるまで待つ。こちらから時間切れにしない）
- *   'mock'       試験用。tests/fixtures/meeting10.jsonl のバッチを step 番号順に返す
+ *                sample は閲覧者の同意を最初の呼び出しで求める（呼び出しは閲覧者が決めるまで待つ。こちらからタイムアウトにしない）
+ *   'mock'       テスト用。tests/fixtures/meeting10.jsonl のバッチを step 番号順に返す
  *
  * cfg の欄:
  *   kind       上の5つのどれか
- *   claude     claude: 口のあるオブジェクト（試験では偽物を渡す）。省略すると globalThis.claude
+ *   claude     claude: Claude を呼び出す機能を持つオブジェクト（テストではモックを渡す）。省略すると globalThis.claude
  *   tier       claude: 'quick' | 'default' | 'complex'（既定 'default'。知らない値も 'default'）
- *   key        API の鍵（anthropic / openai）。設定の書き出しには含めない
+ *   key        API キー（anthropic / openai）。設定の書き出しには含めない
  *   model      モデル名（anthropic の既定 'claude-opus-5-5'。openai は必須）
  *   base       openai: 'https://api.openai.com/v1' のような土台の URL（末尾の / は無くてよい）
  *   effort     anthropic: output_config.effort（'low'|'medium'|'high'|'xhigh'|'max'）。省略したとき、モデルが既定
@@ -55,7 +55,7 @@
  *              既定は送らない（Opus 5.5 は思考を切れないので、思考の量は effort で決まる）
  *   maxTokens  返事の上限（既定 16000。思考も含めた上限なので、返事の JSON だけの長さより大きく取る）
  *   timeoutMs  1回の呼び出しの打ち切り（anthropic / openai の既定 120000）。
- *              claude の sample には、指定したときだけ効く（signal を切る）。既定は置かない——型定義が「時間切れを自分で作るな。
+ *              claude の sample には、指定したときだけ効く（signal を切る）。既定は置かない——型定義が「タイムアウトを自分で作るな。
  *              仕組みの側が長すぎる呼び出しを終える。ページ側の時計は、閲覧者が同意の画面を読む時間も数えてしまう」と言い、
  *              既定の段では長い指示文で書き始めるまでに 2 分近くかかることがある（1 回の問いは約 5 分で仕組みが打ち切る）。
  *              120 秒で切ると、考えている最中に切って同じ窓を 3 回払い直したうえ空振りになる。
@@ -65,17 +65,17 @@
  *   script     mock: 判断ログのイベントの配列（meeting10.jsonl を読んだもの）
  *
  * 註（未検証・記憶）:
- *   - ブラウザから直に叩くには、Anthropic はヘッダ `anthropic-dangerous-direct-browser-access: true` が要る（記憶。
- *     無いと CORS で落ちる、と記憶している。実機で未検証）。鍵をページに置くことになるので、個人の鍵を会社の会議に使う道は
+ *   - ブラウザから直に叩くには、Anthropic はヘッダー `anthropic-dangerous-direct-browser-access: true` が要る（記憶。
+ *     無いと CORS で落ちる、と記憶している。実機で未検証）。API キーをページに置くことになるので、個人の API キーを会社の会議に使う道は
  *     設計として置かない（README に書く）
  *   - OpenAI 互換の response_format:{type:'json_schema', json_schema:{name, strict:true, schema}} は記憶で、未検証。
- *     Azure 等では base の形が違い、鍵のヘッダも `api-key` のことがある（cfg.keyHeader で変えられる）
+ *     Azure 等では base の形が違い、API キーのヘッダーも `api-key` のことがある（cfg.keyHeader で変えられる）
  *   - 構造化出力は形だけを保証する。max_tokens で切れた返事（stop_reason:'max_tokens'）は JSON として読めないことがある
  *
- * 鍵の置き場:
+ * API キーの置き場:
  *   keys.load(name) / keys.save(name, key, remember) / keys.clear(name)
- *   既定は sessionStorage（タブを閉じると消える）。remember=true（「この PC に覚える」）のときだけ localStorage。
- *   どちらも読めない環境（file:// の制限など）では null を返し、ページは鍵の欄に貼り直させる。
+ *   既定は sessionStorage（タブを閉じると消える）。remember=true（「この PC に保存する」）のときだけ localStorage。
+ *   どちらも読めない環境（file:// の制限など）では null を返し、ページは API キーの欄に貼り直させる。
  *
  * ブラウザでは globalThis.TSV_ANALYST、node では module.exports に同じものを出す。
  */
@@ -98,7 +98,7 @@
 
   const FENCE = '```';
   // 前後の空白として除く字（JS の String.prototype.trim と同じ集まりを、字で書き出したもの。rt.py の WS_CHARS と同じ）。
-  // trim に任せず書き出すのは、ブラウザや Unicode の版で集まりが揺れないようにするため
+  // trim に任せず書き出すのは、ブラウザや Unicode のバージョンで集まりが揺れないようにするため
   const WS_SET = '\t\n\u000b\u000c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
   const WS_EDGE = new RegExp('^[' + WS_SET + ']+|[' + WS_SET + ']+$', 'g');
   function trimWs(s) { return String(s).replace(WS_EDGE, ''); }
@@ -113,7 +113,7 @@
   //   囲みが途中にあるだけなら外さない（文字列の値の中の ``` はただの字）。前置き・後書きの付いた返事は読まない。
   //   JSON として読む前に、文字列の外の [ と { の入れ子を数え、PARSE_DEPTH_MAX 段を超えていれば F02 で断る。
   function parseReply(text) {
-    if (typeof text !== 'string') return bad('返事が文字列ではありません', '返事が文字になっていない');
+    if (typeof text !== 'string') return bad('返事が文字列ではありません', '返事がテキストになっていない');
     let s = trimWs(text);
     if (s.length >= 2 * FENCE.length && s.startsWith(FENCE) && s.endsWith(FENCE)) {
       s = s.slice(FENCE.length, s.length - FENCE.length);
@@ -128,7 +128,7 @@
     const obj = tryParse(s);
     if (obj === undefined) {
       return bad('返事を JSON として読めません（返事は 1 つの JSON オブジェクトだけにします。前置き・後書きは付けません）',
-        '返事を読めなかった（機械向けの形になっていないか、前後に文が付いている）');
+        '返事を読めなかった（決まった形式になっていないか、前後に余計な文が付いている）');
     }
     return shapeReply(obj);
   }
@@ -151,7 +151,7 @@
     return mx;
   }
 
-  // 読めなければ undefined（入れ子が深すぎて読む道具が持たないときも落ちない）
+  // 読めなければ undefined（入れ子が深すぎてJSON を読む処理が持たないときも落ちない）
   function tryParse(s) { try { return JSON.parse(s); } catch (e) { return undefined; } }
 
   function isPlain(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
@@ -172,19 +172,19 @@
     return mx;
   }
 
-  // 違反文に出す種類の字面。文字列か数のときだけ字面にする（それ以外の値は字面にしない。字面にする道具が落ちないように）
+  // 違反文に出す種類の字面。文字列か数のときだけ字面にする（それ以外の値は字面にしない。字面にする処理が落ちないように）
   function kindText(v) {
     if (typeof v === 'string') return JSON.stringify(Array.from(v).length > 40 ? Array.from(v).slice(0, 39).join('') + '…' : v);
     if (typeof v === 'number') return String(v);
-    return v === undefined ? '（欄が無い）' : '（文字でない値）';
+    return v === undefined ? '（欄が無い）' : '（文字列でない値）';
   }
 
   // JSON オブジェクトが返事の形か（step.t / events[] / note.x）。整えて返す。形が違えば {ok:false, error, msg}（上と同じ）
   //   events の欄が無ければ []（何も書くことの無い窓）として読む。欄があって配列でなければ（null も）読めない返事。
   //   events の中に note があれば読めない返事（所感は events の外の note に 1 つだけ書く）。
-  //   欄の値の入れ子が 32 段を超えていれば F02 で読めない返事にする（写しを作る前に断る。写す道具が落ちないように）。
+  //   欄の値の入れ子が 32 段を超えていれば F02 で読めない返事にする（コピーを作る前に断る。コピーする処理が落ちないように）。
   function shapeReply(obj) {
-    if (!isPlain(obj)) return bad('返事がオブジェクトではありません', '返事が機械向けの形になっていない（ひとまとまりになっていない）');
+    if (!isPlain(obj)) return bad('返事がオブジェクトではありません', '返事が決まった形式になっていない');
     // 一番外の e の欄は返事に無い欄（schema.json）。rt.py は e のあるオブジェクトを JSONL の 1 行として読み、step で
     // 始まらないので断る。ページも同じく読めない返事にする（受理と拒否を揃える。ほかの知らない欄は捨てて通す）
     if (Object.prototype.hasOwnProperty.call(obj, 'e')) {
@@ -194,9 +194,9 @@
     const step = obj.step;
     if (!isPlain(step)) {
       return bad(step === undefined ? '返事に step がありません（{"t":[始まり, 終わり]} のオブジェクトで書きます）' : '返事の step がオブジェクトではありません',
-        '返事に、窓の始まりと終わりが無い');
+        '返事に、区切りの始まりと終わりが無い');
     }
-    if (!Array.isArray(step.t) || step.t.length !== 2) return bad('返事の step.t が [始まり, 終わり] ではありません', '返事に、窓の始まりと終わりが無い');
+    if (!Array.isArray(step.t) || step.t.length !== 2) return bad('返事の step.t が [始まり, 終わり] ではありません', '返事に、区切りの始まりと終わりが無い');
     if (valueDepth(step.t, VALUE_DEPTH_MAX) > VALUE_DEPTH_MAX) {
       return bad('F02: 返事の step.t の値の入れ子が ' + VALUE_DEPTH_MAX + ' 段を超えています', '返事の値の入れ子が深すぎる（' + VALUE_DEPTH_MAX + ' 段まで）');
     }
@@ -205,7 +205,7 @@
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
       const no = i + 1;
-      if (!isPlain(e)) return bad('events の ' + no + ' 件目がオブジェクトではありません', '返事の ' + no + ' 件目の判断が、ひとまとまりになっていない');
+      if (!isPlain(e)) return bad('events の ' + no + ' 件目がオブジェクトではありません', '返事の ' + no + ' 件目の判断が、決まった形式になっていない');
       if (e.e === 'note') {
         return bad('events の ' + no + ' 件目が note です（所感は events の外の note に 1 つだけ書きます）', '返事の ' + no + ' 件目に所感が入っている（所感は判断の並びの外に 1 つだけ書く）');
       }
@@ -232,7 +232,7 @@
   const THINK_MAX = 2000;
   function clip(s, n) { const a = Array.from(String(s)); return a.length > n ? a.slice(0, n).join('') : a.join(''); }
 
-  // reply: {step:{t}, events:[], note:{x}, think?}。window: {n, lines, t}（道具が決めた窓）
+  // reply: {step:{t}, events:[], note:{x}, think?}。window: {n, lines, t}（ツールが決めた窓）
   function toBatch(reply, window) {
     reply = reply || {};
     const w = window || {};
@@ -255,7 +255,7 @@
 
   // ---- 構造化出力に渡すスキーマ ----
 
-  // schema.json はそのまま渡さず、$schema と $id（文書の札）を外す。
+  // schema.json はそのまま渡さず、$schema と $id（文書の識別子）を外す。
   // 構造化出力が受けるのは型・enum・const・anyOf・$ref・additionalProperties:false まで（claude-api スキルの一覧）。
   // 字数や件数の制約は schema.json にもともと無い（検査器が落とす）
   function prepareSchema(schema) {
@@ -266,9 +266,9 @@
     return s;
   }
 
-  // ---- L3: 手動の輪 ----
+  // ---- L3: 手動でチャットに貼る ----
 
-  // 指示＋状態の最小表現を1つの文字列に。Claude でも ChatGPT でも同じ契約
+  // 指示＋状態の最小表現を1つの文字列に。Claude でも ChatGPT でも同じ仕様
   function makePrompt(prefix, pack) {
     return String(prefix).replace(/\s+$/, '') +
       '\n\n---\n\n## 状態の最小表現（この窓）\n\n' +
@@ -323,20 +323,20 @@
     return { status: res.status, body: json, text: text, error: null };
   }
 
-  // 誤りの文は 2 つ持つ。message は送り先が返した誤りの文（error.message）やブラウザの文をそのまま含む機械向けの文、
+  // エラーの文は 2 つ持つ。message は送り先が返したエラーの文（error.message）やブラウザの文をそのまま含む機械向けの文、
   // screen は画面に出す日本語の文（英字の項目名や送り先の文を含めない）。
   // 返事の本文そのものは console にだけ出す（会社のプロキシの遮断ページのような HTML が返ってきても、画面にその文を流し込まない）
   function httpError(r, who) {
-    if (r.error === 'timeout') return screened(new Error(who + ' への呼び出しが時間切れになりました'), '分析役の呼び出しが時間切れになった');
-    if (r.error === 'network') return screened(new Error(who + ' に届きませんでした（ネットワークか CORS）: ' + r.detail), '分析役に届かなかった（ネットワークか、ブラウザが外への送信を止めた）');
+    if (r.error === 'timeout') return screened(new Error(who + ' への呼び出しがタイムアウトしました'), '整理する AI の呼び出しがタイムアウトした');
+    if (r.error === 'network') return screened(new Error(who + ' に届きませんでした（ネットワークか CORS）: ' + r.detail), '整理する AI に届かなかった（ネットワークか、ブラウザが外への送信を止めた）');
     const msg = r.body && r.body.error && (r.body.error.message || r.body.error.type);
     if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
-      console.warn(who + ' の返事（状態 ' + r.status + '）の本文:', r.text);
+      console.warn(who + ' の返事（ステータス ' + r.status + '）の本文:', r.text);
     }
-    if (r.status === 401 || r.status === 403) return screened(new Error(who + ' が認証を拒みました（' + r.status + '）' + (msg ? ': ' + msg : '')), '分析役の送り先が鍵を受け付けなかった（状態 ' + r.status + '）');
-    if (r.status === 429) return screened(new Error(who + ' が混んでいます（429）。少し待ってもう一度' + (msg ? ': ' + msg : '')), '分析役の送り先が混んでいる（状態 429）。少し待ってもう一度');
-    if (r.body == null) return screened(new Error(who + ' が ' + r.status + ' を返し、返事が機械向けの形ではない（会社の網が遮っている可能性）'), '分析役の送り先が状態 ' + r.status + ' を返し、返事が機械向けの形ではない（会社の網が遮っている可能性）');
-    return screened(new Error(who + ' が ' + r.status + ' を返しました' + (msg ? ': ' + msg : '')), '分析役の送り先が状態 ' + r.status + ' を返した');
+    if (r.status === 401 || r.status === 403) return screened(new Error(who + ' が認証を拒みました（' + r.status + '）' + (msg ? ': ' + msg : '')), '整理する AI の送り先が API キーを受け付けなかった（ステータス ' + r.status + '）');
+    if (r.status === 429) return screened(new Error(who + ' からリクエストが多すぎると断られました（429。利用の上限に達した可能性）。少し待ってから、もう一度試してください' + (msg ? ': ' + msg : '')), '整理する AI の送り先から、リクエストが多すぎると断られた（ステータス 429。利用の上限に達した可能性）。少し待ってから、もう一度試す');
+    if (r.body == null) return screened(new Error(who + ' が ' + r.status + ' を返し、応答が API の形式ではない（会社のネットワークが遮断している可能性）'), '整理する AI の送り先がステータス ' + r.status + ' を返し、返事が API の形式ではない（会社のネットワークが遮断している可能性）');
+    return screened(new Error(who + ' が ' + r.status + ' を返しました' + (msg ? ': ' + msg : '')), '整理する AI の送り先がステータス ' + r.status + ' を返した');
   }
 
   function screened(err, screen) { err.screen = screen; return err; }
@@ -381,7 +381,7 @@
   }
 
   async function analyzeAnthropic(cfg, pack, prefix) {
-    if (!cfg.key) throw new Error('鍵がありません');
+    if (!cfg.key) throw new Error('API キーがありません');
     const schema = prepareSchema(cfg.schema);
     const body = anthropicBody(cfg, prefix, JSON.stringify(pack), { schema: schema });
     const r = await post(ANTHROPIC_URL, anthropicHeaders(cfg), body, cfg.timeoutMs);
@@ -435,7 +435,7 @@
   }
 
   async function analyzeOpenAI(cfg, pack, prefix) {
-    if (!cfg.key) throw new Error('鍵がありません');
+    if (!cfg.key) throw new Error('API キーがありません');
     if (!cfg.model) throw new Error('モデル名がありません');
     const schema = prepareSchema(cfg.schema);
     const body = openaiBody(cfg, prefix, JSON.stringify(pack), { schema: schema });
@@ -455,7 +455,7 @@
   // ---- L3: 手動 ----
 
   async function analyzeManual(cfg, pack, prefix) {
-    if (typeof cfg.ask !== 'function') throw new Error('手動の輪には cfg.ask（プロンプトを渡して返事の文字列を返す関数）が要ります');
+    if (typeof cfg.ask !== 'function') throw new Error('「手動でチャットに貼る」には cfg.ask（プロンプトを渡して返事の文字列を返す関数）が要ります');
     const prompt = makePrompt(prefix, pack);
     const text = await cfg.ask(prompt);
     const p = parseReply(text);
@@ -463,39 +463,39 @@
     return { step: p.step, events: p.events, note: p.note, raw: String(text), usage: null, think: null };
   }
 
-  // ---- この画面を開いている Claude（アーティファクトの枠の中） ----
+  // ---- この画面を開いている Claude（アーティファクトの中） ----
 
   const CLAUDE_WHO = 'この画面の Claude';
   const TIERS = ['quick', 'default', 'complex'];
   const SAMPLE_EFFORTS = ['low', 'medium', 'high'];
-  // もう一度呼んでも同じに落ちる誤りの種類（sample.d.ts「Hide the feature for this view — permanent」の群）。
-  // 依頼では not_granted だけを致命としていたが、型定義が同じ群に置く 4 つも同じ扱いにする（3 回呼び直しても同じ答えしか来ない）
+  // もう一度呼んでも同じに落ちるエラーの種類（sample.d.ts「Hide the feature for this view — permanent」のグループ）。
+  // 依頼では not_granted だけを致命としていたが、型定義が同じグループに置く 4 つも同じ扱いにする（3 回呼び直しても同じ答えしか来ない）
   const FATAL_CODES = {
-    not_granted: ['閲覧者がこの画面に Claude を使うことを許していません（not_granted）', '画面を開いている人が、この画面から問うことを許していない'],
-    sampling_disabled: ['この利用者（または組織）では Claude に問えません（sampling_disabled）', 'この利用者の設定では、この画面から問えない'],
-    not_declared: ['この画面は Claude に問う能力を宣言していません（not_declared）', 'この画面は問う能力を持っていない（作り直しが要る）'],
-    capability_disabled: ['この画面では Claude に問う能力が止められています（capability_disabled）', 'この画面では問う能力が止められている'],
-    capability_removed: ['この閲覧の仕組みには Claude に問う口がありません（capability_removed）', 'この閲覧の仕組みには問う口が無い（古い閲覧の仕組み）']
+    not_granted: ['閲覧者がこの画面で Claude を使うことを許可していません（not_granted）', 'この画面から分析役を呼び出すことが許可されていない'],
+    sampling_disabled: ['この利用者（または組織）では Claude を呼び出せません（sampling_disabled）', 'アカウントか組織の設定で、この画面から分析役を呼び出せないようになっている'],
+    not_declared: ['この画面は Claude を呼び出す機能を宣言していません（not_declared）', 'この画面には分析役を呼び出す権限が無い（作り直しが必要）'],
+    capability_disabled: ['この画面では Claude を呼び出す機能が止められています（capability_disabled）', 'この画面では分析役を呼び出す機能が止められている'],
+    capability_removed: ['この表示環境には Claude を呼び出す機能がありません（capability_removed）', 'この表示環境には分析役を呼び出す機能が無い（古い表示環境）']
   };
 
   function fatalError(message, screen) { const e = screened(new Error(message), screen); e.fatal = true; return e; }
 
-  // 口を決める（1 回だけ呼ぶ）。→ {sample} か {complete}。無ければ fatal の Error を投げる
+  // 呼び出し方を決める（1 回だけ呼ぶ）。→ {sample} か {complete}。無ければ fatal の Error を投げる
   async function claudeMouth(cfg) {
     const c = (cfg && cfg.claude) || globalThis.claude;
     if (c && typeof c.use === 'function') {
       let s = null, why = '';
       // use は null を返す約束（例外を投げない）だが、投げても同じ「無い」として扱う
       try { s = await c.use('sample'); } catch (e) { s = null; why = ': ' + String(e && e.message || e); }
-      if (typeof s !== 'function') throw fatalError('この画面では Claude に問えない（sample の能力が無い）' + why, 'この画面では、画面を開いている相手に問えない（問う能力が与えられていない）');
+      if (typeof s !== 'function') throw fatalError('この画面では Claude を呼び出せない（sample の機能が無い）' + why, 'この画面からは分析役を呼び出せない（呼び出す権限が与えられていない）');
       return { sample: s };
     }
     if (c && typeof c.complete === 'function') return { complete: function (p) { return c.complete(p); } };
-    throw fatalError('この画面には Claude の口が無い（アーティファクトの枠の外）', 'この画面には、画面を開いている相手への口が無い（枠の外で開いている）');
+    throw fatalError('この画面には Claude を呼び出す機能が無い（アーティファクトの外）', 'この画面には分析役を呼び出す機能が無い（アーティファクトの外で開いている）');
   }
 
-  // sample が投げる {code, message, text?}（素のオブジェクト。Error のこともある）を、この口の Error に直す。
-  // timedOut は、こちらの打ち切りで signal を切った後に来た cancelled を時間切れとして読むため
+  // sample が投げる {code, message, text?}（素のオブジェクト。Error のこともある）を、この経路の Error に直す。
+  // timedOut は、こちらの打ち切りで signal を切った後に来た cancelled をタイムアウトとして読むため
   function claudeError(e, timedOut) {
     const code = e && typeof e.code === 'string' ? e.code : null;
     const detail = e && typeof e.message === 'string' && e.message ? ': ' + e.message : '';
@@ -503,22 +503,22 @@
     if (!code) err = screened(new Error(CLAUDE_WHO + ' の呼び出しに失敗しました' + detail), '分析役の呼び出しに失敗した');
     else if (FATAL_CODES[code]) err = fatalError(FATAL_CODES[code][0] + detail, FATAL_CODES[code][1]);
     else if (code === 'cancelled') {
-      err = timedOut ? screened(new Error(CLAUDE_WHO + ' への呼び出しが時間切れになりました'), '分析役の呼び出しが時間切れになった')
+      err = timedOut ? screened(new Error(CLAUDE_WHO + ' への呼び出しがタイムアウトしました'), '分析役の呼び出しがタイムアウトした')
         : screened(new Error(CLAUDE_WHO + ' への呼び出しが中止されました' + detail), '分析役の呼び出しが中止された');
     }
-    else if (code === 'rate_limited') err = screened(new Error(CLAUDE_WHO + ' が混んでいるか、閲覧者の使用量の上限に当たりました（rate_limited）。少し待ってもう一度' + detail), '分析役が混んでいるか、使える量の上限に当たった。少し待ってもう一度');
+    else if (code === 'rate_limited') err = screened(new Error(CLAUDE_WHO + ' が混んでいるか、閲覧者の使用量の上限に達しました（rate_limited）。少し待ってから、もう一度試してください' + detail), '分析役が混んでいるか、使用量の上限に達した。少し待ってから、もう一度試す');
     else if (code === 'refused') err = screened(new Error('分析役が返事を断りました（refused）' + detail), '分析役が返事を断った');
     else if (code === 'empty_completion') err = screened(new Error('分析役が何も書きませんでした（empty_completion）' + detail), '分析役が何も書かなかった');
-    else if (code === 'prompt_too_large') err = screened(new Error('問いが大きすぎます（prompt_too_large。256 KiB まで）' + detail), '問いが大きすぎる（窓を小さくする）');
-    else if (code === 'session_expired') err = screened(new Error('閲覧者のサインインが切れています（session_expired）' + detail), '画面を開いている人のサインインが切れている（入り直してもう一度）');
-    else err = screened(new Error(CLAUDE_WHO + ' が誤りを返しました（' + code + '）' + detail), '分析役が誤りを返した');
+    else if (code === 'prompt_too_large') err = screened(new Error('送る内容（プロンプト）が大きすぎます（prompt_too_large。256 KiB まで）' + detail), '送る内容が大きすぎる（「設定と記録」の「区切りの長さ」を短くする）');
+    else if (code === 'session_expired') err = screened(new Error('閲覧者のサインインが切れています（session_expired）' + detail), 'サインインが切れている（サインインし直してから、もう一度試す）');
+    else err = screened(new Error(CLAUDE_WHO + ' がエラーを返しました（' + code + '）' + detail), '分析役がエラーを返した');
     err.code = code;
     if (e && typeof e.text === 'string') err.raw = e.text;
     return err;
   }
 
   // こちらで打ち切るまでの時間（ms）。null なら打ち切らない（仕組みの側に任せる）
-  //   sample:   cfg.timeoutMs が正の数のときだけ。既定は null（型定義「時間切れを自分で作るな」。閲覧者が同意の画面を読む間も
+  //   sample:   cfg.timeoutMs が正の数のときだけ。既定は null（型定義「タイムアウトを自分で作るな」。閲覧者が同意の画面を読む間も
   //             呼び出しは待つし、既定の段では書き始めるまで 2 分近くかかることがある。1 回の問いは約 5 分で仕組みが打ち切る）
   //   complete: cfg.timeoutMs か DEFAULT_TIMEOUT（古い形には signal が無く、仕組みの打ち切りも分からないので、待つのをやめる）
   function claudeTimeoutMs(cfg, mouth) {
@@ -527,9 +527,9 @@
     return given || DEFAULT_TIMEOUT;
   }
 
-  // 口に 1 本の文字列を投げて、返事の文字列を受け取る。→ {text, truncated, tier}
-  //   打ち切り: claudeTimeoutMs のとおり。切るときは sample の signal を切り、どちらの口も待つのをやめる
-  //   （signal を見ない口でも、こちらは時間切れで返る）
+  // 決めた呼び出し方で 1 つの文字列を投げて、返事の文字列を受け取る。→ {text, truncated, tier}
+  //   打ち切り: claudeTimeoutMs のとおり。切るときは sample の signal を切り、どちらの呼び出し方でも待つのをやめる
+  //   （signal を見ない呼び出し方でも、こちらはタイムアウトで返る）
   async function claudeAsk(mouth, cfg, prompt, opts) {
     opts = opts || {};
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -557,10 +557,10 @@
     catch (e) { if (timer) clearTimeout(timer); throw claudeError(e, timedOut); }
     if (timer) clearTimeout(timer);
     if (mouth.sample) {
-      if (!r || typeof r.text !== 'string') throw screened(new Error(CLAUDE_WHO + ' の返事が {text, truncated} の形ではありません'), '分析役の返事が、決まった形で来なかった');
+      if (!r || typeof r.text !== 'string') throw screened(new Error(CLAUDE_WHO + ' の返事が {text, truncated} の形ではありません'), '分析役の返事が、決まった形式で来なかった');
       return { text: r.text, truncated: r.truncated === true, tier: typeof r.modelTierApplied === 'string' ? r.modelTierApplied : null };
     }
-    if (typeof r !== 'string') throw screened(new Error(CLAUDE_WHO + '（古い形）の返事が文字列ではありません'), '分析役の返事が文字になっていない');
+    if (typeof r !== 'string') throw screened(new Error(CLAUDE_WHO + '（古い形）の返事が文字列ではありません'), '分析役の返事がテキストになっていない');
     return { text: r, truncated: false, tier: null };
   }
 
@@ -577,12 +577,12 @@
   // 1 回だけ呼んで結果（成功も失敗も）を覚える
   function once(fn) { let p = null; return function () { if (!p) p = fn(); return p; }; }
 
-  // ---- mock（試験用） ----
+  // ---- mock（テスト用） ----
 
   // 判断ログ（イベントの配列）を step 番号 → 返事 に直す。
-  // tests/README.md「mock 分析役の台本」のとおり: n・lines・at を落として step:{t} に、fix/rename の was と hold.kind を落とし、
+  // tests/README.md「内蔵のダミー（テスト用）」のとおり: n・lines・at を落として step:{t} に、fix/rename の was と hold.kind を落とし、
   // li の無いカードは li:null に、note は {x} に。
-  // kind:"gap" の保留だけのステップ（検証に3回落ちた窓）は、台本では「わざと壊れた返事」を返す
+  // kind:"gap" の保留だけのステップ（検証に3回落ちた窓）は、内蔵のダミーは「わざと壊れた返事」を返す
   function scriptFromLog(events) {
     const steps = Object.create(null);
     let cur = null;
@@ -602,13 +602,13 @@
     return steps;
   }
 
-  // 検証に落ちる返事（gap の窓の台本）。t が窓の先（P09）で、ti が 51 字（F04）
+  // 検証に落ちる返事（gap の窓に返すダミーの返事）。t が窓の先（P09）で、ti が 51 字（F04）
   function brokenReply(t, nextIds) {
     const ti = Array(52).join('あ'); // 51 字
     return {
       step: { t: t.slice() },
       events: [{ e: 'card', id: (nextIds && nextIds.card) || 'C1', t: t[1] + 10, d: 1, role: 'claim', who: null, src: [], li: null, ti: ti, b: '' }],
-      note: { x: '（試験用の壊れた返事）' }
+      note: { x: '（テスト用の壊れた返事）' }
     };
   }
 
@@ -627,7 +627,7 @@
     };
   }
 
-  // ---- 共通の口 ----
+  // ---- 共通の入口 ----
 
   function makeAnalyst(cfg) {
     cfg = cfg || {};
@@ -647,20 +647,20 @@
     return { kind: cfg.kind, analyze: fn, label: LABEL[cfg.kind] };
   }
 
-  const LABEL = { anthropic: 'API（Anthropic）', openai: 'API（OpenAI 互換）', manual: '手動（遅い）', claude: 'この画面の Claude（枠の中）', mock: '試験用の台本' };
+  const LABEL = { anthropic: 'API（Anthropic）', openai: 'API（OpenAI 互換）', manual: '手動でチャットに貼る（遅い）', claude: 'この画面の Claude（アーティファクトの中）', mock: '内蔵のダミー（テスト用）' };
 
   function analyze(pack, prefix, cfg) { return makeAnalyst(cfg).analyze(pack, prefix); }
 
   // ---- 接続テスト ----
 
-  // 小さな呼び出しで、到達・認証・usage を返す。prefix を渡すと接頭辞ごと送り、キャッシュに乗るかを見られる。
+  // 小さな呼び出しで、到達・認証・usage を返す。prefix を渡すと接頭辞ごと送り、キャッシュに載るかを見られる。
   // opts.repeat が true なら同じ呼び出しを2回して、2回目の cache_read_input_tokens を cache_read に出す（1回目は書き込みになる）。
   // → {ok, reached, authed, status, usage, cache_read, model, error}
-  //   reached  API に届いた（HTTP の返事があった）
-  //   authed   鍵が通った（200）
-  // kind 'claude' のとき: 口を決めて（reached）、短い問いを sample（tier quick）か complete に投げ、返事が来れば ok（authed は
-  //   閲覧者が許した印）。status・usage・cache_read は無い（0・null のまま）。model には答えた段（modelTierApplied）を入れる。
-  //   prefix は送らない（枠の中の Claude はキャッシュを持たないので、接頭辞ごと送って見るものが無い）
+  //   reached  API に届いた（HTTP の応答があった）
+  //   authed   API キーが通った（200）
+  // kind 'claude' のとき: 呼び出し方を決めて（reached）、短い問いを sample（tier quick）か complete に投げ、返事が来れば ok（authed は
+  //   閲覧者が許したことを示すフラグ）。status・usage・cache_read は無い（0・null のまま）。model には答えたモデルの区分（modelTierApplied）を入れる。
+  //   prefix は送らない（アーティファクトの中の Claude はキャッシュを持たないので、接頭辞ごと送って見るものが無い）
   async function testConnection(cfg, prefix, opts) {
     cfg = cfg || {};
     opts = opts || {};
@@ -676,8 +676,8 @@
       } catch (e) { out.error = (e && e.screen) || String(e && e.message || e); }
       return out;
     }
-    if (cfg.kind !== 'anthropic' && cfg.kind !== 'openai') { out.error = '接続テストは API の分析役にだけ使えます'; return out; }
-    if (!cfg.key) { out.error = '鍵がありません'; return out; }
+    if (cfg.kind !== 'anthropic' && cfg.kind !== 'openai') { out.error = '「接続を試す」は、「整理する AI」が API のときだけ使えます'; return out; }
+    if (!cfg.key) { out.error = 'API キーがありません'; return out; }
     const sys = prefix ? String(prefix) : '返事は短くしてください。';
     const ask = '「了解」とだけ答えてください。';
     const one = async function () {
@@ -695,7 +695,7 @@
     let got;
     try { got = await one(); } catch (e) { out.error = String(e && e.message || e); return out; }
     out.status = got.r.status;
-    // 接続テストの結果は画面（API の設定の欄）に出すので、誤りは画面向けの文で返す
+    // 接続テストの結果は画面（API の設定の欄）に出すので、エラーは画面向けの文で返す
     if (got.r.error) { out.error = httpError(got.r, 'API').screen; return out; }
     out.reached = true;
     if (got.r.status !== 200) { out.error = httpError(got.r, 'API').screen; return out; }
@@ -714,7 +714,7 @@
     return out;
   }
 
-  // ---- 鍵の置き場 ----
+  // ---- API キーの置き場 ----
 
   const KEY_PREFIX = 'tsv.key.';
 
@@ -758,16 +758,16 @@
       try { if (ss) ss.removeItem(k); } catch (e) { /* 消せない */ }
       try { if (ls) ls.removeItem(k); } catch (e) { /* 消せない */ }
     },
-    // localStorage に覚えてあるか
+    // localStorage に保存してあるか
     remembered: function (name) {
       const ls = storage('localStorage');
       try { return !!(ls && ls.getItem(KEY_PREFIX + name)); } catch (e) { return false; }
     }
   };
 
-  // 設定の書き出し。鍵（key）と関数（ask）と台本（script）とスキーマ（schema）と口のオブジェクト（claude）は含めない
+  // 設定の書き出し。API キー（key）と関数（ask）とダミーの返事（script）とスキーマ（schema）とClaude を呼び出す機能のオブジェクト（claude）は含めない
   function exportSettings(cfg) {
-    const out = Object.create(null); // 読み込んだ設定の鍵をそのまま使うので、素の表にする
+    const out = Object.create(null); // 読み込んだ設定のキーをそのまま使うので、素の表にする
     Object.keys(cfg || {}).forEach(function (k) {
       if (k === 'key' || k === 'ask' || k === 'script' || k === 'schema' || k === 'claude') return;
       if (typeof cfg[k] === 'function') return;

@@ -1,25 +1,25 @@
 #!/usr/bin/env node
 /*
- * run_record_node.js — src/record.js の「枠の共有データベース（db）への写し」と「枠の保存（downloads）での書き出し」の試験
+ * run_record_node.js — src/record.js の「アーティファクトの共有データベース（db）へのコピー」と「アーティファクトの保存機能（downloads）での書き出し」のテスト
  *
  *   node tests/run_record_node.js
  *
- * 本物の db・downloads は呼ばない。ここにある偽の db（メモリの中で doc().set/get/update/delete と
+ * 本物の db・downloads は呼ばない。ここにあるモックの db（メモリの中で doc().set/get/update/delete と
  * collection().where/orderBy/limit/get を、契約（db.d.ts）の形に合わせて実装したもの）で確かめる。
  *
- * 群:
+ * グループ:
  *   1. 名前       記録の名前 → パスの段（dbSegment）。使えない字は _、日本語の名前どうしが同じ段にならない、長さの上限
  *   2. 追記       3 回の追記 → 文書 3 つ、id が 6 桁の 0 埋め、見出しの lastLog／lastSrc、空の追記は書かない、イベントの中身
  *   3. 直列化     重なった追記でも同じ文書へ同時に 2 つ書かない、重なった分は 1 つの文書にまとまる、順序が保たれる
- *   4. 失敗       1 回の失敗はやり直して通る／2 回で黙る（以後は db を呼ばない）／やり直しても通らない誤りはすぐ黙る
+ *   4. 失敗       1 回の失敗はやり直して通る／2 回で黙る（以後は db を呼ばない）／やり直しても通らないエラーはすぐ黙る
  *   5. loadAll    1000 件を超える頁の繰り、n の順、空、名前の衝突、db が無い、読み込み中は書かない
  *   6. 続き       同じ名前の新しい sink が見出しの続きから番号を振る。見出しが遅れていれば末尾の文書の先から
  *   7. 消す       文書と見出しが消える
  *   8. 保存       downloads の save が通れば true、断られたら false、.jsonl には .txt を足す、空は呼ばない、無ければ false
- *   9. 能力       useCapability は claude.use が無い・null・例外のどれでも null で、決して reject しない
- *  10. 結び付け   makeRecord に attachMirror すると、appendLog／appendSrc が写しにも届く
- *  11. 単一の書き手 書く前に見出しの貸し出し（acquire）を取る。別の端末が持っていれば書かずに止める（other_writer）、
- *                 持っている間は延ばす、切れた後に取り直したら見出しを読み直して末尾の先から、貸し出しの口が無ければ前のとおり書く
+ *   9. 機能       useCapability は claude.use が無い・null・例外のどれでも null で、決して reject しない
+ *  10. 結び付け   makeRecord に attachMirror すると、appendLog／appendSrc がコピーにも届く
+ *  11. 単一の書き手 書く前に見出しのロック（acquire）を取る。別の端末が持っていれば書かずに止める（other_writer）、
+ *                 持っている間は延ばす、切れた後に取り直したら見出しを読み直して末尾の先から、ロックの機能が無ければ前のとおり書く
  */
 'use strict';
 const path = require('path');
@@ -42,7 +42,7 @@ function deepFreeze(x) {
 }
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
-// ---- 偽の db（契約 db.d.ts の形） ----
+// ---- モックの db（契約 db.d.ts の形） ----
 const SEG_RE = /^[A-Za-z0-9_\-.~:@+]+$/;
 function makeFakeDb(opts) {
   opts = opts || {};
@@ -50,7 +50,7 @@ function makeFakeDb(opts) {
   const calls = [];                        // {op, path}
   const inflight = new Map();              // 書き込み中の文書 → 件数
   const failQueue = [];                    // 次の書き込みを落とす code の列
-  const leases = new Map();                // 貸し出し中の文書 → {holder, until}
+  const leases = new Map();                // ロック中の文書 → {holder, until}
   let overlap = 0;                         // 同じ文書へ同時に 2 つ書いた回数
   let readGate = null;                     // 読みを止める Promise（読み込み中に書かないことの確かめ）
   const delay = opts.delay || function () { return Promise.resolve(); };
@@ -71,7 +71,7 @@ function makeFakeDb(opts) {
   function write(op, p, fn) {
     calls.push({ op: op, path: p });
     const f = failQueue.shift();
-    if (f) return Promise.reject({ code: f, message: '試験の失敗 ' + f });
+    if (f) return Promise.reject({ code: f, message: 'テストの失敗 ' + f });
     inflight.set(p, (inflight.get(p) || 0) + 1);
     if (inflight.get(p) > 1) overlap++;
     return delay().then(function () {
@@ -99,13 +99,13 @@ function makeFakeDb(opts) {
       },
       delete: function () { return write('delete', p, function () { store.delete(p); }); },
       collection: function (sub) { return colRef(p + '/' + sub); },
-      // 貸し出し（契約の acquire）: 持ち主が無い・切れている・同じ持ち主なら与える（同じ持ち主は延ばす）。ほかの持ち主が持っていれば busy。
-      // 失敗の列（_failNext）は書き込みにだけ効く（acquire は消費しない）。_noAcquire なら口そのものを置かない
+      // ロック（契約の acquire）: 持ち主が無い・切れている・同じ持ち主なら与える（同じ持ち主は延ばす）。ほかの持ち主が持っていれば busy。
+      // 失敗の列（_failNext）は書き込みにだけ効く（acquire は消費しない）。_noAcquire なら acquire そのものを置かない
       acquire: function (o) {
         calls.push({ op: 'acquire', path: p, holder: o && o.holder });
-        if (opts.acquireReject) return Promise.reject({ code: opts.acquireReject, message: '試験の失敗 ' + opts.acquireReject });
+        if (opts.acquireReject) return Promise.reject({ code: opts.acquireReject, message: 'テストの失敗 ' + opts.acquireReject });
         const ttl = Math.min(600000, Math.max(1000, (o && o.ttlMs) || 30000));
-        const ttlReal = opts.ttlAsIs ? ((o && o.ttlMs) || 30000) : ttl;   // 試験では短い ttl をそのまま使う
+        const ttlReal = opts.ttlAsIs ? ((o && o.ttlMs) || 30000) : ttl;   // テストでは短い ttl をそのまま使う
         const cur = leases.get(p);
         const t = Date.now();
         if (cur && cur.until > t && cur.holder !== (o && o.holder)) return Promise.resolve({ acquired: false, expiresAt: new Date(cur.until).toISOString() });
@@ -185,7 +185,7 @@ function makeFakeDb(opts) {
   };
 }
 
-// 試験の中では、やり直しの待ちと時刻を固定する
+// テストの中では、やり直しの待ちと時刻を固定する
 const fixed = { now: function () { return '2026-10-09T00:00:00Z'; }, wait: function () { return Promise.resolve(); }, srcHoldMs: 0 };
 function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, i + 1] }; }
 
@@ -233,15 +233,15 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     t('追記', '見出しは 1 回しか set しない（2 回目からは update だけ）', db._calls.filter(function (c) { return c.op === 'set' && c.path === 'kiku/' + seg; }).length === 1);
     t('追記', 'status に写した数と見出しが出る', sink.status.db === '使える' && sink.status.written.log === 4 && sink.status.written.src === 1 && sink.status.docs.log === 3 && sink.status.head.lastLog === 3 && sink.status.error === null, JSON.stringify(sink.status));
     const h = await sink.head();
-    t('追記', 'head() は見出しの写しを返す', deepEq(h, head2));
+    t('追記', 'head() は見出しのコピーを返す', deepEq(h, head2));
     const src = [ev(9)];
     await sink.appendLog(src);
     src[0].n = 99;
-    t('追記', '渡した配列を後で変えても、書いた文書は変わらない（写しを取っている）', db._store.get('kiku/' + seg + '/log/000004').events[0].n === 9);
+    t('追記', '渡した配列を後で変えても、書いた文書は変わらない（コピーを取っている）', db._store.get('kiku/' + seg + '/log/000004').events[0].n === 9);
     const nul = REC.makeDbSink(null, 'x', fixed);
     const rNull = await nul.appendLog([ev(1)]);
     const lNull = await nul.loadAll();
-    t('追記', 'db が null なら、何もしない写し（status.db は「無し」、追記は false、loadAll は ok:false）', rNull === false && nul.status.db === '無し' && lNull.ok === false && deepEq(lNull.log, []) && nul.status.dropped === 1, JSON.stringify(nul.status));
+    t('追記', 'db が null なら、何もしないコピー（status.db は「無し」、追記は false、loadAll は ok:false）', rNull === false && nul.status.db === '無し' && lNull.ok === false && deepEq(lNull.log, []) && nul.status.dropped === 1, JSON.stringify(nul.status));
   })();
 
   // ---- 3. 直列化 ----
@@ -304,7 +304,7 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     db._failNext([null, 'unavailable']);
     const r5 = await sink.appendLog([ev(2)]);
     t('失敗', '見出しの更新だけ落ちても、やり直しで同じ文書に書き直して通る', r5 === true && db._paths('kiku/headfail/log/').length === 2 && db._store.get('kiku/headfail').lastLog === 2 && sink.status.retried === 1, JSON.stringify(sink.status));
-    // やり直しても通らない誤りはすぐ黙る
+    // やり直しても通らないエラーはすぐ黙る
     db = makeFakeDb();
     sink = REC.makeDbSink(db, 'quota', fixed);
     await sink.appendLog([ev(1)]);
@@ -350,7 +350,7 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     t('loadAll', '頁は 1000 件ずつ（log は 2 頁、src は 1 頁、末尾の確かめが 2 回）', q === 5, 'query ' + q);
     const r = await sink.appendLog([ev(1)]);
     t('loadAll', '読んだ後の追記は続きの番号（001201）', r === true && db._store.has('kiku/big/log/001201') && db._store.get('kiku/big').lastLog === 1201);
-    t('loadAll', '返したイベントは凍っていない写し（書き換えられる）', (function () { try { all.log[0].k = -1; return all.log[0].k === -1; } catch (e) { return false; } })());
+    t('loadAll', '返したイベントは凍っていないコピー（書き換えられる）', (function () { try { all.log[0].k = -1; return all.log[0].k === -1; } catch (e) { return false; } })());
     // 空
     const db2 = makeFakeDb();
     const s2 = REC.makeDbSink(db2, 'empty', fixed);
@@ -388,7 +388,7 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
 
   // ---- 6. 続き ----
   await (async function () {
-    // 同じタブで読み込み直した形（貸し出しの持ち主の名前が同じ）。別の端末の形は 11. 単一の書き手
+    // 同じタブで読み込み直した形（ロックの持ち主の名前が同じ）。別の端末の形は 11. 単一の書き手
     const db = makeFakeDb();
     const same = Object.assign({}, fixed, { holder: 'same-tab' });
     const a = REC.makeDbSink(db, 'cont', same);
@@ -434,7 +434,7 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     const a = await x.save('会議.jsonl', '{"e":"open"}\n');
     t('保存', '通れば true、呼び出しは {filename, data} で、拡張子は .txt を足した名前', a === true && got.length === 1 && got[0].filename === '会議.jsonl.txt' && got[0].data === '{"e":"open"}\n' && x.status.lastSaved === '会議.jsonl.txt' && x.status.reason === null, JSON.stringify(got));
     const b = await x.save('no.txt', 'x');
-    t('保存', '断られたら false で、理由が日本語で status に出る', b === false && x.status.lastError.code === 'declined' && x.status.reason === '保存しなかった', JSON.stringify(x.status));
+    t('保存', '断られたら false で、理由が日本語で status に出る', b === false && x.status.lastError.code === 'declined' && x.status.reason === '保存の確認で取り消した', JSON.stringify(x.status));
     const c = await x.save('c.txt', '');
     t('保存', '中身が空なら呼ばずに false', c === false && got.length === 2 && x.status.lastError.code === 'empty');
     const thrower = { save: function () { throw new Error('同期の例外'); } };
@@ -447,23 +447,23 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     t('保存', '知らない code は unavailable と同じ文', unknown.status.reason === 'この画面では保存できない' && unknown.status.lastError.code === 'something_new');
   })();
 
-  // ---- 9. 能力 ----
+  // ---- 9. 機能 ----
   await (async function () {
     const saved = globalThis.claude;
     try {
       delete globalThis.claude;
-      t('能力', 'claude が無ければ null', (await REC.useCapability('db')) === null);
+      t('機能', 'claude が無ければ null', (await REC.useCapability('db')) === null);
       globalThis.claude = { complete: function () { return Promise.resolve('x'); } };
-      t('能力', '古い形（complete だけ）なら null', (await REC.useCapability('db')) === null);
+      t('機能', '古い形（complete だけ）なら null', (await REC.useCapability('db')) === null);
       globalThis.claude = { use: function () { return null; } };
-      t('能力', 'use が null を返せば null', (await REC.useCapability('db')) === null);
+      t('機能', 'use が null を返せば null', (await REC.useCapability('db')) === null);
       globalThis.claude = { use: function () { throw new Error('x'); } };
-      t('能力', 'use が例外を投げても null（reject しない）', (await REC.useCapability('db')) === null);
+      t('機能', 'use が例外を投げても null（reject しない）', (await REC.useCapability('db')) === null);
       globalThis.claude = { use: function () { return Promise.reject(new Error('x')); } };
-      t('能力', 'use が reject しても null', (await REC.useCapability('db')) === null);
+      t('機能', 'use が reject しても null', (await REC.useCapability('db')) === null);
       const obj = { doc: function () {} };
       globalThis.claude = { use: function (n) { return n === 'db' ? Promise.resolve(obj) : Promise.resolve(null); } };
-      t('能力', 'use が返したものをそのまま返す', (await REC.useCapability('db')) === obj && (await REC.useCapability('downloads')) === null);
+      t('機能', 'use が返したものをそのまま返す', (await REC.useCapability('db')) === obj && (await REC.useCapability('downloads')) === null);
     } finally { if (saved === undefined) delete globalThis.claude; else globalThis.claude = saved; }
   })();
 
@@ -477,10 +477,10 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     rec.appendLog([ev(2)]);
     rec.appendSrc({ i: 1, t: 0, who: 'A', text: 'x' });
     await sink.flush();
-    t('結び付け', 'attachMirror の後の appendLog／appendSrc が写しに届き、前の分は届かない', db._paths('kiku/mirror/log/').length === 1 && db._store.get('kiku/mirror/log/000001').events[0].n === 2 && db._paths('kiku/mirror/src/').length === 1, JSON.stringify(db._paths('kiku/mirror')));
+    t('結び付け', 'attachMirror の後の appendLog／appendSrc がコピーに届き、前の分は届かない', db._paths('kiku/mirror/log/').length === 1 && db._store.get('kiku/mirror/log/000001').events[0].n === 2 && db._paths('kiku/mirror/src/').length === 1, JSON.stringify(db._paths('kiku/mirror')));
     t('結び付け', '記録の本体（メモリ）は従来どおり', rec.log.length === 2 && rec.src.length === 1);
     await rec.clear();
-    t('結び付け', '記録の clear() で写しも消える', db._paths('kiku/mirror').length === 0 && rec.log.length === 0);
+    t('結び付け', '記録の clear() でコピーも消える', db._paths('kiku/mirror').length === 0 && rec.log.length === 0);
     rec.attachMirror(null);
     rec.appendLog([ev(3)]);
     await sink.flush();
@@ -490,7 +490,7 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
   // ---- 11. 単一の書き手 ----
   await (async function () {
     const G = '単一の書き手';
-    // 2 つの端末（sink）が同じ名前を同時に写す: 先に書いた側が貸し出しを持ち、後の側は書かずに止まる（上書きで黙って消さない）
+    // 2 つの端末（sink）が同じ名前を同時にコピーする: 先に書いた側がロックを持ち、後の側は書かずに止まる（上書きで黙って消さない）
     let db = makeFakeDb({ ttlAsIs: true });
     const a = REC.makeDbSink(db, 'two', Object.assign({}, fixed, { leaseMs: 60, holder: 'tab-a' }));
     const b = REC.makeDbSink(db, 'two', Object.assign({}, fixed, { leaseMs: 60, holder: 'tab-b' }));
@@ -500,23 +500,23 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     t(G, '先に書いた端末は通り、後の端末は other_writer で書かずに止まる（文書は a の 2 つだけ。000001 の中身は a のまま）',
       ra === true && rb === false && ra2 === true && db._paths('kiku/two/log/').length === 2 && db._store.get('kiku/two/log/000001').events[0].n === 1 && db._store.get('kiku/two').lastLog === 2,
       JSON.stringify({ ra: ra, rb: rb, paths: db._paths('kiku/two/log/') }));
-    t(G, '止まった端末の status に「別の端末（タブ）が同じ記録を写している」と出て、落とした数が数えられ、以後は db を呼ばない',
-      b.status.db === '使えない' && /別の端末（タブ）が同じ記録を写している/.test(b.status.error) && /other_writer/.test(b.status.error) && b.status.dropped === 1 && b.status.retried === 0,
+    t(G, '止まった端末の status に「別のタブか別の PC が、同じ記録をデータベースに保存している」と出て、落とした数が数えられ、以後は db を呼ばない',
+      b.status.db === '使えない' && /別のタブか別の PC が、同じ記録をデータベースに保存している/.test(b.status.error) && /other_writer/.test(b.status.error) && b.status.dropped === 1 && b.status.retried === 0,
       JSON.stringify(b.status));
     const nb = db._calls.length;
     await b.appendLog([ev(100)]);
     t(G, '止まった端末の次の追記は黙って落とす', db._calls.length === nb && b.status.dropped === 2);
     const acq = db._calls.filter(function (c) { return c.op === 'acquire'; });
     t(G, 'acquire は見出しの文書に持ち主の名前で呼ばれる（a は書くたびに 1 回ずつ 2 回、b は busy のあと 1 回だけ取り直して 2 回）', acq.length === 4 && acq.every(function (c) { return c.path === 'kiku/two'; }) && acq.filter(function (c) { return c.holder === 'tab-a'; }).length === 2 && acq.filter(function (c) { return c.holder === 'tab-b'; }).length === 2, JSON.stringify(acq));
-    // 貸し出しが切れた後は、別の端末が書き手になれる。取り直したときは見出しと末尾を読み直し、末尾の先から（上書きしない）
+    // ロックが切れた後は、別の端末が書き手になれる。取り直したときは見出しと末尾を読み直し、末尾の先から（上書きしない）
     await sleep(80);
     const c = REC.makeDbSink(db, 'two', Object.assign({}, fixed, { leaseMs: 60, holder: 'tab-c' }));
     const rc = await c.appendLog([ev(3)]);
-    t(G, '貸し出しが切れた後は別の端末が書き手になれ、末尾の先（000003）から続ける', rc === true && db._store.has('kiku/two/log/000003') && db._store.get('kiku/two/log/000002').events[0].n === 2 && db._store.get('kiku/two').lastLog === 3, JSON.stringify(db._paths('kiku/two/log/')));
-    // a は持っていた貸し出しが切れている（c が持っている）→ 書かずに止まる
+    t(G, 'ロックが切れた後は別の端末が書き手になれ、末尾の先（000003）から続ける', rc === true && db._store.has('kiku/two/log/000003') && db._store.get('kiku/two/log/000002').events[0].n === 2 && db._store.get('kiku/two').lastLog === 3, JSON.stringify(db._paths('kiku/two/log/')));
+    // a は持っていたロックが切れている（c が持っている）→ 書かずに止まる
     const ra3 = await a.appendLog([ev(4)]);
-    t(G, '持っていた貸し出しを失った端末は、次に書こうとしたとき other_writer で止まる（c の文書を上書きしない）', ra3 === false && /別の端末/.test(a.status.error) && db._store.get('kiku/two/log/000003').events[0].n === 3 && db._paths('kiku/two/log/').length === 3, JSON.stringify(a.status));
-    // 同じ端末が間を置いて書くと（貸し出しが切れていても、誰も取っていなければ）取り直して続ける。
+    t(G, '持っていたロックを失った端末は、次に書こうとしたとき other_writer で止まる（c の文書を上書きしない）', ra3 === false && /別のタブか別の PC/.test(a.status.error) && db._store.get('kiku/two/log/000003').events[0].n === 3 && db._paths('kiku/two/log/').length === 3, JSON.stringify(a.status));
+    // 同じ端末が間を置いて書くと（ロックが切れていても、誰も取っていなければ）取り直して続ける。
     // 取り直したときは見出しを読み直すので、間に別の端末が残した文書（見出しの更新だけ通らなかった形）の先から
     db = makeFakeDb({ ttlAsIs: true });
     const d = REC.makeDbSink(db, 'gap', Object.assign({}, fixed, { leaseMs: 30, holder: 'tab-d' }));
@@ -526,27 +526,27 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     db._store.set('kiku/gap/log/000002', { n: 2, events: [ev(2)], at: 'x' });   // 別の端末が残した文書（見出しは 1 のまま）
     const rd = await d.appendLog([ev(3)]);
     const getsAfter = db._calls.filter(function (x) { return x.op === 'get' || x.op === 'query'; }).length;
-    t(G, '切れた貸し出しを取り直したときは見出しと末尾を読み直し、別の端末が残した文書の先（000003）に書く', rd === true && getsAfter > getsBefore && db._store.has('kiku/gap/log/000003') && db._store.get('kiku/gap/log/000002').events[0].n === 2 && db._store.get('kiku/gap').lastLog === 3, JSON.stringify(db._paths('kiku/gap/log/')));
+    t(G, '切れたロックを取り直したときは見出しと末尾を読み直し、別の端末が残した文書の先（000003）に書く', rd === true && getsAfter > getsBefore && db._store.has('kiku/gap/log/000003') && db._store.get('kiku/gap/log/000002').events[0].n === 2 && db._store.get('kiku/gap').lastLog === 3, JSON.stringify(db._paths('kiku/gap/log/')));
     // 持っている間は読み直さない（延ばすだけ）
     const getsBefore2 = db._calls.filter(function (x) { return x.op === 'get' || x.op === 'query'; }).length;
     await d.appendLog([ev(4)]);
     const getsAfter2 = db._calls.filter(function (x) { return x.op === 'get' || x.op === 'query'; }).length;
-    t(G, '貸し出しを持っている間の追記は、見出しを読み直さず延ばすだけ', getsAfter2 === getsBefore2 && db._store.has('kiku/gap/log/000004'));
+    t(G, 'ロックを持っている間の追記は、見出しを読み直さず延ばすだけ', getsAfter2 === getsBefore2 && db._store.has('kiku/gap/log/000004'));
     // 別の端末が持っていても、その端末が閉じられて延ばされなければ、切れる時刻まで待ってから取れる（待ちは wait を通す）
     const dbW = makeFakeDb({ ttlAsIs: true });
     dbW._lease('kiku/wait', 'closed-tab', 40);
     const waits = [];
     const w = REC.makeDbSink(dbW, 'wait', { now: fixed.now, srcHoldMs: 0, leaseMs: 60, holder: 'tab-w', wait: function (ms) { waits.push(ms); return sleep(ms); } });
     const rw = await w.appendLog([ev(1)]);
-    t(G, '別の端末の貸し出しが切れる時刻まで 1 回だけ待ち、延ばされなければ取って書く', rw === true && waits.length === 1 && waits[0] >= 200 && waits[0] <= 60 + 200 && dbW._store.has('kiku/wait/log/000001') && w.status.error === null, JSON.stringify(waits));
-    // 同じタブで読み込み直した形（持ち主の名前が同じ）は、相手の貸し出しが残っていても待たずに延ばして書く
+    t(G, '別の端末のロックが切れる時刻まで 1 回だけ待ち、延ばされなければ取って書く', rw === true && waits.length === 1 && waits[0] >= 200 && waits[0] <= 60 + 200 && dbW._store.has('kiku/wait/log/000001') && w.status.error === null, JSON.stringify(waits));
+    // 同じタブで読み込み直した形（持ち主の名前が同じ）は、相手のロックが残っていても待たずに延ばして書く
     const dbR = makeFakeDb({ ttlAsIs: true });
     dbR._lease('kiku/reload', 'tab-r', 60000);
     const waitsR = [];
     const rr = REC.makeDbSink(dbR, 'reload', { now: fixed.now, srcHoldMs: 0, leaseMs: 60, holder: 'tab-r', wait: function (ms) { waitsR.push(ms); return sleep(ms); } });
     const rrr = await rr.appendLog([ev(1)]);
-    t(G, '同じ持ち主の名前なら（同じタブで読み込み直した形）、残っている貸し出しを待たずに延ばして書く', rrr === true && waitsR.length === 0 && dbR._store.has('kiku/reload/log/000001'));
-    // 貸し出しの口が無い古い仕組み（acquire が無い・capability_removed）では、調停できないまま前のとおり書く
+    t(G, '同じ持ち主の名前なら（同じタブで読み込み直した形）、残っているロックを待たずに延ばして書く', rrr === true && waitsR.length === 0 && dbR._store.has('kiku/reload/log/000001'));
+    // ロックの機能が無い古い仕組み（acquire が無い・capability_removed）では、調停できないまま前のとおり書く
     const dbOld = makeFakeDb({ noAcquire: true });
     const e1 = REC.makeDbSink(dbOld, 'old', fixed);
     const re1 = await e1.appendLog([ev(1)]);
@@ -560,20 +560,20 @@ function ev(i) { return { e: 'step', n: i, t: [i * 30, i * 30 + 30], lines: [i, 
     const e3 = REC.makeDbSink(dbUn, 'un', fixed);
     const re3 = await e3.appendLog([ev(1)]);
     t(G, 'acquire が unavailable で落ちても、書き込みと同じに 1 回やり直し（2 回とも落ちれば止める）', re3 === false && e3.status.retried === 1 && /unavailable/.test(e3.status.error) && !dbUn._store.has('kiku/un/log/000001'), JSON.stringify(e3.status));
-    // loadAll（読むだけ）は貸し出しを取らない
+    // loadAll（読むだけ）はロックを取らない
     const dbRo = makeFakeDb({ ttlAsIs: true });
     dbRo._lease('kiku/ro', 'someone-else', 60000);
     const e4 = REC.makeDbSink(dbRo, 'ro', fixed);
     dbRo._store.set('kiku/ro', { name: 'ro', started: 'x', lastLog: 1, lastSrc: 0, v: 1 });
     dbRo._store.set('kiku/ro/log/000001', { n: 1, events: [ev(1)], at: 'x' });
     const all = await e4.loadAll();
-    t(G, '読むだけ（loadAll）は貸し出しを取らず、別の端末が持っていても読める', all.ok && all.log.length === 1 && dbRo._calls.filter(function (x) { return x.op === 'acquire'; }).length === 0, JSON.stringify(all));
+    t(G, '読むだけ（loadAll）はロックを取らず、別の端末が持っていても読める', all.ok && all.log.length === 1 && dbRo._calls.filter(function (x) { return x.op === 'acquire'; }).length === 0, JSON.stringify(all));
     const re4 = await e4.appendLog([ev(2)]);
-    t(G, '読んだ後に書こうとすると、別の端末が持っているので書かずに止まる（別の端末の文書は残る）', re4 === false && /別の端末/.test(e4.status.error) && dbRo._store.has('kiku/ro/log/000001') && !dbRo._store.has('kiku/ro/log/000002'));
+    t(G, '読んだ後に書こうとすると、別の端末が持っているので書かずに止まる（別の端末の文書は残る）', re4 === false && /別のタブか別の PC/.test(e4.status.error) && dbRo._store.has('kiku/ro/log/000001') && !dbRo._store.has('kiku/ro/log/000002'));
   })();
 
   report();
-})().catch(function (e) { console.error('試験そのものが例外で止まりました: ' + (e && e.stack || e)); process.exit(1); });
+})().catch(function (e) { console.error('テストそのものが例外で止まりました: ' + (e && e.stack || e)); process.exit(1); });
 
 function report() {
   const groups = {};

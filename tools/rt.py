@@ -15,13 +15,13 @@ min/max は、その版に在る欄だけ見る（v1 の open.window のよう�
   - 壁時計は ASCII の数字だけの ISO 8601 の UTC で、暦に在る日時だけ（24:00・2/30・秒の 60・0 年は F02）
   - JSONL の行がオブジェクトでないとき、e が文字列でないときは F07（落ちない）
 
-使い方（すべて道具の根（kiku.html のあるフォルダ）から。ログの場所は自由だが、例のとおり live/ の下に置く。.gitignore は会議の中身
+使い方（すべてツールのルートフォルダ（kiku.html のあるフォルダ）から。ログの場所は自由だが、例のとおり live/ の下に置く。.gitignore は会議の中身
 （*.jsonl・*.txt など）をどこに置いても止めるが、tests/ と format/ の下は架空の素材のために通すので、そこには置かない）
   新しいログを始める（live か、素材ファイル）。新しい記録は open でだけ始まり、open は v2 だけを書く
     python tools/rt.py open live/会議.jsonl --live --name 会議 --transcript live/会議.txt
     python tools/rt.py open live/会議.jsonl --src live/素材.txt --name 会議
 
-  live: 会議のあいだ裏で回し、メモ帳の新しい行を届いた時刻で素材ログに足す（記録が end で閉じると止まる）
+  live: 会議のあいだバックグラウンドで実行し、メモ帳の新しい行を届いた時刻で素材ログに足す（記録が end で閉じると止まる）
     python tools/rt.py watch live/会議.jsonl
 
   次の窓の発話を見せる（記録済みの最後の窓の直後だけ。飛ばして先は見せない）
@@ -40,38 +40,38 @@ min/max は、その版に在る欄だけ見る（v1 の open.window のよう�
   次回への引き継ぎ（章・深さ1までの見出し・開いている保留・最上位。--full でも 2000 字以内）
     python tools/rt.py digest live/会議.jsonl --full
 
-  聞き終える／聞くのを止める（道具が壁時計を押して書く。live で聞き終えるときは、先に next --last → append）
+  聞き終える／聞くのを止める（ツールが壁時計を押して書く。live で聞き終えるときは、先に next --last → append）
     python tools/rt.py end live/会議.jsonl
     python tools/rt.py pause live/会議.jsonl --why 休憩
 
-規則表の場所は変えられない（format/rules.json だけを読む。命令文で別の規則表を渡す口は持たない）。
+規則表の場所は変えられない（format/rules.json だけを読む。コマンドで別の規則表を渡すオプションは持たない）。
 
 バッチの形は2つ受ける。
   1. JSONL（1行1イベント。先頭は step。v1 と同じ）
   2. 分析役の返事そのもの（schema.json の {"step":{"t":[a,b]},"events":[...],"note":{"x":"..."}}）。
-     n・lines・at・note.t は道具が埋める。返事に think があっても捨てる（think は道具が埋める欄）。
+     n・lines・at・note.t はツールが埋める。返事に think があっても捨てる（think はツールが埋める欄）。
 1回の追記は「step とその窓のイベント」か「end だけ」「pause だけ」のどれか。
 step の追記に end・pause を混ぜると P02 で拒む。append は open を受けない（P01。新しい記録は open で始める）。
 end だけの追記も、rt.py end と同じ断り（end_refusal。live でまだ窓にしていない発話があれば、何も書かずに
 終了コード 1）を通る。end を書く道はどれもそこを通る。
-v1 の形のログは、元からあるログに書き足すことしかできない（v1 で新しく始める口は無い）。
+v1 の形のログは、元からあるログに書き足すことしかできない（v1 で新しく始める方法は無い）。
 
 判断ログの名前は、ちょうど小文字の .jsonl で終わる名前だけ（check_log_path。open・watch・next・append・
-end・pause・status・digest が照らす。「/」「/.」で終わる名前も断る）。在る判断ログを読む・書く命令は、加えて
-リンク（名前の実体が、フォルダだけを解いた場所と違う）・フォルダ・無いログを断る（check_log_target。K28）。道具は素材ログ <語幹>.src.jsonl・覚え書き <語幹>.next.json・watch の印 <語幹>.watch.json
+end・pause・status・digest が照合する。「/」「/.」で終わる名前も断る）。在る判断ログを読む・書くコマンドは、加えて
+リンク（名前の実体が、フォルダだけを解いた場所と違う）・フォルダ・無いログを断る（check_log_target。K28）。ツールは素材ログ <語幹>.src.jsonl・覚え書き <語幹>.next.json・watch の状態ファイル <語幹>.watch.json
 の名前を、判断ログの名前から .jsonl を除いた語幹で作るので、.peek・拡張子の無い名前・.JSONL を受けると、
 同じ語幹の別の判断ログと派生ファイルが重なる。.src.jsonl（大小文字を問わない）と、返事のバッチの名前
 （*.batch.jsonl。分析役が書き換えてよい場所なので、そこに置いたログは先を読んだあとで書き直せてしまう）も断る。
 open は、そのログか派生ファイルがもうあるときと、同じフォルダに語幹が大小文字を無視して同じになる判断ログか
-派生ファイルがあるときは断る（stem_conflicts）。watch の印には判断ログの名前を書き、名前が違う印（名前の無い
-印も）があれば watch・next・append・end・pause は P07 で断る（watch_mark_foreign）。
+派生ファイルがあるときは断る（stem_conflicts）。watch の状態ファイルには判断ログの名前を書き、名前が違う状態ファイル（名前の無い
+状態ファイルも）があれば watch・next・append・end・pause は P07 で断る（watch_mark_foreign）。
 
-1 つの素材に開けるログは 1 つ（v2）。open は素材の隣に持ち主の印 <素材>.owner（ログの場所。素材のフォルダ
-からの相対）を書く。別のログで同じ素材を open・next・append しようとすると P07 で断る（印が指すログが
-もう無ければ、新しいログが引き継ぐ）。v1 の記録も、--transcript の素材に別のログの印があれば断る（印は書かない）。
+1 つの素材に開けるログは 1 つ（v2）。open は素材の隣にロックファイル <素材>.owner（ログの場所。素材のフォルダ
+からの相対）を書く。別のログで同じ素材を open・next・append しようとすると P07 で断る（ロックファイルが指すログが
+もう無ければ、新しいログが引き継ぐ）。v1 の記録も、--transcript の素材に別のログのロックファイルがあれば断る（ロックファイルは書かない）。
 素材（open.src）の名前は .txt・.tsv・.vtt のどれかで終わる（大小文字は問わない。P30。規則表の
-limits.open.src_ext）。判断ログ・素材ログ・印・覚え書きを素材に名指すと、別のログの先を読めてしまうため。
-open はこれに加えて、記録の形の名前と、同じフォルダの持ち主の印が指す別のログの記録を名指すのを P07 で断る
+limits.open.src_ext）。判断ログ・素材ログ・ロックファイル・状態ファイル・覚え書きを素材に名指すと、別のログの先を読めてしまうため。
+open はこれに加えて、記録の形の名前と、同じフォルダのロックファイルが指す別のログの記録を名指すのを P07 で断る
 （named_record。v1 の記録の --transcript も同じ）。
 素材のある file の記録では、next・append に渡す --transcript は open.src と同じファイル（解決したパスで
 比べる）でなければ P07（live の記録でも、--transcript を渡すなら open.src と同じでなければ P07）。
@@ -80,7 +80,7 @@ open はこれに加えて、記録の形の名前と、同じフォルダの持
 （open の src。live の open には --transcript <メモ帳> が要るので、live の記録には必ず src がある）。
 open で素材を名指しした記録は、append の時点でその素材が見つからなくても免除しない（P07）。
 next は窓が閉じたときだけ窓の覚え書き（<ログ名>.next.json）を書く。append はその覚え書きを
-信じきらず、素材から窓を計算し直して照らす（P07）:
+信じきらず、素材から窓を計算し直して照合する（P07）:
   - 窓の始まりは、直前の step の t[1]（無ければ 0）。発話の無い窓を丸ごと飛ばしたときだけ、
     その窓の幅の分だけ先へ進む（next と同じ計算）
   - 窓の幅は open.window の 1〜3 倍（file の記録では 1 倍ちょうど。live では遅れた分だけ広がる）
@@ -92,16 +92,16 @@ next は窓が閉じたときだけ窓の覚え書き（<ログ名>.next.json）
     最初の発話から始まるときだけ、幅 0 の窓 [T, T]（始まりも T まで進む）に上限ちょうどの件数を入れる
 step はその窓と一致しなければならない（P07）。v2 の step の発話の件数は step.max_lines 以下（P05）。
 next が「まだ閉じていません」と言う間は覚え書きが無いので、append は P07 で拒む。
-素材の無い記録（試験・手書き）では覚え書きを求めない。v1 の記録は next を経ずに追記できる
+素材の無い記録（テスト・手書き）では覚え書きを求めない。v1 の記録は next を経ずに追記できる
 （append が文字起こしの行で直に確かめる）。
-道具が照らせないのは、同じ PC の上で覚え書き・素材ログ・持ち主の印・素材そのものを書き換えることだけ。
+ツールが照合できないのは、同じ PC の上で覚え書き・素材ログ・ロックファイル・素材そのものを書き換えることだけ。
 それは audit_r2b.py と会話記録で後から見る。
 
-壁時計（at）は道具が押す。分析役が step・end・pause に書いた at は、どんな値でも検査の前に捨てる。
---now は試験のために壁時計を固定する口。live の記録では、環境変数 KIKU_TEST_CLOCK=1 があるときだけ
+壁時計（at）はツールが押す。分析役が step・end・pause に書いた at は、どんな値でも検査の前に捨てる。
+--now はテストのために壁時計を固定するオプション。live の記録では、環境変数 KIKU_TEST_CLOCK=1 があるときだけ
 受ける（無ければ open --live・next・append・end・pause・watch のどれも --now を断る。聞き始めを過去に
-ずらして、聞き終える前に判断を押す道を作らせない）。試験のときも、実時計から 120 秒以上進んだ --now は
-受けない。file の記録は --now を受ける（過去の記録を作り直す試験のため）。live の記録では step の at が
+ずらして、聞き終える前に判断を押す道を作らせない）。テストのときも、実時計から 120 秒以上進んだ --now は
+受けない。file の記録は --now を受ける（過去の記録を作り直すテストのため）。live の記録では step の at が
 「聞き始め（open.t0）＋ 窓の終わり」より前なら P27 で拒む（聞き終える前に判断を押せない）。
 
 pause の t は直前の step の t[1] と同じ（step が無ければ 0）。先の時刻に中断を置いて窓を
@@ -117,7 +117,7 @@ pause の t は直前の step の t[1] と同じ（step が無ければ 0）。�
 書き足せたら、毎回これを表示する:
   今回の窓のカード／まだ閉じていない保留（今回のカードで決着した保留が無いか、ここで見直す）／
   決着の統計／最上位候補／数え上げの現在地／次の id（next_ids）
-検証に落ちた返事が同じ窓で3回続いたら、道具が「未確定の窓」の最小バッチを書いて窓を進める。
+検証に落ちた返事が同じ窓で3回続いたら、ツールが「未確定の窓」の最小バッチを書いて窓を進める。
 返事が JSON として読めない・UTF-8 として読めない・step が無いかオブジェクトでない・events が配列でない・
 events に note がある（所感は上の段の note に 1 つ）、も同じ窓の1回に数える。
 
@@ -131,7 +131,7 @@ events に note がある（所感は上の段の note に 1 つ）、も同じ�
   - JSONL の step の欄が壊れていても落ちない（F01・F02 で拒み、同じ窓の 1 回に数える）
 
 素材ファイルの読み方（file の記録。format/FORMAT.md「素材ファイルの形」の決まりで、ページのファイルの入口と
-同じ発話の列・同じ知らせになる。MaterialReader・iter_material。共通の試験素材と期待値は tests/fixtures/materials.json）:
+同じ発話の列・同じ知らせになる。MaterialReader・iter_material。共通のテスト素材と期待値は tests/fixtures/materials.json）:
   - 字の決まり: UTF-8（先頭の BOM は捨てる。読めないバイトは置換文字 U+FFFD）。行は LF だけで分ける。空白は
     半角スペース・タブ・CR・全角スペースの 4 つだけ
   - 書き方は 4 つで、読み始めたところで 1 つに決まり、途中で変わらない。先頭の空でない行が WEBVTT で始まれば
@@ -152,7 +152,7 @@ events に note がある（所感は上の段の note に 1 つ）、も同じ�
   - 時刻が飛んでいる行（揃える前の時刻が前の発話より前か、600 秒より先）は、拒まずに読んで知らせる（jump）
   - 知らせは、その行を含む発話（どの発話にも入らない行は後ろの最初の発話、最後の発話より後ろの行は最後の発話）を
     渡す窓で next が出す。1 つの窓では種類ごとに 1 文にまとめて行番号を並べる（MATERIAL_TEXT。ページと同じ文）
-live では、メモ帳の行を素材ログ（<ログ名>.src.jsonl）に足すのは watch だけ（会議のあいだ裏で回す）。
+live では、メモ帳の行を素材ログ（<ログ名>.src.jsonl）に足すのは watch だけ（会議のあいだバックグラウンドで実行する）。
 watch は 1 秒ごとにメモ帳を見て、新しく確定した行を 1 行 1 発話として足し、その行が届いた時刻（watch が見た時刻
 − 聞き始め。整数の秒に切り捨て）を押す。メモ帳に打った時刻は使わない（打ち間違えた時刻 1 つで、そのあとの発話の
 位置がすべて狂うため）。時計が戻ったときだけ、前の発話の時刻に揃える。行の読み方（memo_kind）:
@@ -164,16 +164,16 @@ watch は 1 秒ごとにメモ帳を見て、新しく確定した行を 1 行 1
   - 読めない行は無い（空でない行はすべて発話）。時刻の飛びも知らせない
 確定する行: 改行で終わった行と、改行の無い最後の行で同じ中身のまま 2 秒変わらなかったもの（ページの打つ入口の
 「Enter か 2 秒で確定」と同じ）。確定した後にその行へ字が足されたら、読み終えた行の書き換えとして扱う。
-next は素材ログだけを読む（素材ログに書かない）。watch が回っていない（印 <ログ名>.watch.json が無いか、
+next は素材ログだけを読む（素材ログに書かない）。watch が実行中でない（状態ファイル <ログ名>.watch.json が無いか、
 5 秒より古い）のに、メモ帳に素材ログへまだ入っていない変化（新しい行と、読み終えた行の変化の出来事。memo_pending。
-K25）があれば、next は窓を出さずに「watch を回してください」と言う（next の時刻で行を押すことはしない）。
+K25）があれば、next は窓を出さずに「watch を実行してください」と言う（next の時刻で行を押すことはしない）。
 メモ帳が見つからない・フォルダのあいだ、watch はメモ帳を突き合わせず（空のメモ帳とみなさない）、様子が変わったときに
 知らせる。next と next --last も、その知らせを窓に出す（memo_problem。K27）。
 watch はメモ帳の読み終えた行を中身で突き合わせる（K18。plan_memo。原則は「黙って欠かさない・黙って二重にしない。
-拾わなかった行は必ず名指して知らせる」）。行の中身は、時刻の列を落とした鍵（memo_key。K24）で比べる（並べる・
+拾わなかった行は必ず名指して知らせる」）。行の中身は、時刻の列を落としたキー（memo_key。K24）で比べる（並べる・
 寄せる・消えた行の覚え・spent のすべて）。前に見たメモ帳の確定した行の並びを C、いまの確定した行を M とする:
-  - M の頭が C とちょうど同じなら、新しい発話は M の残り（知らせは無い）
-  - そうでなければ、共通の頭と尻を外し、真ん中を最長共通部分列（動的計画法。並べ方が複数あれば C の後ろのほうの行を
+  - M の先頭が C とちょうど同じなら、新しい発話は M の残り（知らせは無い）
+  - そうでなければ、共通の先頭と末尾を外し、真ん中を最長共通部分列（動的計画法。並べ方が複数あれば C の後ろのほうの行を
     残す並べ方）で並べる。並ばなかった C の行は消えた行（読み終えた行なら覚えの溜まりに入れる）。並ばなかった M の行は、
     最後に並んだ行より後ろなら末尾の新しい行の候補、前なら読み終えた行の間の行
   - 並ばなかった M の行を前から見て、溜まりに同じ中身の消えた行があれば、その 1 つと組にして戻した行（拾わない。
@@ -200,12 +200,12 @@ live の窓は、壁時計が窓の終わりを過ぎたときにだけ閉じる
 「始まり＋window × 3」の早いほう（窓の幅の刻みには合わせない。中断の後に再開せずに聞き終えたときも同じ。K23）。
 end は、まだ窓にしていない発話か、メモ帳にまだ素材ログへ入っていない変化があれば、何も書かずに断る
 （end_refusal。append の end だけの追記も同じ）。end の t は、live は聞き終えた時計（整数の秒）と直前の窓の終わりの
-大きいほう、file は直前の窓の終わり（end_t）。live では、--t でも聞き終えた時計の秒より先には置けない（試験の時計の
+大きいほう、file は直前の窓の終わり（end_t）。live では、--t でも聞き終えた時計の秒より先には置けない（テストの時計の
 ときを除く。end_t_ahead。K23）。
-判断ログのパスに「..」を挟んだ名前はどの命令も断る。判断ログの名前がリンクなら open も断る（check_log_link。K28）。
-open は絶対パスに直して（フォルダの部分のリンクも解いて）から照らし、置き場の
+判断ログのパスに「..」を挟んだ名前はどのコマンドも断る。判断ログの名前がリンクなら open も断る（check_log_link。K28）。
+open は絶対パスに直して（フォルダの部分のリンクも解いて）から照合し、置き場の
 フォルダが無ければそのフォルダ 1 つだけを作る（K20）。素材（メモ帳・素材ファイル）の名前の「..」も、open と、
---transcript を受ける命令が断る（K27）。open は素材を実体の場所で照らし、持ち主の印を実体の隣に書く（印のフォルダが
+--transcript を受けるコマンドが断る（K27）。open は素材を実体の場所で照合し、ロックファイルを実体の隣に書く（ロックファイルのフォルダが
 無ければ 1 つだけ作る）。live のメモ帳が無ければ、そのフォルダが既にあるときだけ空のファイルとして作る。
 live で next が遅れて窓の終わりをいくつも過ぎていたら、窓は window × 3 まで広がり、終わりは窓の幅の目盛り
 （始まり＋幅の 1〜3 倍）のうち過ぎた所のいちばん後ろに揃える。
@@ -217,7 +217,7 @@ live で next が遅れて窓の終わりをいくつも過ぎていたら、窓
 file の記録で open の known が素材の本文と 30 字以上一致したら、警告（P28）を出す（拒まない）。
 比べるときは両方から空白と句読点・記号（Unicode の分類が Z・P・S の文字）を除く。
 
-終了コード: 0 成功 / 1 使い方・入出力の誤り（未来の --now、live の --now、watch が回っていない、もここ） /
+終了コード: 0 成功 / 1 使い方・入出力のエラー（未来の --now、live の --now、watch が実行中でない、もここ） /
             2 違反で拒否（1行も書いていない） /
             3 同じ窓で3回落ちたので未確定の窓として記録し、窓を進めた
 """
@@ -245,13 +245,13 @@ LABEL = {
 ROLE_JA = {"claim": "主張", "counter": "揺り戻し", "case": "実例", "land": "着地", "top": "最上位"}
 KIND_JA = {"start": "その場で", "retro": "遡って"}
 
-# 数字は ASCII だけ（Python の \d は全角などの数字にも当たるので使わない）
+# 数字は ASCII だけ（Python の \d は全角などの数字にも一致するので使わない）
 ISO_RE = re.compile(r"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(\.[0-9]+)?Z$")
 # 素材の時刻: 分:秒 か 時:分:秒（先頭の数は 1〜6 桁、続く数はちょうど 2 桁）。小数部は秒の後ろだけ
 TIME_RE = re.compile(r"([0-9]{1,6}):([0-9]{2})(?::([0-9]{2}))?(?:\.([0-9]+))?")
 # 時刻の列を読む前に、全角の数字と全角のコロンだけを半角に直す（本文は直さない）
 FW_TIME = str.maketrans("０１２３４５６７８９：", "0123456789:")
-# 「時刻らしい」字: 数字で始まり、数字と : と . だけでできていて、: を 1 つ以上含む（全角の数字とコロンを半角に直してから当てる）
+# 「時刻らしい」字: 数字で始まり、数字と : と . だけでできていて、: を 1 つ以上含む（全角の数字とコロンを半角に直してから照合する）
 TIME_LIKE_RE = re.compile(r"[0-9][0-9:.]*")
 # 素材の空白（半角スペース・タブ・CR・全角スペースの 4 つだけ。ページの素材の読みと同じ）
 SP_CHARS = " \t\r\u3000"
@@ -266,25 +266,25 @@ MAX_LINES = 40          # 1 つの窓に入る発話の上限（規則表に lim
 KNOWN_OVERLAP_MIN = 30  # file の記録で known と素材の本文がこの字数以上一致したら警告（規則表に limits.warn.known_overlap があればそちら）
 DIGEST_MAX = 2000       # digest --full の上限（規則表に limits.open.known があればそちら。次の open --known にそのまま渡せる長さ）
 VALUE_DEPTH_MAX = 32    # 欄の値の入れ子の上限（数・文字列は 0 段、[] と {} は 1 段＋中身）。超えたら F02
-PARSE_DEPTH_MAX = 500   # 入力の文字の入れ子がこれを超えたら、JSON として読む前に F02（読む道具が落ちないように）
+PARSE_DEPTH_MAX = 500   # 入力の文字の入れ子がこれを超えたら、JSON として読む前に F02（読む処理が落ちないように）
 RAW_MAX = 100           # 読めない行の raw に残す字数
 JUMP_SEC = 600          # 時刻の飛びとして知らせる進み（10 分を超える）
 WATCH_POLL_SEC = 1      # watch がメモ帳を見る間隔（秒）
-WATCH_STALE_SEC = 5     # watch の印がこれより古ければ、watch は回っていない
-TEST_CLOCK_ENV = "KIKU_TEST_CLOCK"  # live の記録で --now を受けるのは、この環境変数が 1 のときだけ（試験）
+WATCH_STALE_SEC = 5     # watch の状態ファイルがこれより古ければ、watch は実行中でない
+TEST_CLOCK_ENV = "KIKU_TEST_CLOCK"  # live の記録で --now を受けるのは、この環境変数が 1 のときだけ（テスト）
 
-# 規則表（format/rules.json の procedural）の id のうち、この道具が名指しで出すもの
+# 規則表（format/rules.json の procedural）の id のうち、このツールが名指しで出すもの
 RULE_HEARD = "P27"   # live: step.at − open.t0 ≧ step.t[1]
 RULE_KNOWN = "P28"   # 警告: file の記録で open.known が素材の本文と一致する
 RULE_POS = "P29"     # 並びの位置（R1）: t ≧ 0、card.t は src の発話の時刻の間、close.t ≧ hold.t
 RULE_SRC = "P30"     # 素材の名前: v2 の open.src は .txt・.tsv・.vtt で終わる（大小文字を問わない）
 SRC_EXTS = (".txt", ".tsv", ".vtt")   # 規則表に limits.open.src_ext があればそちら
-# 素材にできない名前（判断ログ・素材ログ・持ち主の印・watch の印・覚え書き）。open が断る（素材の名前の規則より先に、わけを言う）
+# 素材にできない名前（判断ログ・素材ログ・ロックファイル・watch の状態ファイル・覚え書き）。open が断る（素材の名前の規則より先に、わけを言う）
 RECORD_SUFFIXES = (".jsonl", ".owner", ".watch.json", ".next.json")
 
 
 class Fail(Exception):
-    """使い方・入出力の誤り（違反ではない）。"""
+    """使い方・入出力のエラー（違反ではない）。"""
 
 
 def src_exts(rules):
@@ -300,10 +300,10 @@ def src_name_ok(name, exts=SRC_EXTS):
     return isinstance(name, str) and name.lower().endswith(tuple(exts))
 
 
-# ---------------------------------------------------------------- 小道具
+# ---------------------------------------------------------------- ユーティリティ
 
 def fmt(s):
-    """秒を m:ss（1時間以上は h:mm:ss）に。負の秒は頭に - を付ける。数でない・範囲の外の値は repr。"""
+    """秒を m:ss（1時間以上は h:mm:ss）に。負の秒は先頭に - を付ける。数でない・範囲の外の値は repr。"""
     if not _is_num(s):
         return repr(s)
     sign = "-" if s < 0 else ""
@@ -328,16 +328,16 @@ def now_iso(fixed=None):
 
 
 def test_clock_on():
-    """試験の時計が許されているか（環境変数 KIKU_TEST_CLOCK が 1）。"""
+    """テストの時計が許されているか（環境変数 KIKU_TEST_CLOCK が 1）。"""
     return os.environ.get(TEST_CLOCK_ENV) == "1"
 
 
 def wall_clock(fixed, live):
-    """道具が押す壁時計。live の記録では、--now は試験のときだけ（KIKU_TEST_CLOCK=1）受け、
+    """ツールが押す壁時計。live の記録では、--now はテストのときだけ（KIKU_TEST_CLOCK=1）受け、
     そのときも実時計より FUTURE_SLACK_SEC 以上先の --now は受けない。"""
     if fixed and live and not test_clock_on():
-        raise Fail("live の記録では --now を受けません（壁時計は道具が実時計で押します。"
-                   f"--now は試験のときだけ、環境変数 {TEST_CLOCK_ENV}=1 を付けて使います）")
+        raise Fail("live の記録では --now を受けません（壁時計はツールが実時計で押します。"
+                   f"--now はテストのときだけ、環境変数 {TEST_CLOCK_ENV}=1 を付けて使います）")
     at = now_iso(fixed)
     if fixed and live:
         ahead = iso_sec(at) - time.time()
@@ -418,7 +418,7 @@ def parse_time(s):
 
 
 def time_like(s):
-    """時刻らしいか（format/FORMAT.md「素材ファイルの形」7）。全角の数字とコロンは半角に直してから当てる。
+    """時刻らしいか（format/FORMAT.md「素材ファイルの形」7）。全角の数字とコロンは半角に直してから照合する。
     前後の空白は除かない（行の頭に CR が残っていれば時刻らしくない。ページの読み方と同じ）。"""
     x = s.translate(FW_TIME)
     return bool(TIME_LIKE_RE.fullmatch(x)) and ":" in x
@@ -434,7 +434,7 @@ def line_head(s):
 
 
 # K30 時刻らしい頭の行（format/FORMAT.md「素材ファイルの形」。ページの intake.js の gluedTime・bracketTime と同じ決まり）。
-# どちらもタブを含まない行だけに当てる
+# どちらもタブを含まない行だけに適用する
 BRACKET_CLOSE = {"[": "]", "(": ")", "（": "）", "【": "】"}
 BAD_BYTE = "\ufffd"   # 読めないバイトを読んだ字（K30 の (c)。どの書き方でも読めない行）
 
@@ -472,7 +472,7 @@ def col_name(k):
 
 
 def dumps(e):
-    # 有限でない数は書かない（検査が先に F02 で拒む。ここは最後の守り）
+    # 有限でない数は書かない（検査が先に F02 で拒む。ここは最後の備え）
     return json.dumps(e, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
@@ -491,7 +491,7 @@ def _parse_int(s):
 
 def loads(text):
     """JSON を読む。NaN・Infinity・-Infinity の字句は読めないものとして扱う（ページの JSON.parse と同じ）。
-    入れ子が深すぎて読む道具が持たないときも、落ちずに読めないものとして扱う（ValueError）。"""
+    入れ子が深すぎて読む処理が持たないときも、落ちずに読めないものとして扱う（ValueError）。"""
     try:
         return json.loads(text, parse_constant=_reject_constant, parse_int=_parse_int)
     except RecursionError:
@@ -499,7 +499,7 @@ def loads(text):
 
 
 def text_depth(text):
-    """JSON の文字の入れ子の深さ（文字列の中の括弧は数えない）。読む前に、読む道具が持たない深さを断るために使う。"""
+    """JSON の文字の入れ子の深さ（文字列の中の括弧は数えない）。読む前に、読む処理が持たない深さを断るために使う。"""
     d = mx = 0
     in_str = esc = False
     for ch in text:
@@ -544,14 +544,14 @@ def brief(v, n=60):
 
 
 def name_tail(name, n=60):
-    """違反文に出す名前の字面（JSON の文字列）。長い名前は終わりの n−1 字だけを出し、頭に「…」を付ける
+    """違反文に出す名前の字面（JSON の文字列）。長い名前は終わりの n−1 字だけを出し、先頭に「…」を付ける
     （断る理由は名前の終わり＝拡張子にあるので、終わりを残す。K17。ページの verify.js と同じ切り方）。"""
     shown = name if len(name) <= n else "…" + name[-(n - 1):]
     return json.dumps(shown, ensure_ascii=False)
 
 
 def show(v, n=60):
-    """違反文に出す値の字面。入れ子の深い値は字面にしない（字面にする道具が落ちないように）。"""
+    """違反文に出す値の字面。入れ子の深い値は字面にしない（字面にする処理が落ちないように）。"""
     return brief(v, n) if value_depth(v) <= VALUE_DEPTH_MAX else "（入れ子の深い値）"
 
 
@@ -640,7 +640,7 @@ def same_json(a, b):
 
 
 def _walk(v):
-    """値の中の葉と、オブジェクトの鍵を順に返す（再帰しない。深い入れ子でも落ちない）。"""
+    """値の中の葉と、オブジェクトのキーを順に返す（再帰しない。深い入れ子でも落ちない）。"""
     stack = [v]
     while stack:
         x = stack.pop()
@@ -665,7 +665,7 @@ def _lone_surrogate(s):
 
 
 def has_lone_surrogate(v):
-    """値の中（配列・オブジェクトの中、オブジェクトの鍵も）に、対になっていないサロゲートを持つ文字列があるか。"""
+    """値の中（配列・オブジェクトの中、オブジェクトのキーも）に、対になっていないサロゲートを持つ文字列があるか。"""
     return any(isinstance(x, str) and _lone_surrogate(x) for x in _walk(v))
 
 
@@ -702,9 +702,9 @@ def same_value(a, b):
     return type(a) is type(b) and a == b
 
 
-# 判断ログの名前と、道具が名前から作る派生ファイル（K9）。判断ログは <語幹>.jsonl（小文字の .jsonl で終わり、
+# 判断ログの名前と、ツールが名前から作る派生ファイル（K9）。判断ログは <語幹>.jsonl（小文字の .jsonl で終わり、
 # .src.jsonl では終わらない）。派生ファイルは同じフォルダの <語幹>.src.jsonl（素材ログ）・<語幹>.next.json（覚え書き）・
-# <語幹>.watch.json（watch の印）
+# <語幹>.watch.json（watch の状態ファイル）
 LOG_SUFFIX = ".jsonl"
 SRCLOG_SUFFIX = ".src.jsonl"
 SIDE_SUFFIX = ".next.json"
@@ -769,7 +769,7 @@ def _notice(kind, line, **kw):
 
 # WebVTT（format/FORMAT.md「素材ファイルの形」の 'vtt'。ページの intake.js と同じ決まり）
 VTT_TS_RE = re.compile(r"(?:([0-9]{1,6}):)?([0-9]{2}):([0-9]{2})\.([0-9]{3})")
-# 字幕の時刻の行: 「始まり --> 終わり」と任意の設定。. は JS と同じく行の区切りの字（CR・LF・U+2028・U+2029）に当たらない
+# 字幕の時刻の行: 「始まり --> 終わり」と任意の設定。. は JS と同じく行の区切りの字（CR・LF・U+2028・U+2029）に一致しない
 VTT_TIMING_RE = re.compile("([0-9:.]+)[ \t]*-->[ \t]*([0-9:.]+)(?:[ \t][^\r\n  ]*)?")
 VTT_VOICE_RE = re.compile(r"<v(?:\.[^\t >]+)*(?:[ \t]([^>]*))?>")
 VTT_TAG_RE = re.compile(r"<[^>]*>")
@@ -801,8 +801,8 @@ def vtt_timing(s):
 
 
 def vtt_cue(joined):
-    """字幕 1 つの本文（行を半角スペース 1 つでつないだもの）→ (話者, 本文)。頭の <v 名前> か <v.クラス 名前> を
-    話者にし、<...> の札をすべて除いてから &amp; &lt; &gt; &nbsp; &quot; &#39; を字に戻す（1 回だけ）。"""
+    """字幕 1 つの本文（行を半角スペース 1 つでつないだもの）→ (話者, 本文)。先頭の <v 名前> か <v.クラス 名前> を
+    話者にし、<...> のタグをすべて除いてから &amp; &lt; &gt; &nbsp; &quot; &#39; を字に戻す（1 回だけ）。"""
     dec = lambda x: VTT_ENT_RE.sub(lambda m: VTT_ENT[m.group(1)], x)
     m = VTT_VOICE_RE.match(joined)
     who = (trim_sp(dec(m.group(1) or "")) or None) if m else None
@@ -833,7 +833,7 @@ class MaterialReader:
         （timehead）で、書き方がまだ決まっていなければ読めない行
       - K30 (c) 読めないバイト（U+FFFD）を含む行: どの書き方でも、書き方が決まる前でも読めない行（知らせの種類 badbyte）。
         書き方の見分けにも使わない。まだ出していない発話（字幕）はその手前で閉じ、続く行は読めない行の続き（'vtt' では
-        空行か次の時刻の行まで）。先頭の WEBVTT の行だけは、読めないバイトを含んでも見出しの塊の頭
+        空行か次の時刻の行まで）。先頭の WEBVTT の行だけは、読めないバイトを含んでも見出しの塊の先頭
       - ほかの行は直前の発話の本文の続き（半角スペース 1 つ）。最初の発話より前なら見出しとして黙って飛ばす
       - 'vtt': WEBVTT の行から空行まで、NOTE・STYLE・REGION で始まる塊（空行まで）は飛ばす。--> を含む行は字幕の
         時刻の行で、前の字幕をそこで閉じる。読めれば始まりの時刻（ミリ秒は切り捨て）の字幕を始め、読めなければ
@@ -1115,7 +1115,7 @@ def read_raw_lines(path, start, count):
 
 
 def monotone_list(utts, where="素材ログ"):
-    """素材ログの行（dict の並び）のうち発話を、時刻を単調にした写しにして返す。出来事の行（ev を持つ行）は除く。
+    """素材ログの行（dict の並び）のうち発話を、時刻を単調にしたコピーにして返す。出来事の行（ev を持つ行）は除く。
     壊れた行があれば Fail（落ちない）。"""
     return read_srclog_records(utts, where).utts
 
@@ -1123,13 +1123,13 @@ def monotone_list(utts, where="素材ログ"):
 # ---------------------------------------------------------------- live: 素材ログとメモ帳
 
 class Pool:
-    """消えた行の溜まり（K18・K24）。項目は (組, もとの行)。突き合わせは、もとの行から時刻の列を落とした鍵（memo_key）で
-    行い、同じ鍵の項目は新しいほうから取る。鍵ごとの索引を持つので、取る手間は同じ鍵の項目の数で済む（覚えを読み直す
-    たびに素材ログの全行を当て直しても、行数の 2 乗にならない）。"""
+    """消えた行の溜まり（K18・K24）。項目は (組, もとの行)。突き合わせは、もとの行から時刻の列を落としたキー（memo_key）で
+    行い、同じキーの項目は新しいほうから取る。キーごとの索引を持つので、取る手間は同じキーの項目の数で済む（覚えを読み直す
+    たびに素材ログの全行を適用し直しても、行数の 2 乗にならない）。"""
 
     def __init__(self):
-        self._items = []   # [組, もとの行, 鍵]（足した順。取った項目は None に置き換える）
-        self._by = {}      # 鍵 -> まだ取っていない項目の位置（古い順）
+        self._items = []   # [組, もとの行, キー]（足した順。取った項目は None に置き換える）
+        self._by = {}      # キー -> まだ取っていない項目の位置（古い順）
 
     def __len__(self):
         return sum(len(v) for v in self._by.values())
@@ -1140,7 +1140,7 @@ class Pool:
         self._items.append([g, raw, k])
 
     def take(self, key, g=None):
-        """鍵が key の項目を新しいほうから 1 つ取り除き、(組, もとの行) を返す（g を渡せば、その組の項目だけ）。無ければ None。"""
+        """キーが key の項目を新しいほうから 1 つ取り除き、(組, もとの行) を返す（g を渡せば、その組の項目だけ）。無ければ None。"""
         lst = self._by.get(key)
         if not lst:
             return None
@@ -1155,7 +1155,7 @@ class Pool:
         return bool(self._by.get(key))
 
     def items(self, key, g=None):
-        """鍵が key の項目（g を渡せば、その組の項目だけ）を古い順に [(組, もとの行)]。"""
+        """キーが key の項目（g を渡せば、その組の項目だけ）を古い順に [(組, もとの行)]。"""
         return [(self._items[q][0], self._items[q][1]) for q in self._by.get(key, ())
                 if g is None or self._items[q][0] == g]
 
@@ -1167,7 +1167,7 @@ class Pool:
 
 
 class SrcLog:
-    """素材ログ（live）を頭から当てたもの（K18）。
+    """素材ログ（live）を頭から適用したもの（K18）。
 
     entries は、watch が前に見たメモ帳の確定した行の並び [もとの行, 発話を持つか, 戻した行と知らせたか]（もとの行は前後の
     空白を除いた行。中身を持たない古い行は None）。発話を持つ行は読み終えた行（素材ログの発話になった行と、戻した行と
@@ -1175,7 +1175,7 @@ class SrcLog:
     3 つ目の「戻した行と知らせたか」は、戻した行とみなして知らせ、まだ末尾への打ち直しを受けていない行で真（K26。その行が
     メモ帳に残っている間、同じ中身を末尾に打った行は、消えた行の覚えより先にこれと組にして新しい発話にする）。
     pool は、消えた読み終えた行の溜まり（Pool。組は、その行が消えた保存の番号）。あとで末尾や間に同じ中身の行が現れたら、
-    新しいほうから 1 つずつ組にして、戻した行とみなす（K18 の 5）。中身は時刻の列を落とした鍵で比べる（K24）。
+    新しいほうから 1 つずつ組にして、戻した行とみなす（K18 の 5）。中身は時刻の列を落としたキーで比べる（K24）。
     spent は、溜まりから外した行（Pool。戻した行の知らせ・残った行の知らせで「末尾にもう一度打てば新しい発話」と言ったので、
     もう組にしない行）。末尾に同じ中身の新しい発話が来たら、打ち直した行として知らせ、その保存で同じ中身の項目をすべて除く
     （K26。消した行を戻しただけなら二重になったことを、黙らずに言う。同じ保存の同じ中身の行には 1 つずつ配って、どれも
@@ -1198,7 +1198,7 @@ class SrcLog:
 
 
 def apply_changed(sl, rec, k):
-    """読み終えた行の変化（{"ev":"changed",…}）を sl に当てる。当てられなければ偽。sync_memo が書く出来事と、
+    """読み終えた行の変化（{"ev":"changed",…}）を sl に適用する。適用できなければ偽。sync_memo が書く出来事と、
     read_srclog_records が読む出来事で同じ（K18）。k は素材ログの行の番号（組の番号を持たない前の版の行に使う）。
 
       deleted   pos から was の行数を除く。発話を持つ行なら、溜まりに [組 g, もとの行] で足す
@@ -1210,7 +1210,7 @@ def apply_changed(sl, rec, k):
       forget    溜まりから drop の [組, もとの行] を 1 つずつ spent へ移す（もう組にしない）
       retyped   drop の [組, もとの行] を 1 つずつ、spent から（無ければ溜まりから）除く（末尾の同じ中身の行を新しい発話に
                 したときの知らせ。K26）。paid があれば、その位置の行の「戻した行と知らせた」を外す（知らせのとおり打ち直しを
-                受けた）。drop が空なら知らせにしない（印を外すだけ）
+                受けた）。drop が空なら知らせにしない（フラグを外すだけ）
       前の版の rewritten・split・merged・moved: pos の was の行を now の行に置き換える
     """
     kind = rec.get("kind")
@@ -1271,10 +1271,10 @@ def apply_changed(sl, rec, k):
 
 
 def read_srclog_records(records, where="素材ログ"):
-    """素材ログの行を順に当てて SrcLog にする。壊れた行があれば Fail（落ちない）。
+    """素材ログの行を順に適用して SrcLog にする。壊れた行があれば Fail（落ちない）。
 
     発話の行は、前に見たメモ帳の行の並び（entries）の末尾に、発話を持つ行として足す。出来事の行（ev を持つ行）:
-    changed は並びと溜まりに当てる（apply_changed）。知らせになる changed と timecol（メモ帳の時刻を使わないことの
+    changed は並びと溜まりに適用する（apply_changed）。知らせになる changed と timecol（メモ帳の時刻を使わないことの
     知らせ）は、次の発話の前の知らせにする（最後の発話より後なら tail）。前の版の素材ログにある unreadable と empty は
     読み終えた行に数える（unreadable は知らせにもする）。ほかの出来事（ページの音声認識の切断・再開など）は、発話にも
     知らせにもしない。live の素材ログでは時刻の飛びを見ない（発話の時刻は、watch が押した届いた時刻だけ）。
@@ -1411,9 +1411,9 @@ def memo_kind(line):
 
 
 def memo_key(s, line=None):
-    """突き合わせに使う行の鍵（K24）: 前後の空白を除いた行から、K13 で落とす時刻の列（タブを含む行の 1 列目が時刻らしいもの。
+    """突き合わせに使う行のキー（K24）: 前後の空白を除いた行から、K13 で落とす時刻の列（タブを含む行の 1 列目が時刻らしいもの。
     memo_kind と同じ見分け）を落とし、残りの前後の空白を除いたもの。時刻の列だけが違う行（「12:30<TAB>乙<TAB>はい」と
-    「12:31<TAB>乙<TAB>はい」と「乙<TAB>はい」）は同じ鍵になる。中身を持たない古い行（None）は None。"""
+    「12:31<TAB>乙<TAB>はい」と「乙<TAB>はい」）は同じキーになる。中身を持たない古い行（None）は None。"""
     if s is None:
         return None
     cols = s.split("\t")
@@ -1422,7 +1422,7 @@ def memo_key(s, line=None):
     return s
 
 
-DP_MAX_CELLS = 250000   # 真ん中をこの数の升目まで動的計画法で並べる（K18 の 9。300 行 × 300 行で 0.2 秒以内）
+DP_MAX_CELLS = 250000   # 真ん中をこの数のセルまで動的計画法で並べる（K18 の 9。300 行 × 300 行で 0.2 秒以内）
 
 
 def _lcs_pairs(a, b):
@@ -1478,7 +1478,7 @@ def _unique_anchors(a, b):
 
 
 def _align(a, b, ao=0, bo=0, out=None):
-    """a と b を並べる（K18 の 3）。共通の頭と共通の尻を外し、真ん中を最長共通部分列で並べる。真ん中が
+    """a と b を並べる（K18 の 3）。共通の先頭と共通の末尾を外し、真ん中を最長共通部分列で並べる。真ん中が
     DP_MAX_CELLS より大きいときは、どちらにも 1 回だけ現れる行を目印に分けてから並べる（目印の無い大きな真ん中は
     並べない。どの行も消えた行・足された行として扱い、溜まりとの組で戻した行を見分ける）。戻り値 [(i, j)]（増える順）。"""
     if out is None:
@@ -1507,9 +1507,9 @@ def _align(a, b, ao=0, bo=0, out=None):
 
 
 def _normalize(pairs, keys, mk):
-    """並べ方が複数あるときの決め（K18 の 3。試験で縛る）: 同じ中身（鍵）の行が並んだ行の隣の隙間にもあれば、
+    """並べ方が複数あるときの決まり（K18 の 3。テストで縛る）: 同じ中身（キー）の行が並んだ行の隣の隙間にもあれば、
     M（いまのメモ帳）はいちばん前の行に、C（前のメモ帳）はいちばん後ろの行に並べ直す。末尾の行を新しい行に残し、
-    新しく足した行が古い消えた行に吸われないため。"""
+    新しく足した行が古い消えた行に飲み込まれないため。"""
     for idx in range(len(pairs)):
         i, j = pairs[idx]
         lo = pairs[idx - 1][1] + 1 if idx else 0
@@ -1528,7 +1528,7 @@ def _normalize(pairs, keys, mk):
 
 
 def _prefer_same_raw(pairs, raws, mraw, n):
-    """K24: 時刻の列を落とした鍵で並べたあと、組にした C の行と M の行のもとの行が違う（時刻の列が違う）とき、前後の組の
+    """K24: 時刻の列を落としたキーで並べたあと、組にした C の行と M の行のもとの行が違う（時刻の列が違う）とき、前後の組の
     間にある並ばなかった C の行に、M の行ともとの行まで同じ行があれば、そちらと組にし直す（いちばん後ろのもの）。
     同じように、末尾の隙間より前の並ばなかった M の行に、C の行ともとの行まで同じ行があれば、そちらと組にし直す。
     どちらも順は崩れず、並んだ行の数も変わらない（消えた行・間の行の知らせを、時刻の列まで違う行のほうに付ける）。"""
@@ -1565,16 +1565,16 @@ def plan_memo(sl, memo, g_now):
     """K18: いまのメモ帳の確定した行 memo（[(行番号, 前後の空白を除いた行, もとの行)]。これが M）を、前に見たメモ帳の行
     sl.entries（これが C）と消えた行の溜まり sl.pool に突き合わせ、書くものの並びを返す。各要素は、読み終えた行の変化の
     出来事（{"ev":"changed",…}。at は sync_memo が足す）か、新しい発話 {"new": j}（memo の添字）。g_now はこの保存の組の番号。
-    行の中身は、時刻の列を落とした鍵（memo_key）で比べる（K24。並べる・寄せる・溜まり・spent のすべて）。
+    行の中身は、時刻の列を落としたキー（memo_key）で比べる（K24。並べる・寄せる・溜まり・spent のすべて）。
 
-      1. 速い道: M の頭が C と鍵でちょうど同じなら、C の行はどれも同じ位置に並ぶ（残りは末尾の新しい行の候補）
-      2. そうでなければ _align（共通の頭と尻を外し、真ん中を最長共通部分列で並べる）と _normalize、_prefer_same_raw
+      1. 速い道: M の先頭が C とキーでちょうど同じなら、C の行はどれも同じ位置に並ぶ（残りは末尾の新しい行の候補）
+      2. そうでなければ _align（共通の先頭と末尾を外し、真ん中を最長共通部分列で並べる）と _normalize、_prefer_same_raw
       3. 並ばなかった C の行は消えた行（発話を持つ行は溜まりへ。組は g_now）。並ばなかった M の行は、最後に並んだ行より
          後ろなら末尾の新しい行の候補、前なら読み終えた行の間の行
       4. 並んだ行のもとの行が違えば（時刻の列だけの直し）retimed（記録に効かない。K13・K24）
       5. ほかの並ばなかった M の行は、前から順に:
          - 末尾の候補で、並んだ C の行に、同じ中身で「戻した行と知らせた」行が残っていれば、知らせのとおり打ち直した行
-           （新しい発話。K26。消えた行の覚えに同じ中身が残っていても組にしない）。その知らせた行の印を外し（retyped の
+           （新しい発話。K26。消えた行の覚えに同じ中身が残っていても組にしない）。その知らせた行のフラグを外し（retyped の
            paid）、溜まりと spent の同じ中身の行をすべて除く。除いた行があったときだけ、打ち直した行として知らせる。
            ただし同じ保存の末尾の候補に同じ中身の行がまだ続くなら、spent の 1 つだけを除き、残りはその行たちに回す
          - 溜まりに同じ中身の行があれば、新しいほうの 1 つと組にして戻した行（restored。拾わない）
@@ -1617,12 +1617,12 @@ def plan_memo(sl, memo, g_now):
         if ent[i][1]:
             pool.add(g_now, raws[i])
     spent = sl.spent.copy()
-    # 戻した行と知らせた行のうち、この保存でも並んで残っている行（鍵ごとに、M の位置の並び。K26）
+    # 戻した行と知らせた行のうち、この保存でも並んで残っている行（キーごとに、M の位置の並び。K26）
     owed = {}
     for i, j in pairs:
         if ent[i][2]:
             owed.setdefault(keys[i], []).append(j)
-    # 並ばなかった M の行を前から順に分ける。tail_left は、末尾の候補のうち、まだ分けていない行の数（鍵ごと）
+    # 並ばなかった M の行を前から順に分ける。tail_left は、末尾の候補のうち、まだ分けていない行の数（キーごと）
     tail_left = {}
     for j in gaps[last][1]:
         tail_left[mk[j]] = tail_left.get(mk[j], 0) + 1
@@ -1635,8 +1635,8 @@ def plan_memo(sl, memo, g_now):
             if q == last and owed.get(x):
                 # 知らせのとおり打ち直した行: 新しい発話。同じ中身の消えた行の覚え（溜まりと spent）はすべて除く
                 # （残すと、次に同じ中身を打ったときにまた戻した行とみなしてしまう）。除いた覚えがあったときだけ知らせる。
-                # ただし、この保存の末尾に同じ鍵の行がまだ続くなら、spent の 1 つだけを除き、残りはその行たちに回す
-                # （溜まりの覚えと組になれば戻した行、spent の覚えに当たれば打ち直した行として、どれも名指す）
+                # ただし、この保存の末尾に同じキーの行がまだ続くなら、spent の 1 つだけを除き、残りはその行たちに回す
+                # （溜まりの覚えと組になれば戻した行、spent の覚えと一致すれば打ち直した行として、どれも名指す）
                 drop = spent.items(x)[-1:] if tail_left[x] > 0 else spent.items(x) + pool.items(x)
                 for g, r in drop:
                     if spent.take(x, g) is None:
@@ -1648,7 +1648,7 @@ def plan_memo(sl, memo, g_now):
                 cls[j] = ("restored", got[0])
                 used.append((got[0], x))
             elif q == last:
-                # spent の覚えは、この保存の同じ鍵の末尾の行に 1 つずつ配り、最後の行に残りをすべて渡す（どの行も名指し、
+                # spent の覚えは、この保存の同じキーの末尾の行に 1 つずつ配り、最後の行に残りをすべて渡す（どの行も名指し、
                 # この保存のあとは spent に残さない。消した行をまとめて元に戻したとき、2 行目からが黙って二重にならないため）
                 drop = spent.items(x)
                 if tail_left[x] > 0:
@@ -1659,7 +1659,7 @@ def plan_memo(sl, memo, g_now):
             else:
                 cls[j] = ("inserted",)
     ops = []
-    # 消えた行（C の順。位置は、前の消去を当てたあとの位置）。続いて消えた行は、発話を持つかが同じあいだ 1 つの出来事
+    # 消えた行（C の順。位置は、前の消去を適用したあとの位置）。続いて消えた行は、発話を持つかが同じあいだ 1 つの出来事
     removed = 0
     for q, (D, _) in enumerate(gaps):
         at_line = line_of(pairs[q - 1][1] + 1 if q else 0)
@@ -1692,7 +1692,7 @@ def plan_memo(sl, memo, g_now):
         drop.extend([g, r] for g, r in pool.items(key, g))
     if drop:
         ops.append({"ev": "changed", "kind": "forget", "pos": 0, "was": [], "now": [], "drop": drop})
-    # 戻した行・間の行・新しい発話・時刻の列の直し（M の順。位置は、消去を当てたあとの並びの中。M の行 j を当てる時点の
+    # 戻した行・間の行・新しい発話・時刻の列の直し（M の順。位置は、消去を適用したあとの並びの中。M の行 j を適用する時点の
     # 位置はちょうど j）
     p = 0
     for q, (_, A) in enumerate(gaps):
@@ -1703,7 +1703,7 @@ def plan_memo(sl, memo, g_now):
                 run = None
                 if c[1] or c[2] is not None:
                     # 打ち直した行の知らせ（除いた覚えがあるときだけ知らせになる）。paid は、知らせのとおり打ち直しを
-                    # 受けた「戻した行」の位置（その行の印を外す。M の行 k を当てる時点の位置はちょうど k）
+                    # 受けた「戻した行」の位置（その行のフラグを外す。M の行 k を適用する時点の位置はちょうど k）
                     op = {"ev": "changed", "kind": "retyped", "line": memo[j][0], "lines": [memo[j][0]],
                           "pos": 0, "was": [], "now": [], "drop": [[g, r] for g, r in c[1]]}
                     if c[2] is not None:
@@ -1787,7 +1787,7 @@ def notice_text(n):
         kind = n.get("kind")
         if (kind == "forget" or (kind == "deleted" and n.get("u") is False)
                 or (kind == "retyped" and isinstance(n.get("drop"), list) and not n["drop"])):
-            return None   # 溜まりを片付けただけ・拾っていなかった行が消えただけ・除いた覚えの無い打ち直し（印を外すだけ）
+            return None   # 溜まりを片付けただけ・拾っていなかった行が消えただけ・除いた覚えの無い打ち直し（フラグを外すだけ）
     if not _is_int(line):
         if ev in MATERIAL_KINDS:
             return MATERIAL_NOLINE[ev]
@@ -1907,7 +1907,7 @@ def sync_memo(memo_path, srclog, t0_sec, at, settle=MEMO_SETTLE_SEC, tail_state=
     （raw は突き合わせに使う）。1 列目の時刻を落とした行が初めて来たときは、その発話の前に {"ev":"timecol"} を残す
     （「メモ帳の時刻は使いません」の知らせ。1 回だけ）。
 
-    読み終えた行が変わって見えたとき（消去など）は、settle 秒おいてもう一度読み、同じ中身のときだけ当てる。
+    読み終えた行が変わって見えたとき（消去など）は、settle 秒おいてもう一度読み、同じ中身のときだけ適用する。
     エディタが保存の途中でファイルを短くしている所を読むと、末尾の行が消えたように見えるため。後ろに行が足された
     だけなら待たない。メモ帳が見つからない・フォルダのときも None（K27。watch が memo_problem で知らせる）。
     """
@@ -1965,7 +1965,7 @@ def memo_problem(memo_path, memo_name=None):
 
 
 def memo_unreadable(memo_path, memo_name=None):
-    """メモ帳がファイルとして在るのに開けないわけ（ほかのアプリが掴んでいる・権限が無い）か None（8 回目の確かめ）。
+    """メモ帳がファイルとして在るのに開けないわけ（ほかのアプリが掴んでいる・権限が無い）か None（8 回目の確認）。
     next・next --last はこの文を窓に知らせ、next --last と end は開けるようになるまで断る（開けない間に打った行が、
     知らせ無しに記録から欠けないように）。watch は今までどおり、続けて読めないときだけ知らせて読み直す。"""
     name = memo_name or memo_path
@@ -2006,19 +2006,19 @@ def memo_pending(log, memo_name, tail=False, only_new=False):
     return sum(1 for o in plan_memo(sl, memo, 0) if "new" in o or (not only_new and o.get("kind") in PENDING_KINDS))
 
 
-# ---------------------------------------------------------------- live: watch の印
+# ---------------------------------------------------------------- live: watch の状態ファイル
 
 def watch_mark_path(log):
     p = Path(log)
     return p.with_name(log_stem(p) + WATCH_SUFFIX)
 
 
-MARK_TRIES = 5          # watch の印の読み書きが OSError で落ちたときに試す回数（K23。Windows で置き換えの最中に掴まれる）
+MARK_TRIES = 5          # watch の状態ファイルの読み書きが OSError で落ちたときに試す回数（K23。Windows で置き換えの最中に掴まれる）
 MARK_RETRY_SEC = 0.05
 
 
 def read_watch_mark(log):
-    """印の中身（辞書）か None（無い・読めない）。OSError と読みかけ（JSON として読めない）は、少し待って数回読み直す。"""
+    """状態ファイルの中身（辞書）か None（無い・読めない）。OSError と読みかけ（JSON として読めない）は、少し待って数回読み直す。"""
     p = watch_mark_path(log)
     for k in range(MARK_TRIES):
         try:
@@ -2035,10 +2035,10 @@ def read_watch_mark(log):
 
 
 def watch_mark_foreign(log):
-    """watch の印があり、印に書かれた判断ログの名前がこのログの名前と違えば、断るわけを返す（無ければ None）。
+    """watch の状態ファイルがあり、状態ファイルに書かれた判断ログの名前がこのログの名前と違えば、断るわけを返す（無ければ None）。
 
-    印は <語幹>.watch.json に置き、中身に判断ログの名前（log。フォルダを除いた名前）を書く（K9）。名前の無い印
-    （前の版の道具が書いた印など）も、このログの印とはみなさない。watch・next・append・end・pause が照らす。
+    状態ファイルは <語幹>.watch.json に置き、中身に判断ログの名前（log。フォルダを除いた名前）を書く（K9）。名前の無い状態ファイル
+    （前のバージョンのツールが書いた状態ファイルなど）も、このログの状態ファイルとはみなさない。watch・next・append・end・pause が照合する。
     """
     p = watch_mark_path(log)
     if not os.path.lexists(p):
@@ -2049,22 +2049,22 @@ def watch_mark_foreign(log):
     if theirs == mine:
         return None
     if not isinstance(theirs, str):
-        return (f"watch の印 {p.name} に判断ログの名前が書かれていないので、このログ {mine} の印とはみなしません"
-                "（語幹が同じ別の判断ログの印かもしれません）。前の版の道具が残した印なら、その watch が止まっているのを"
-                "確かめてから印を消し、watch を回し直してください")
-    return (f"watch の印 {p.name} は別の判断ログ {theirs!r} のものです（このログ {mine} の印ではありません）。"
-            "語幹が同じ別の判断ログの素材ログ・覚え書き・印は使えません")
+        return (f"watch の状態ファイル {p.name} に判断ログの名前が書かれていないので、このログ {mine} の状態ファイルとはみなしません"
+                "（語幹が同じ別の判断ログの状態ファイルかもしれません）。前のバージョンのツールが残した状態ファイルなら、その watch が止まっているのを"
+                "確かめてから状態ファイルを消し、watch を実行し直してください")
+    return (f"watch の状態ファイル {p.name} は別の判断ログ {theirs!r} のものです（このログ {mine} の状態ファイルではありません）。"
+            "語幹が同じ別の判断ログの素材ログ・覚え書き・状態ファイルは使えません")
 
 
 def watch_alive(log, clock):
-    """watch が回っているか: 印があり、その鼓動（beat）が clock から WATCH_STALE_SEC 秒以内。"""
+    """watch が実行中か: 状態ファイルがあり、そのハートビート（beat）が clock から WATCH_STALE_SEC 秒以内。"""
     d = read_watch_mark(log)
     b = iso_sec_or_none(d.get("beat")) if d else None
     return b is not None and abs(iso_sec(clock) - b) < WATCH_STALE_SEC
 
 
 def write_watch_mark(log, d):
-    """印を書く（一時ファイル <印>.<番号>.tmp に書いて置き換える。読む側が書きかけを見ない）。書けたら真。
+    """状態ファイルを書く（一時ファイル <状態ファイル>.<番号>.tmp に書いて置き換える。読む側が書きかけを見ない）。書けたら真。
     OSError は少し待って数回やり直し、それでも書けなければ一時ファイルを消して偽を返す（落ちない。K23）。"""
     p = watch_mark_path(log)
     tmp = p.with_name(p.name + "." + d["token"] + ".tmp")
@@ -2105,11 +2105,11 @@ def log_ended(log):
 
 
 def claim_watch_mark(log, mark, clock):
-    """watch の印を取る。取れたら真。別の watch の印が新しい（clock から WATCH_STALE_SEC 秒以内）なら偽。
+    """watch の状態ファイルを取る。取れたら真。別の watch の状態ファイルが新しい（clock から WATCH_STALE_SEC 秒以内）なら偽。
 
-    印が無ければ、作るだけの開き方（既にあれば失敗する）で書く（2 つの watch が同時に始まっても片方だけが取る）。
-    古い印（止まった watch が残したもの）は、印に書かれた判断ログの名前が自分と同じときだけ置き換え（K9）、
-    置き換えたあとで読み直して自分の印かを確かめる。
+    状態ファイルが無ければ、作るだけの開き方（既にあれば失敗する）で書く（2 つの watch が同時に始まっても片方だけが取る）。
+    古い状態ファイル（止まった watch が残したもの）は、状態ファイルに書かれた判断ログの名前が自分と同じときだけ置き換え（K9）、
+    置き換えたあとで読み直して自分の状態ファイルかを確かめる。
     """
     p = watch_mark_path(log)
     data = json.dumps(mark, ensure_ascii=False).encode("utf-8", "backslashreplace")
@@ -2122,16 +2122,16 @@ def claim_watch_mark(log, mark, clock):
         if d.get("token") != mark["token"] and watch_alive(log, clock):
             return False
         if not write_watch_mark(log, mark):
-            raise Fail(f"watch の印 {p.name} を書けません（ほかのアプリが掴んでいるか、書けない場所です）。少し待ってから watch を回し直してください")
+            raise Fail(f"watch の状態ファイル {p.name} を書けません（ほかのアプリが掴んでいるか、書けない場所です）。少し待ってから watch を実行し直してください")
         d = read_watch_mark(log)
         return bool(d) and d.get("token") == mark["token"]
     except OSError as ex:
-        raise Fail(f"watch の印 {p.name} を作れません（{ex.strerror or type(ex).__name__}）。少し待ってから watch を回し直してください")
+        raise Fail(f"watch の状態ファイル {p.name} を作れません（{ex.strerror or type(ex).__name__}）。少し待ってから watch を実行し直してください")
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
     except OSError as ex:
-        raise Fail(f"watch の印 {p.name} を書けません（{ex.strerror or type(ex).__name__}）。少し待ってから watch を回し直してください")
+        raise Fail(f"watch の状態ファイル {p.name} を書けません（{ex.strerror or type(ex).__name__}）。少し待ってから watch を実行し直してください")
     return True
 
 
@@ -2142,7 +2142,7 @@ class Rules:
         self.d = d
 
     def version_of(self, open_ev):
-        """open の v から版の鍵（"1"・"2"）を決める。規則表の versions.<版>.open_v に無い v は None。
+        """open の v から版のキー（"1"・"2"）を決める。規則表の versions.<版>.open_v に無い v は None。
 
         型も比べる（ページの verify.js の === と同じ）: true は 1 ではなく、"2" は 2 ではない。2.0 は 2。
         """
@@ -2153,7 +2153,7 @@ class Rules:
         return None
 
     def latest(self):
-        """規則表の最後の版の鍵（知らない版を F07 で拒んだあと、検査を続けるための仮の版）。"""
+        """規則表の最後の版のキー（知らない版を F07 で拒んだあと、検査を続けるための仮の版）。"""
         return list(self.d["versions"])[-1]
 
     def known_versions(self):
@@ -2202,13 +2202,13 @@ def type_ok(ty, v, rules, ver):
 
 
 def id_pattern_ok(ty, v, rules):
-    """id の形。文字列の頭から末尾まで当てる（re.match の $ は末尾の改行の手前でも当たるので fullmatch）。"""
+    """id の形。文字列の先頭から末尾まで照合する（re.match の $ は末尾の改行の手前でも一致するので fullmatch）。"""
     pat = rules.d["id_patterns"].get(ty[3:])
     return pat is None or (isinstance(v, str) and bool(re.fullmatch(pat, v)))
 
 
 def normalize_ints(e, rules):
-    """整数の欄（int・arr:int・li の番目）に小数点つきの整数で書かれた値を int に直した写しを返す。
+    """整数の欄（int・arr:int・li の番目）に小数点つきの整数で書かれた値を int に直したコピーを返す。
 
     fix の now・was は、直す欄（field）の型で直す。整数でない値は直さない（型の検査が落とす）。
     """
@@ -2241,7 +2241,7 @@ def normalize_ints(e, rules):
 # ---------------------------------------------------------------- 状態
 
 class State:
-    """ログの頭から順に当てて作る状態（検査・表示・pack に使う）。"""
+    """ログの頭から順に適用して作る状態（検査・表示・pack に使う）。"""
 
     def __init__(self, rules):
         self.rules = rules
@@ -2268,7 +2268,7 @@ class State:
         self.warnings = []
         self.material = None  # callable(j) -> 発話 1〜j の一覧（素材があるときだけ）
         self._batch = None
-        self._seq = None     # 欄の壊れた step の後: (読めた番号か None, 読めた範囲の終わりか None)。次の step はここから照らす
+        self._seq = None     # 欄の壊れた step の後: (読めた番号か None, 読めた範囲の終わりか None)。次の step はここから照合する
 
     # ---- 記録
     def err(self, where, code, msg):
@@ -2288,7 +2288,7 @@ class State:
 
     # ---- 版
     def _set_version(self, open_ev, where):
-        """open の v で版を決める。知らない v は F07（検査を続けるために規則表の最後の版を仮に当てる）。"""
+        """open の v で版を決める。知らない v は F07（検査を続けるために規則表の最後の版を仮に適用する）。"""
         self.open_ev = open_ev
         ver = self.rules.version_of(open_ev)
         if ver is None:
@@ -2311,7 +2311,7 @@ class State:
 
     def _src_name(self, e, where):
         """素材の名前（v2 の open.src）: 素材ファイルかメモ帳の名前（.txt・.tsv・.vtt。大小文字を問わない）だけを受ける。
-        判断ログ・素材ログ・印・覚え書き（.jsonl・.json・.owner）や拡張子の無い名前を素材にすると、別のログの記録を
+        判断ログ・素材ログ・ロックファイル・状態ファイル・覚え書き（.jsonl・.json・.owner）や拡張子の無い名前を素材にすると、別のログの記録を
         素材として読めてしまう（捨てるログで本番の素材ログを読む道）。"""
         src = e.get("src")
         if not self.v2 or not isinstance(src, str):
@@ -2319,7 +2319,7 @@ class State:
         exts = src_exts(self.rules)
         if not src_name_ok(src, exts):
             self.err(where, RULE_SRC, f"素材の名前 {name_tail(src)} は {'・'.join(exts)} で終わっていません"
-                                      "（素材にできるのは素材ファイルとメモ帳だけ。判断ログ・素材ログ・印・覚え書きは素材にできません）")
+                                      "（素材にできるのは素材ファイルとメモ帳だけ。判断ログ・素材ログ・ロックファイル・状態ファイル・覚え書きは素材にできません）")
 
     def _field_in_version(self, fs):
         """その欄がこの版の定義に入っているか（req が版の required_levels にあるか、任意の欄）。"""
@@ -2387,7 +2387,7 @@ class State:
         e = normalize_ints(e, self.rules)
         k = e["e"]
         if incoming and k in ("step", "end", "pause"):
-            # 壁時計は道具が押す。分析役が書いた at は、欄の検査より前に捨てる（版に無ければ欄ごと落とす）
+            # 壁時計はツールが押す。分析役が書いた at は、欄の検査より前に捨てる（版に無ければ欄ごと落とす）
             e = {kk: vv for kk, vv in e.items() if kk != "at"}
             if k != "step" or (self.open_ev is not None and self.col["step_at"]):
                 e["at"] = self._batch_clock
@@ -2572,7 +2572,7 @@ class State:
             self._batch["bad_step"] = True
             # 欄の壊れた step（違反は欄の検査が出している）。続くイベントは、読める所だけを文脈にして検査し
             # （id を取り、t が読めなければ P09 などを、lines が読めなければ src の範囲・話者・位置を飛ばす）、
-            # 次の step の番号・範囲は、読めた所から照らす。読めなかった所は照らさない（K17。F02 に、
+            # 次の step の番号・範囲は、読めた所から照合する。読めなかった所は照合しない（K17。F02 に、
             # 「ステップ番号は 1 のはず」「発話は 1 番目から」「id は C1 のはず」の連鎖した文を重ねない。拒むことは変わらない）
             t_ok = _pair_of(e.get("t"), _is_num)
             n_ok = _is_int(e.get("n"))
@@ -2587,7 +2587,7 @@ class State:
             return e
         n, lines, t = e["n"], e["lines"], e["t"]
         prev = self.last_step
-        # 番号と範囲は、直前の step（欄の壊れた step も、読めた所は数える）の続き。読めなかった所は照らさない
+        # 番号と範囲は、直前の step（欄の壊れた step も、読めた所は数える）の続き。読めなかった所は照合しない
         seq_n, seq_end = self._seq if self._seq is not None else ((prev["n"], prev["lines"][1]) if prev else (0, 0))
         want_n = None if seq_n is None else seq_n + 1
         if want_n is not None and n != want_n:
@@ -2723,7 +2723,7 @@ class State:
             if lid not in self.lists:
                 self.err(where, "P10", f"カード {i} の li が指す数え上げ {lid} がありません")
             elif not (1 <= k <= self.lists[lid]["n"]):
-                self.err(where, "P18", f"カード {i} の li の番目 {k} は数え上げ {lid} の範囲（1〜{self.lists[lid]['n']}）の外です")
+                self.err(where, "P18", f"カード {i} が指す {k} 番目は、数え上げ {lid} の範囲（1〜{self.lists[lid]['n']}）の外です")
             else:
                 self.list_at_item[lid] = k
         self._who(e, where, step, f"カード {i}")
@@ -2779,7 +2779,7 @@ class State:
                 self.err(where, "P14", f"訂正 {i} の {field} は {fs['max']} 以下です（{now} になっています）")
         if field == "span":
             if now[0] > cur["t"]:
-                self.err(where, "P14", f"括り {i} の始まり {fmt(now[0])} が印の時刻 {fmt(cur['t'])} より後です")
+                self.err(where, "P14", f"括り {i} の始まり {fmt(now[0])} が、マーカーの時刻 {fmt(cur['t'])} より後です")
             if now[1] is not None and now[1] < now[0]:
                 self.err(where, "P14", f"括り {i} の span が逆です")
             if now[1] is not None and step.get("t") and now[1] > step["t"][1]:
@@ -2814,7 +2814,7 @@ class State:
             self.err(where, "P12", f"括り {i} は既にあります")
         sp = e["span"]
         if sp[0] > e["t"]:
-            self.err(where, "P15", f"括り {i} の始まり {fmt(sp[0])} が印の時刻 {fmt(e['t'])} より後です")
+            self.err(where, "P15", f"括り {i} の始まり {fmt(sp[0])} が、マーカーの時刻 {fmt(e['t'])} より後です")
         if sp[1] is not None:
             if step.get("t") and sp[1] > step["t"][1]:
                 self.err(where, "P15", f"括り {i} の終わり {fmt(sp[1])} は、まだ聞いていない所を指しています")
@@ -2926,7 +2926,7 @@ def fold(events, rules, upto=None, material=None):
 
 
 def check_batch(st, batch, clock, window=None):
-    """バッチを状態に当てる（状態は変わる）。書き込む形のイベント列を返す。"""
+    """バッチを状態に適用する（状態は変わる）。書き込む形のイベント列を返す。"""
     old_errors = len(st.errors)
     st._batch_clock = clock
     if not batch:
@@ -2968,7 +2968,7 @@ def check_batch(st, batch, clock, window=None):
         where = f"入力{idx}行目"
         if e.get("e") == "step" and window is not None and _pair_of(e.get("t"), _is_num) and _pair_of(e.get("lines"), _is_int):
             if list(e["t"]) != list(window["t"]) or list(e["lines"]) != list(window["lines"]):
-                st.err(where, "P07", f"道具が渡した窓は {fmt(window['t'][0])}〜{fmt(window['t'][1])}（発話 {window['lines'][0]}〜{window['lines'][1]}）ですが、"
+                st.err(where, "P07", f"ツールが渡した窓は {fmt(window['t'][0])}〜{fmt(window['t'][1])}（発話 {window['lines'][0]}〜{window['lines'][1]}）ですが、"
                                      f"step は {show(e['t'])} / {show(e['lines'])} になっています")
         out.append(st.apply(e, where, incoming=True))
     st.end_batch()
@@ -3018,13 +3018,13 @@ def compute_window(st, utts, now_t=None, live=False, end=None):
     utts は発話を順に返す反復子（先頭から）。必要なところまでしか読まない。
     窓の始まりは直前の step の t[1]（無ければ 0）。まだ読んでいない最初の発話がその窓より先にあるとき
     だけ、発話の無い窓を丸ごと飛ばす（窓の幅の倍数だけ進む）。
-    窓に入るのは、まだ読んでいない発話を順に見て、時刻が窓の終わり以上の発話に当たる手前まで
+    窓に入るのは、まだ読んでいない発話を順に見て、時刻が窓の終わり以上の発話が来る手前まで
     （終わりの時刻ちょうどの発話は、それが素材の最後の発話でも次の窓）。live で遅れて届いた、
     時刻が窓の始まりより前の発話も、届いた次の窓に入る。上限の件数で切ったときは、窓の終わりを
     渡さなかった最初の発話の時刻まで縮め、その時刻と同じ時刻の発話は窓に入れない（下の本文の注）。
     live で追いつかなければ最大 window×3 まで広げる。live の窓は、壁時計（now_t）が窓の終わりを
     過ぎたときにだけ閉じる。file の窓はいつも閉じている。
-    end を渡すと、窓の終わりをその値に固定して計算する（append が覚え書きの窓を照らすとき）。
+    end を渡すと、窓の終わりをその値に固定して計算する（append が覚え書きの窓を照合するとき）。
     """
     w = st.window or 30
     factor = st.rules.limit("step.width_factor") or 3
@@ -3055,7 +3055,7 @@ def compute_window(st, utts, now_t=None, live=False, end=None):
     if st.col["limits"] and len(got) == cap and u is not None and u["t"] < end:
         # 上限で切った窓は、窓の終わりを「渡さなかった最初の発話の時刻」T まで縮める（そこまでしか聞いていない）。
         # 渡さなかった最初の発話と同じ時刻の発話が窓の中にあれば、その同じ時刻の塊の手前で切る（窓は上限より
-        # 少なくなる）。こうして t[0] ≦ 発話.t ＜ t[1] を道具が自分で破らない。塊が窓の最初の発話から始まる
+        # 少なくなる）。こうして t[0] ≦ 発話.t ＜ t[1] をツールが自分で破らない。塊が窓の最初の発話から始まる
         # （上限を超える発話がすべて同じ時刻）ときだけ、幅 0 の窓 [T, T] に上限ちょうど（P05 の例外。次の窓は
         # T から始まり、同じ時刻の残りを含む）。遅れて届いた発話（時刻が窓の始まりより前）で T が始まり以下のときも、
         # 幅 0 の窓 [始まり, 始まり] に上限ちょうど
@@ -3077,13 +3077,13 @@ def _pair_of(v, pred):
 
 
 def check_window(st, source, live, side):
-    """next が書いた覚え書きの窓を、素材から計算し直して照らす。戻り値 (窓, 違反文の一覧)。
+    """next が書いた覚え書きの窓を、素材から計算し直して照合する。戻り値 (窓, 違反文の一覧)。
 
     覚え書きは信じきらない。手で書いた覚え書きで窓を自分で決めることができないよう、
     窓の始まり・幅・発話の範囲を、素材（live は素材ログ、file は素材ファイル）から計算し直す。
     """
     if not isinstance(side, dict) or not _pair_of(side.get("t"), _is_num) or not _pair_of(side.get("lines"), _is_int):
-        return None, ["道具が渡した窓がありません（素材のある記録では、先に next で窓を出してから append します。"
+        return None, ["ツールが渡した窓がありません（素材のある記録では、先に next で窓を出してから append します。"
                       "next が「まだ閉じていません」と言う間は追記できません）"]
     t0, t1 = side["t"]
     l0, l1 = (_to_int(x) for x in side["lines"])
@@ -3103,7 +3103,7 @@ def check_window(st, source, live, side):
     base = compute_window(st, utts_iter(source), live=live)
     if base is None:
         where = "素材ログ" if live else "素材"
-        return None, [f"覚え書き（next が書いた窓）が素材と合いません: 覚え書きの窓 {shown} に当たる発話が{where}にありません"
+        return None, [f"覚え書き（next が書いた窓）が素材と合いません: 覚え書きの窓 {shown} に該当する発話が{where}にありません"
                       f"（{where}に、まだ読んでいない発話が無い。窓は next だけが決めます）"]
     start = base[0]
     msgs = []
@@ -3273,7 +3273,7 @@ def fail_errors(st, head, code=EXIT_REJECT):
 # ---------------------------------------------------------------- 入出力
 
 class BadReply(Fail):
-    """返事（バッチ）が読めない・形が違う。道具が渡した窓があるときは、同じ窓の1回に数える。
+    """返事（バッチ）が読めない・形が違う。ツールが渡した窓があるときは、同じ窓の1回に数える。
     code があれば違反の番号として出す（入れ子が深すぎる F02 など）。"""
 
     def __init__(self, msg, code=None):
@@ -3311,7 +3311,7 @@ def parse_batch(raw):
 
     全体を ``` で 1 回包んであれば外す。外したあとの全体が 1 つの JSON オブジェクトで、e の欄が無ければ返事。
     そうでなければ 1 行 1 イベントの JSONL として読む。入れ子が PARSE_DEPTH_MAX を超える入力は、
-    読む前に F02 で断る（読む道具が落ちないように）。
+    読む前に F02 で断る（読む処理が落ちないように）。
     """
     raw = unwrap_fence(raw)
     # 前後の空白は、JS の String.prototype.trim と同じ集まり（WS_CHARS）で除く（ページの読み方と同じ。囲みの内側も）
@@ -3319,7 +3319,7 @@ def parse_batch(raw):
     if not stripped:
         raise BadReply("入力が空です")
     if text_depth(stripped) > PARSE_DEPTH_MAX:
-        # JSON として読む前に、文字列の外の [ と { の入れ子を数えて断る（ページも同じ。読む道具が落ちないように）
+        # JSON として読む前に、文字列の外の [ と { の入れ子を数えて断る（ページも同じ。読む処理が落ちないように）
         raise BadReply(f"入力: 文字の入れ子（文字列の外の [ と {{）が {PARSE_DEPTH_MAX} 段を超えています（JSON として読む前に断ります）",
                        code="F02")
     try:
@@ -3339,9 +3339,9 @@ def parse_batch(raw):
 
 
 def reply_to_batch(obj, st, window):
-    """分析役の返事を JSONL のバッチに直す。n・lines・note.t は道具が埋める。形が違えば BadReply。"""
+    """分析役の返事を JSONL のバッチに直す。n・lines・note.t はツールが埋める。形が違えば BadReply。"""
     if window is None:
-        raise Fail("道具が渡した窓が分からないので lines を埋められません（先に next を呼ぶか、JSONL で渡してください）")
+        raise Fail("ツールが渡した窓が分からないので lines を埋められません（先に next を呼ぶか、JSONL で渡してください）")
     stp = obj.get("step")
     if not isinstance(stp, dict):
         raise BadReply("返事の step がありません（{\"t\":[始まり, 終わり]} のオブジェクトで書きます）" if "step" not in obj
@@ -3355,7 +3355,7 @@ def reply_to_batch(obj, st, window):
     note = obj.get("note")
     if note is not None and not isinstance(note, dict):
         raise BadReply("返事の note がオブジェクトではありません")
-    # think は道具が埋める欄なので、返事に書かれていても捨てる（ページの読み方と同じ）
+    # think はツールが埋める欄なので、返事に書かれていても捨てる（ページの読み方と同じ）
     step = {"e": "step", "n": (st.last_step["n"] + 1) if st.last_step else 1,
             "lines": list(window["lines"]), "t": stp.get("t")}
     # 返事の形（schema.json）では li が必須なので null で来る。記録では「無い」と同じなので欄ごと落とす
@@ -3374,7 +3374,7 @@ def write_events(log, events):
 
     小数点つきの整数（30.0）は整数（30）で書く。ページの JSON.stringify と同じ形になる。
     書けない値（有限でない数・片割れのサロゲート）があれば、ファイルを開く前にここで落ちる
-    （検査が先に F02 で拒むので、ここは最後の守り）。
+    （検査が先に F02 で拒むので、ここは最後の備え）。
     """
     data = "".join(dumps(_canon(e)) + "\n" for e in events).encode("utf-8")
     with open(log, "ab") as f:
@@ -3421,7 +3421,7 @@ def resolve_material(st, a):
     """
     if not st.v2:
         return None, None, False, None
-    # --transcript は open.src と同じファイルのときだけ受ける（guard_material が先に照らす）。読むのは open.src
+    # --transcript は open.src と同じファイルのときだけ受ける（guard_material が先に照合する）。読むのは open.src
     name = (st.open_ev or {}).get("src") or a.transcript
     mode = (st.open_ev or {}).get("mode")
     if mode == "live":
@@ -3450,7 +3450,7 @@ def find_src(log, path):
     return str(alt) if alt.exists() else None
 
 
-# ---------------------------------------------------------------- 1 つの素材に 1 つのログ（持ち主の印）
+# ---------------------------------------------------------------- 1 つの素材に 1 つのログ（ロックファイル）
 
 def material_path(log, name):
     """素材の場所。見つからなければ渡された名前のまま（live のメモ帳は会議の前には無い）。"""
@@ -3472,12 +3472,12 @@ def same_file(a, b):
 
 
 def owner_path(material):
-    """持ち主の印の場所: 素材の隣の <素材>.owner（素材を解決した場所の隣）。"""
+    """ロックファイルの場所: 素材の隣の <素材>.owner（素材を解決した場所の隣）。"""
     return Path(os.path.realpath(material) + ".owner")
 
 
 def read_mark(p):
-    """持ち主の印 p が指すログの場所。印が無い・空・読めなければ None。"""
+    """ロックファイル p が指すログの場所。ロックファイルが無い・空・読めなければ None。"""
     p = Path(p)
     if not p.is_file():
         return None
@@ -3491,7 +3491,7 @@ def read_mark(p):
 
 
 def owner_record(material):
-    """(印の場所, 印が指すログの場所)。印が無い・空・読めなければ、ログの場所は None。"""
+    """(ロックファイルの場所, ロックファイルが指すログの場所)。ロックファイルが無い・空・読めなければ、ログの場所は None。"""
     p = owner_path(material)
     return p, read_mark(p)
 
@@ -3499,9 +3499,9 @@ def owner_record(material):
 def named_record(log, name):
     """素材に名指したファイルが、記録のファイルなら、断るわけを返す（素材にしてよければ None）。
 
-    - 名前が判断ログ・素材ログ・持ち主の印・watch の印・覚え書きの形（.jsonl・.owner・.watch.json・.next.json）
-    - 同じフォルダにある持ち主の印（*.owner）が指す別のログの、判断ログそのもの・素材ログ・覚え書き・watch の印
-      （本番の素材ログには持ち主の印が無いので、それを素材にした捨てるログで、本番の窓より先を読めてしまうため）
+    - 名前が判断ログ・素材ログ・ロックファイル・watch の状態ファイル・覚え書きの形（.jsonl・.owner・.watch.json・.next.json）
+    - 同じフォルダにあるロックファイル（*.owner）が指す別のログの、判断ログそのもの・素材ログ・覚え書き・watch の状態ファイル
+      （本番の素材ログにはロックファイルが無いので、それを素材にした捨てるログで、本番の窓より先を読めてしまうため）
     """
     if not isinstance(name, str) or not name:
         return None
@@ -3513,7 +3513,7 @@ def named_record(log, name):
     for low in dict.fromkeys((name.lower(), real.lower())):
         for suf in RECORD_SUFFIXES:
             if low.endswith(suf):
-                return (f"{name} は判断ログ・素材ログ・持ち主の印・watch の印・覚え書きの名前（{suf}）です"
+                return (f"{name} は判断ログ・素材ログ・ロックファイル・watch の状態ファイル・覚え書きの名前（{suf}）です"
                         f"{'' if low == name.lower() else '（リンクの実体の名前）'}"
                         "（素材にできるのは素材ファイルとメモ帳だけ。記録を素材にすると、別のログの先を読めてしまう）")
     try:
@@ -3527,15 +3527,15 @@ def named_record(log, name):
             continue
         for x in (rec, srclog_path(rec), sidecar_path(rec), watch_mark_path(rec)):
             if same_file(path, x):
-                return (f"{name} は、別のログ {rec} の記録です（持ち主の印 {m.name} が指すログの判断ログ・素材ログ・"
-                        "覚え書き・watch の印は、素材にできません）")
+                return (f"{name} は、別のログ {rec} の記録です（ロックファイル {m.name} が指すログの判断ログ・素材ログ・"
+                        "覚え書き・watch の状態ファイルは、素材にできません）")
     return None
 
 
 def owner_conflict(log, material):
     """別のログがこの素材の持ち主なら、そのログの場所を返す。
 
-    印が無い・このログを指す・指すログがもう無い（消した・動かした）なら None（このログが引き継げる）。
+    ロックファイルが無い・このログを指す・指すログがもう無い（消した・動かした）なら None（このログが引き継げる）。
     """
     _, rec = owner_record(material)
     if rec is None or same_file(rec, log) or not os.path.exists(rec):
@@ -3544,8 +3544,8 @@ def owner_conflict(log, material):
 
 
 def write_owner(log, material):
-    """持ち主の印にこのログを書く（素材のフォルダからの相対。別のドライブなら絶対）。既にこのログなら書かない。
-    印を置くフォルダ（素材の実体のフォルダ）が無ければ、そのフォルダ 1 つだけを作る（K27）。"""
+    """ロックファイルにこのログを書く（素材のフォルダからの相対。別のドライブなら絶対）。既にこのログなら書かない。
+    ロックファイルを置くフォルダ（素材の実体のフォルダ）が無ければ、そのフォルダ 1 つだけを作る（K27）。"""
     p, rec = owner_record(material)
     if rec is not None and same_file(rec, log):
         return
@@ -3553,23 +3553,23 @@ def write_owner(log, material):
         rel = os.path.relpath(os.path.realpath(log), str(p.parent))
     except ValueError:
         rel = os.path.realpath(log)
-    p.parent.mkdir(exist_ok=True)   # 作るのは印のすぐ上のフォルダ 1 つだけ（K27。その上が無ければ OSError）
+    p.parent.mkdir(exist_ok=True)   # 作るのはロックファイルのすぐ上のフォルダ 1 つだけ（K27。その上が無ければ OSError）
     p.write_bytes((rel + "\n").encode("utf-8", "backslashreplace"))
 
 
 def owner_message(material, other):
     return (f"素材 {material} は、別のログ {other} が使っています。1 つの素材に開けるログは 1 つです"
-            f"（同じ素材を別のログで読むと、そのログの窓で先を読めてしまう。持ち主の印 {owner_path(material).name}）")
+            f"（同じ素材を別のログで読むと、そのログの窓で先を読めてしまう。ロックファイル {owner_path(material).name}）")
 
 
 def guard_material(st, a, claim=False):
-    """読む素材を照らす。違反文（P07 の文）か None を返す。
+    """読む素材を照合する。違反文（P07 の文）か None を返す。
 
     - v2: 読む素材は open.src（無ければ --transcript）。--transcript を渡すなら open.src と同じファイル
       （解決したパスで比べる。live でも file でも）
-    - 1 つの素材に開けるログは 1 つ: 素材の持ち主の印が別のログ（まだ在るもの）を指していれば断る
-      （v1 の記録も --transcript の素材で照らす）
-    - claim が真で、v2 で、印が無い（か、もう無いログを指す）なら、このログを書く（書けなくても止めない）
+    - 1 つの素材に開けるログは 1 つ: 素材のロックファイルが別のログ（まだ在るもの）を指していれば断る
+      （v1 の記録も --transcript の素材で照合する）
+    - claim が真で、v2 で、ロックファイルが無い（か、もう無いログを指す）なら、このログを書く（書けなくても止めない）
     """
     for nm in ((st.open_ev or {}).get("src") if st.v2 else None, a.transcript):
         why = dotdot_material(nm)
@@ -3641,7 +3641,7 @@ def known_overlap(known, source, k):
 def warn_known_overlap(st, log):
     """file の記録で、open の known が素材の本文と一致していれば警告（P28）を足す。拒まない。
 
-    素材の持ち主の印を照らしたあと（cmd_open）にだけ呼ぶ（別のログの素材で、本文の有り無しを試せないように）。
+    素材のロックファイルを照合したあと（cmd_open）にだけ呼ぶ（別のログの素材で、本文の有り無しを試せないように）。
     """
     if not st.v2 or (st.open_ev or {}).get("mode") != "file":
         return
@@ -3673,7 +3673,7 @@ def has_dotdot(name):
 def dotdot_material(name):
     """素材（メモ帳・素材ファイル）の名前に「..」があれば断る文（K27）。無ければ None。
 
-    POSIX では、無いフォルダを挟んだ名前（live/無い/../会議.txt）を、道具は字面で縮めて印を書き、OS は読めずに
+    POSIX では、無いフォルダを挟んだ名前（live/無い/../会議.txt）を、ツールは字面で縮めてロックファイルを書き、OS は読めずに
     メモ帳を 1 行も読まない（会議の発話が黙って欠ける）。判断ログの名前と同じく、たどらずに名指すようにする。"""
     if isinstance(name, str) and has_dotdot(name):
         return (f"素材（メモ帳・素材ファイル）のパスに「..」（一つ上のフォルダ）を挟めません: {name}"
@@ -3682,13 +3682,13 @@ def dotdot_material(name):
 
 
 def check_log_path(log):
-    """判断ログの名前の決め（K9。open・watch・next・append・end・pause・status・digest と audit_r2b.py が照らす）。
+    """判断ログの名前の決まり（K9。open・watch・next・append・end・pause・status・digest と audit_r2b.py が照合する）。
 
-    - 名前の終わりが「/」「/.」なら断る（K28。書く命令がフォルダとして開こうとして落ちないように）
+    - 名前の終わりが「/」「/.」なら断る（K28。書くコマンドがフォルダとして開こうとして落ちないように）
     - パスの区切り（/ か \\）の間に「..」（一つ上のフォルダ）があれば断る（K20。会議/x/../会議.jsonl などは、
-      無いフォルダを挟んだ書き方で、同じフォルダにある判断ログや派生ファイルの照らしをすり抜けるため）
-    - 名前はちょうど小文字の .jsonl で終わる（.JSONL・.peek・.tsv・拡張子の無い名前は断る）。道具は素材ログ・覚え書き・
-      watch の印の名前を判断ログの名前から作るので、.jsonl で終わらない名前を受けると、語幹の同じ別のログ（例 会議.jsonl）と
+      無いフォルダを挟んだ書き方で、同じフォルダにある判断ログや派生ファイルの照合をすり抜けるため）
+    - 名前はちょうど小文字の .jsonl で終わる（.JSONL・.peek・.tsv・拡張子の無い名前は断る）。ツールは素材ログ・覚え書き・
+      watch の状態ファイルの名前を判断ログの名前から作るので、.jsonl で終わらない名前を受けると、語幹の同じ別のログ（例 会議.jsonl）と
       同じ派生ファイル（会議.src.jsonl など）を指してしまう
     - .src.jsonl で終わる名前は断る（素材ログの名前。大小文字を問わない。Windows では 会議.SRC.jsonl も 会議.src.jsonl と同じファイル）
     - 返事のバッチと同じ名前（*.batch.jsonl）には置かない。バッチの場所は分析役が書き換えてよい場所なので、そこに置いた
@@ -3707,7 +3707,7 @@ def check_log_path(log):
         raise Fail(f"判断ログを {SRCLOG_SUFFIX} の名前に置けません（素材ログの名前。大小文字は問いません）: {log}")
     if not name.endswith(LOG_SUFFIX) or len(name) <= len(LOG_SUFFIX):
         raise Fail(f"判断ログの名前は、小文字の {LOG_SUFFIX} で終わる名前にします（例 live/会議.jsonl）: {log}"
-                   "（道具は素材ログ・覚え書き・watch の印の名前を、判断ログの名前から .jsonl を除いた語幹で作ります）")
+                   "（ツールは素材ログ・覚え書き・watch の状態ファイルの名前を、判断ログの名前から .jsonl を除いた語幹で作ります）")
 
 
 def _stem_folds(s):
@@ -3758,19 +3758,19 @@ def check_log_link(log):
         raise Fail(f"判断ログ {log} の場所を確かめられません（{ex}）")
     if os.path.normcase(real) != os.path.normcase(here):
         raise Fail(f"判断ログ {log} はリンクで、実体は {os.path.basename(real)} です。判断ログは実体の名前で渡してください"
-                   "（道具は素材ログ・覚え書き・watch の印を判断ログの名前から作るので、リンクの名前では別の記録を作ってしまう）")
+                   "（ツールは素材ログ・覚え書き・watch の状態ファイルを判断ログの名前から作るので、リンクの名前では別の記録を作ってしまう）")
     return real
 
 
 def check_log_target(log):
-    """在る判断ログを読む・書く命令（watch・next・append・end・pause・status・digest と監査）の入口の照らし（K28）。
+    """在る判断ログを読む・書くコマンド（watch・next・append・end・pause・status・digest と監査）の入口の照合（K28）。
     どれも Traceback ではなく、使う人に向けた文で断る（Fail。何も読まず、何も書かない）。
 
-    - 名前の決め（check_log_path。「/」「/.」で終わる名前・「..」・.jsonl でない名前・派生ファイルの名前）
-    - リンクを断る: 渡された名前の実体（realpath）が、フォルダだけを解いた場所と違えば断る。道具は素材ログ・覚え書き・
-      watch の印の名前を、渡された判断ログの名前から作るので、別の名前のリンクで本番の判断ログを名指すと、別の素材ログを
-      作って本番の窓を書いてしまう（R2b が黙って崩れる）。素材ログ・覚え書き・印を指すリンクも、ここで断る
-    - 実体の場所にも名前の決めを当てる。フォルダ・無い判断ログは断る（status・digest が、打ち間違えた名前を始めたばかりの
+    - 名前の決まり（check_log_path。「/」「/.」で終わる名前・「..」・.jsonl でない名前・派生ファイルの名前）
+    - リンクを断る: 渡された名前の実体（realpath）が、フォルダだけを解いた場所と違えば断る。ツールは素材ログ・覚え書き・
+      watch の状態ファイルの名前を、渡された判断ログの名前から作るので、別の名前のリンクで本番の判断ログを名指すと、別の素材ログを
+      作って本番の窓を書いてしまう（R2b が黙って崩れる）。素材ログ・覚え書き・状態ファイルを指すリンクも、ここで断る
+    - 実体の場所にも名前の決まりを適用する。フォルダ・無い判断ログは断る（status・digest が、打ち間違えた名前を始めたばかりの
       記録のように見せないため）
     """
     check_log_path(log)
@@ -3783,8 +3783,8 @@ def check_log_target(log):
 
 
 def guard_log(log):
-    """watch・next・append・end・pause の入口: 判断ログの名前と実体の照らし（K28）と、watch の印の持ち主を照らす（K9）。
-    印に書かれた判断ログの名前が自分と違えば、何もせずに断る（P07。終了コード 2）。"""
+    """watch・next・append・end・pause の入口: 判断ログの名前と実体の照合（K28）と、watch の状態ファイルがどのログのものかの照合（K9）。
+    状態ファイルに書かれた判断ログの名前が自分と違えば、何もせずに断る（P07。終了コード 2）。"""
     check_log_target(log)
     why = watch_mark_foreign(log)
     if why:
@@ -3818,28 +3818,28 @@ def make_log_folder(log):
 
 def cmd_open(a):
     rules = load_rules()
-    # 「..」を挟んだ名前は、直す前の名前で断る。そのあとは、断る・受ける・印を見るのどの判定よりも前に、絶対パスに直し
-    # （シンボリックリンクも解く）、直したパスで名前の決めと派生ファイルの重なりを照らす（K20。無いフォルダを挟んだ書き方や
+    # 「..」を挟んだ名前は、直す前の名前で断る。そのあとは、断る・受ける・ロックファイルや状態ファイルを見るのどの判定よりも前に、絶対パスに直し
+    # （シンボリックリンクも解く）、直したパスで名前の決まりと派生ファイルの重なりを照合する（K20。無いフォルダを挟んだ書き方や
     # リンクで、同じフォルダにある判断ログ・派生ファイルを見落とさないため）
     check_log_path(a.log)
     for nm in (a.transcript, a.src):
         why = dotdot_material(nm)   # 素材の名前の「..」も、直す前の名前で断る（K27）
         if why:
             raise Fail(why)
-    # 判断ログの名前がリンクなら断る（まだ無い先を指すリンクも。K28 の照らしを open にも当て、open で始めた名前が
+    # 判断ログの名前がリンクなら断る（まだ無い先を指すリンクも。K28 の照合を open にも適用し、open で始めた名前が
     # そのまま watch・next・append・end でも通るようにする）
     check_log_link(a.log)
     log = Path(os.path.realpath(a.log))
     check_log_path(log)
     if log.is_dir():
         raise Fail(f"{log} はフォルダです。判断ログはファイルの名前で渡します")
-    # 判断ログ自身・派生ファイル（素材ログ・覚え書き・watch の印）がもうあるか、同じフォルダに語幹が大小文字を無視して
+    # 判断ログ自身・派生ファイル（素材ログ・覚え書き・watch の状態ファイル）がもうあるか、同じフォルダに語幹が大小文字を無視して
     # 同じになる別の判断ログか派生ファイルがあれば断る（K9。別の判断ログの派生ファイルを自分のものとして読み書きしないため。
     # 空のファイルでも断る）
     clash = stem_conflicts(log)
     if clash:
         raise Fail(f"{log} は始められません。同じフォルダに、この判断ログか、語幹（{log_stem(log)}）が同じ判断ログ・素材ログ・"
-                   f"覚え書き・watch の印がもうあります（{'・'.join(clash)}。大小文字は区別しません）。新しいログは別の名前で始めます")
+                   f"覚え書き・watch の状態ファイルがもうあります（{'・'.join(clash)}。大小文字は区別しません）。新しいログは別の名前で始めます")
     if bool(a.live) == bool(a.src):
         raise Fail("--live か --src <素材ファイル> のどちらか一方を指定します")
     if a.live and not a.transcript:
@@ -3863,7 +3863,7 @@ def cmd_open(a):
     # 素材にできるのは素材ファイルとメモ帳だけ（名前の形は検査器の P30。ここでは加えて、記録のファイルと、
     # 別のログの記録（そのログの素材ログ・覚え書きなど）を名指していないかを見る）。いまの規則表では記録の名前は
     # どれも P30 で断られるので、同じことを 2 回言わないように、P30 を通った名前だけを見る（規則表の拡張子が
-    # 広げられたときの守り）
+    # 広げられたときの備え）
     why = named_record(log, e["src"]) if src_name_ok(e["src"], src_exts(rules)) else None
     if why:
         st.err("開始", "P07", why)
@@ -3876,11 +3876,11 @@ def cmd_open(a):
     if st.errors:
         fail_errors(st, "open できません（何も書いていません）:")
     if a.src and Path(find_src(log, a.src)).is_file():
-        # 発話が 1 つも無い素材は、記録を作らずに断る（K21。ページのファイルの入口と同じ文。名前の照らしを通った素材だけ読む）
+        # 発話が 1 つも無い素材は、記録を作らずに断る（K21。ページのファイルの入口と同じ文。名前の照合を通った素材だけ読む）
         no = material_refusal(find_src(log, a.src))
         if no:
             raise Fail("\n".join(no))
-    # 素材（メモ帳）は実体の場所で扱う（K27）。持ち主の印は実体の隣に書き、そのフォルダが無ければ 1 つだけ作る
+    # 素材（メモ帳）は実体の場所で扱う（K27）。ロックファイルは実体の隣に書き、そのフォルダが無ければ 1 つだけ作る
     # （その上も無ければ、何も書かずに断る）。メモ帳の名前がフォルダなら断る
     mreal = Path(os.path.realpath(material))
     mfold = mreal.parent
@@ -3888,19 +3888,19 @@ def cmd_open(a):
         raise Fail(f"メモ帳 {e['src']} はフォルダです。メモ帳はファイルの名前で渡します（何も書いていません）")
     if not mfold.is_dir():
         if os.path.lexists(mfold):
-            raise Fail(f"素材の隣に持ち主の印を置くフォルダ {mfold} を作れません（同じ名前のファイルがあります）。"
+            raise Fail(f"素材の隣にロックファイルを置くフォルダ {mfold} を作れません（同じ名前のファイルがあります）。"
                        "別の場所を選んでください（何も書いていません）")
         if not (mfold.parent.is_dir() or _real(mfold.parent) == _real(log.parent)):
-            raise Fail(f"素材の隣に持ち主の印を置くフォルダ {mfold} を作れません。その上のフォルダ {mfold.parent} がありません"
-                       "（open が作るのは、印のすぐ上のフォルダ 1 つだけです。先にフォルダを作るか、ある場所を選んでください。"
+            raise Fail(f"素材の隣にロックファイルを置くフォルダ {mfold} を作れません。その上のフォルダ {mfold.parent} がありません"
+                       "（open が作るのは、ロックファイルのすぐ上のフォルダ 1 つだけです。先にフォルダを作るか、ある場所を選んでください。"
                        "何も書いていません）")
     make_log_folder(log)
-    memo_folder = mfold.is_dir()   # メモ帳を作ってよいのは、そのフォルダが既にあるときだけ（K27。印のために作ったフォルダには作らない）
+    memo_folder = mfold.is_dir()   # メモ帳を作ってよいのは、そのフォルダが既にあるときだけ（K27。ロックファイルのために作ったフォルダには作らない）
     try:
         write_owner(log, material)
         write_events(log, [e])
     except OSError as ex:
-        raise Fail(f"判断ログ {log} か持ち主の印 {owner_path(material)} を書けません: {ex}")
+        raise Fail(f"判断ログ {log} かロックファイル {owner_path(material)} を書けません: {ex}")
     memo_note = None
     if a.live and not os.path.lexists(material):
         if memo_folder:
@@ -3912,19 +3912,19 @@ def cmd_open(a):
                 memo_note = (f"メモ帳 {e['src']} を作れませんでした（{ex.strerror or type(ex).__name__}）。"
                              "watch は、メモ帳ができるまで「見つかりません」と知らせます。")
         else:
-            memo_note = (f"メモ帳 {e['src']} はまだありません（置くフォルダが無かったので、持ち主の印のためにフォルダだけを作りました）。"
+            memo_note = (f"メモ帳 {e['src']} はまだありません（置くフォルダが無かったので、ロックファイルのためにフォルダだけを作りました）。"
                          "watch は、メモ帳ができるまで「見つかりません」と知らせます。")
-    # known と素材の本文の重なり（P28）は、印とログを書き終えてから見る（書けなかった open で、
+    # known と素材の本文の重なり（P28）は、ロックファイルとログを書き終えてから見る（書けなかった open で、
     # 素材の中身を当てる問いを繰り返せないように）
     warn_known_overlap(st, log)
     print_warnings(st)
     print(f"{log} を始めました（v2、{e['mode']}、窓 {a.window} 秒）。")
-    print(f"素材 {e['src']} の隣に持ち主の印 {owner_path(material).name} を書きました（この素材は、このログでだけ読めます）。")
+    print(f"素材 {e['src']} の隣にロックファイル {owner_path(material).name} を書きました（この素材は、このログでだけ読めます）。")
     if a.live:
         if memo_note:
             print(memo_note)
         print(f"素材は {e['src']} から読みます。素材ログ {srclog_path(log)} は、watch が最初の行を足したときにできます。")
-        print(f"次: 会議のあいだ、別の窓（裏）で rt.py watch {log} を回してください（メモ帳の新しい行に、届いた時刻を押して"
+        print(f"次: 会議のあいだ、別の窓（バックグラウンド）で rt.py watch {log} を実行してください（メモ帳の新しい行に、届いた時刻を押して"
               "素材ログに足します。記録が end で閉じると止まります）。それから next で1ステップ目の発話を出します。")
     else:
         print("次: next で1ステップ目の発話を出してください。")
@@ -3951,7 +3951,7 @@ def cmd_next(a):
     if st.ended:
         print("（ログは end で閉じた。ここで終わり）")
         return
-    # 1 つの素材に開けるログは 1 つ。--transcript は open.src と同じファイル（v2）。素材を読む前に照らす
+    # 1 つの素材に開けるログは 1 つ。--transcript は open.src と同じファイル（v2）。素材を読む前に照合する
     msg = guard_material(st, a, claim=True)
     if msg:
         refuse(msg)
@@ -3975,7 +3975,7 @@ def cmd_next(a):
         return
 
     live = st.open_ev.get("mode") == "live"
-    wall_clock(a.now, live)  # 未来の --now・試験でない live の --now は、窓を計算する前に断る
+    wall_clock(a.now, live)  # 未来の --now・テストでない live の --now は、窓を計算する前に断る
     side = load_sidecar(a.log) or {}
     memo_name = st.open_ev.get("src") if live else None
     first_i = st.last_step["lines"][1] + 1 if st.last_step else 1
@@ -3990,16 +3990,16 @@ def cmd_next(a):
         extra = []
         pend = 0
         if live:
-            # 素材ログに行を足すのは watch だけ。watch が回っていないのに新しい行があれば、窓を出さない
+            # 素材ログに行を足すのは watch だけ。watch が実行中でないのに新しい行があれば、窓を出さない
             # （next の時刻で行を押すと、話した位置が後ろへずれるため）
             pend = memo_pending(a.log, memo_name) if memo_name else 0
             alive = watch_alive(a.log, clock)
             if pend and not alive:
-                raise Fail(f"watch が回っていません。{MEMO_PENDING_TEXT.format(n=pend)}"
+                raise Fail(f"watch が実行中ではありません。{MEMO_PENDING_TEXT.format(n=pend)}"
                            "（行に届いた時刻を押せるのは watch だけで、next の時刻では押しません）。"
-                           f"会議のあいだ、別の窓（裏）で rt.py watch {a.log} を回してから、もう一度 next を打ってください")
+                           f"会議のあいだ、別の窓（バックグラウンド）で rt.py watch {a.log} を実行してから、もう一度 next を打ってください")
             if not alive:
-                extra = ["watch が回っていません（メモ帳に新しい行が入っても、素材ログには入りません。rt.py watch で回してください）"]
+                extra = ["watch が実行中ではありません（メモ帳に新しい行が入っても、素材ログには入りません。rt.py watch を実行してください）"]
             nomemo = memo_notice(a, st)
             if nomemo:
                 extra.append(nomemo)   # メモ帳が見つからないあいだは、黙って 0 行にしない（K27）
@@ -4091,7 +4091,7 @@ MEMO_PENDING_TEXT = "メモ帳に、素材ログへまだ入っていない変�
 
 def wait_memo_in(a, memo_name, what="next --last"):
     """メモ帳の変化（改行の無い最後の行も）が全部素材ログに入るまで待つ（K25。watch が 2 秒の確定をして書き終えるのを
-    待つ）。watch が回っていない・待っても入らないときは Fail。"""
+    待つ）。watch が実行中でない・待っても入らないときは Fail。"""
     limit = time.time() + max(a.wait or 0, LAST_WAIT_SEC)
     locked = memo_unreadable(material_path(a.log, memo_name), memo_name) if memo_name else None
     if locked:
@@ -4102,8 +4102,8 @@ def wait_memo_in(a, memo_name, what="next --last"):
         if not pend:
             return clock
         if not watch_alive(a.log, clock):
-            raise Fail(f"watch が回っていません。{MEMO_PENDING_TEXT.format(n=pend)}（改行の無い最後の行も数えます）。"
-                       f"別の窓（裏）で rt.py watch {a.log} を回してから、もう一度 {what} を打ってください")
+            raise Fail(f"watch が実行中ではありません。{MEMO_PENDING_TEXT.format(n=pend)}（改行の無い最後の行も数えます）。"
+                       f"別の窓（バックグラウンド）で rt.py watch {a.log} を実行してから、もう一度 {what} を打ってください")
         if time.time() >= limit:
             raise Fail(f"{MEMO_PENDING_TEXT.format(n=pend)}（最後の行が変わり続けているか、watch が追いついていない）。"
                        f"打ち終えて {TAIL_SETTLE_SEC} 秒たってから、もう一度 {what} を打ってください")
@@ -4239,7 +4239,7 @@ def _count_failure(a, old, rules, material, side, window, violations, clock):
         gap = gap_batch(st2, window, history + [violations], clock)
         out2 = check_batch(st2, gap, clock, window=window)
         if st2.errors:
-            fail_errors(st2, "未確定の窓の最小バッチも違反になりました（道具の欠陥です）:", EXIT_USAGE)
+            fail_errors(st2, "未確定の窓の最小バッチも違反になりました（ツールの欠陥です）:", EXIT_USAGE)
         write_events(a.log, out2)
         drop_sidecar(a.log)
         print(f"同じ窓で3回落ちたので、未確定の窓として {len(out2)} 件を書き、窓を進めました。", file=sys.stderr)
@@ -4251,7 +4251,7 @@ def _count_failure(a, old, rules, material, side, window, violations, clock):
     save_sidecar(a.log, side)
 
 
-NO_WINDOW = ("道具が渡した窓がありません（素材のある記録では、先に next で窓を出してから append します。"
+NO_WINDOW = ("ツールが渡した窓がありません（素材のある記録では、先に next で窓を出してから append します。"
              "next が「まだ閉じていません」と言う間は追記できません）")
 
 
@@ -4275,7 +4275,7 @@ def cmd_append(a):
     else:
         # Windows の標準入力は既定で OS の文字コードとして解釈され、日本語が化ける。バイト列で受けて UTF-8 で読む
         data = sys.stdin.buffer.read()
-    # 1 つの素材に開けるログは 1 つ。--transcript は open.src と同じファイル（v2）。素材を読む前に照らす
+    # 1 つの素材に開けるログは 1 つ。--transcript は open.src と同じファイル（v2）。素材を読む前に照合する
     msg = guard_material(st, a, claim=True)
     if msg:
         st.err("入力", "P07", msg)
@@ -4284,8 +4284,8 @@ def cmd_append(a):
     # 素材ログに行を足す（時刻を押す）のは watch だけ。append は watch が残した行を読むだけ
     material, source, named, where = resolve_material(st, a)
     st.material = material
-    # 窓。素材のある記録では、next が書いた覚え書きを素材から計算し直して照らし、合ったときだけ使う。
-    # 素材の無い記録（試験・手書き）では、覚え書きがあればそのまま使う
+    # 窓。素材のある記録では、next が書いた覚え書きを素材から計算し直して照合し、合ったときだけ使う。
+    # 素材の無い記録（テスト・手書き）では、覚え書きがあればそのまま使う
     window, window_errs = None, []
     if st.v2 and named:
         if source is None:
@@ -4296,7 +4296,7 @@ def cmd_append(a):
             window, window_errs = check_window(st, source, live, side)
     elif side is not None and _pair_of(side.get("t"), _is_num) and _pair_of(side.get("lines"), _is_int):
         window = {"t": side["t"], "lines": side["lines"]}
-    # 同じ窓の回数に数えられるのは、道具が渡した（照らして合った）窓があるときだけ
+    # 同じ窓の回数に数えられるのは、ツールが渡した（照合して合った）窓があるときだけ
     pending = st.v2 and window is not None and side is not None
 
     def unreadable(msg, code=None):
@@ -4396,11 +4396,11 @@ def gap_batch(st, window, history, clock):
 
 
 def cmd_status(a):
-    check_log_target(a.log)   # 素材ログ・覚え書き・watch の印（リンクも）・フォルダ・無いログは、中身を読まずに断る（K20・K28）
+    check_log_target(a.log)   # 素材ログ・覚え書き・watch の状態ファイル（リンクも）・フォルダ・無いログは、中身を読まずに断る（K20・K28）
     rules = load_rules()
     st = fold(load_jsonl(a.log), rules, a.upto)
     if a.json:
-        # 素材は、持ち主の印と open.src に合うときだけ読む（status は印を書かない）
+        # 素材は、ロックファイルと open.src に合うときだけ読む（status はロックファイルを書かない）
         msg = guard_material(st, a)
         if msg:
             print(f"（素材は読みません: {clean_text(msg)}）", file=sys.stderr)
@@ -4517,7 +4517,7 @@ def digest_text(st, name, full, limit=DIGEST_MAX):
 
 
 def cmd_digest(a):
-    check_log_target(a.log)   # 素材ログ・覚え書き・watch の印（リンクも）・フォルダ・無いログは、中身を読まずに断る（K20・K28）
+    check_log_target(a.log)   # 素材ログ・覚え書き・watch の状態ファイル（リンクも）・フォルダ・無いログは、中身を読まずに断る（K20・K28）
     rules = load_rules()
     st = fold(load_jsonl(a.log), rules, a.upto)
     name = (st.open_ev or {}).get("name", Path(a.log).stem)
@@ -4526,15 +4526,15 @@ def cmd_digest(a):
 
 
 def cmd_watch(a):
-    """live: 会議のあいだ裏で回し、1 秒ごとにメモ帳を見て、新しく確定した行を届いた時刻で素材ログに足す。
+    """live: 会議のあいだバックグラウンドで実行し、1 秒ごとにメモ帳を見て、新しく確定した行を届いた時刻で素材ログに足す。
 
-    出すのは件数と行番号と知らせだけ（行の中身は出さない。裏の出力を読んでも先が見えないように）。
-    記録が end で閉じたら止まる。--for 秒を過ぎても止まる（試験用）。--once は 1 回だけ見て止まる（試験用。
-    環境変数 KIKU_TEST_CLOCK=1 のときだけ）。1 つのログに watch は 1 つ（印 <ログ名>.watch.json）。
+    出すのは件数と行番号と知らせだけ（行の中身は出さない。バックグラウンドの出力を読んでも先が見えないように）。
+    記録が end で閉じたら止まる。--for 秒を過ぎても止まる（テスト用）。--once は 1 回だけ見て止まる（テスト用。
+    環境変数 KIKU_TEST_CLOCK=1 のときだけ）。1 つのログに watch は 1 つ（状態ファイル <ログ名>.watch.json）。
     """
     guard_log(a.log)
     if a.once and not test_clock_on():
-        raise Fail(f"--once は試験のときだけ使えます（環境変数 {TEST_CLOCK_ENV}=1 を付けます）")
+        raise Fail(f"--once はテストのときだけ使えます（環境変数 {TEST_CLOCK_ENV}=1 を付けます）")
     rules = load_rules()
     st = fold(load_jsonl(a.log), rules)
     if st.errors:
@@ -4544,7 +4544,7 @@ def cmd_watch(a):
     if not st.v2 or st.open_ev.get("mode") != "live":
         raise Fail("watch は live の記録（open --live）でだけ使います（file の記録は素材ファイルをそのまま読みます）")
     if st.ended:
-        print("（ログは end で閉じた。watch は回しません）")
+        print("（ログは end で閉じた。watch は実行しません）")
         return
     clock = wall_clock(a.now, True)
     msg = guard_material(st, a, claim=True)
@@ -4556,8 +4556,8 @@ def cmd_watch(a):
     token = secrets.token_hex(8)
     mark = {"token": token, "pid": os.getpid(), "started": clock, "beat": clock, "log": Path(a.log).name}
     if not claim_watch_mark(a.log, mark, clock):
-        raise Fail(f"このログには、もう別の watch が回っています（印 {watch_mark_path(a.log).name}）。1 つのログに watch は 1 つです"
-                   "（2 つ回すと同じ行を二度足すおそれがあるため）。止まった watch の印なら、5 秒たつと引き継げます")
+        raise Fail(f"このログには、もう別の watch が実行中です（状態ファイル {watch_mark_path(a.log).name}）。1 つのログに watch は 1 つです"
+                   "（2 つ実行すると同じ行を二度足すおそれがあるため）。止まった watch の状態ファイルなら、5 秒たつと引き継げます")
     stop_at = time.time() + a.for_sec if a.for_sec else None
     total = 0
     mark_failed = False
@@ -4579,7 +4579,7 @@ def cmd_watch(a):
         while True:
             cur = read_watch_mark(a.log)
             if cur is not None and cur.get("token") != token:
-                print("別の watch がこのログの印を取りました。こちらは止まります。", flush=True)
+                print("別の watch がこのログの状態ファイルを取りました。こちらは止まります。", flush=True)
                 break
             ended = log_ended(a.log)   # 閉じていても、最後にもう 1 回だけメモ帳を見てから止まる
             clock = now_iso(a.now)
@@ -4595,7 +4595,7 @@ def cmd_watch(a):
             got = None
             if not prob:
                 try:
-                    # 2 秒の確定は実時間で測る（--now の時計は秒に切り捨てた値なので使わない。試験の時計のときはそれで測る）
+                    # 2 秒の確定は実時間で測る（--now の時計は秒に切り捨てた値なので使わない。テストの時計のときはそれで測る）
                     got = sync_memo(memo, srclog, t0, clock, tail_state=tail_state,
                                     now_sec=iso_sec(clock) if a.now else time.monotonic())
                     if read_fails >= MEMO_READ_FAILS:
@@ -4627,7 +4627,7 @@ def cmd_watch(a):
                     mark_failed = False
                 elif not mark_failed:
                     mark_failed = True
-                    print(f"（知らせ）watch の印 {watch_mark_path(a.log).name} を書けませんでした（ほかのアプリが掴んでいる"
+                    print(f"（知らせ）watch の状態ファイル {watch_mark_path(a.log).name} を書けませんでした（ほかのアプリが掴んでいる"
                           "かもしれません）。次の回に書き直します。書けないあいだは、next が watch を止まっているとみなすことがあります",
                           flush=True)
             if a.once:
@@ -4690,7 +4690,7 @@ def end_t(st, clock):
 
 def end_t_ahead(st, t, clock, fixed):
     """live の end の t が、聞き終えた時計の秒（聞き始めからの整数の秒）より先なら断るわけ（K23。聞き終える前の所に
-    終わりを置かせない。P27 と同じ考え）。試験の時計（--now）のときと、file の記録では見ない。無ければ None。"""
+    終わりを置かせない。P27 と同じ考え）。テストの時計（--now）のときと、file の記録では見ない。無ければ None。"""
     if fixed or (st.open_ev or {}).get("mode") != "live" or not iso_ok(st.open_ev.get("t0")) or not _is_num(t):
         return None
     heard = now_t_of(clock, iso_sec(st.open_ev["t0"]))
@@ -4714,7 +4714,7 @@ def main(argv=None):
             s.reconfigure(encoding="utf-8", errors="backslashreplace")
         except Exception:
             pass
-    # 規則表は道具の隣の format/rules.json だけを読む（呼び出しで別の表に差し替えられない）
+    # 規則表はツールの隣の format/rules.json だけを読む（呼び出しで別の表に差し替えられない）
     p = argparse.ArgumentParser(description="判断ログの追記スクリプト v2（規則表 format/rules.json を読む）")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -4722,18 +4722,18 @@ def main(argv=None):
     q.add_argument("log")
     q.add_argument("--name")
     q.add_argument("--live", action="store_true", help="素材が届くそばから処理する")
-    q.add_argument("--src", help="素材ファイル（事後の作り直し・試験用）")
+    q.add_argument("--src", help="素材ファイル（事後の作り直し・テスト用）")
     q.add_argument("--transcript", help="live のメモ帳の場所（--live では必須。まだ無くてよい。open.src に書く）")
     q.add_argument("--window", type=float, default=30, help="窓の幅（秒）。既定 30。値の範囲は規則表の open.window（5〜180）")
     q.add_argument("--known", default="", help="聞き始める前に知っていたこと（digest --full の出力など。2000 字まで）")
-    q.add_argument("--now", help="壁時計を固定する（試験用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
+    q.add_argument("--now", help="壁時計を固定する（テスト用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
     q.set_defaults(fn=cmd_open)
 
-    q = sub.add_parser("watch", help="live: 会議のあいだ裏で回し、メモ帳の新しい行を届いた時刻で素材ログに足す（end で止まる）")
+    q = sub.add_parser("watch", help="live: 会議のあいだバックグラウンドで実行し、メモ帳の新しい行を届いた時刻で素材ログに足す（end で止まる）")
     q.add_argument("log")
-    q.add_argument("--for", dest="for_sec", type=float, help="この秒数だけ回して止まる（試験用）")
-    q.add_argument("--once", action="store_true", help="1 回だけ見て止まる（試験用。環境変数 KIKU_TEST_CLOCK=1 のときだけ）")
-    q.add_argument("--now", help="壁時計を固定する（試験用。環境変数 KIKU_TEST_CLOCK=1 のときだけ）")
+    q.add_argument("--for", dest="for_sec", type=float, help="この秒数だけ実行して止まる（テスト用）")
+    q.add_argument("--once", action="store_true", help="1 回だけ見て止まる（テスト用。環境変数 KIKU_TEST_CLOCK=1 のときだけ）")
+    q.add_argument("--now", help="壁時計を固定する（テスト用。環境変数 KIKU_TEST_CLOCK=1 のときだけ）")
     q.set_defaults(fn=cmd_watch, transcript=None)
 
     q = sub.add_parser("next", help="次の窓の発話を出す（窓が閉じたときだけ覚え書き <ログ名>.next.json を書く。append はそれを要る）")
@@ -4742,7 +4742,7 @@ def main(argv=None):
     q.add_argument("--wait", type=float, default=0, help="live: 窓が閉じるまで待つ秒数")
     q.add_argument("--json", action="store_true", help="pack.md の形で出す")
     q.add_argument("--last", action="store_true", help="live: 聞き終えるとき。メモ帳の最後の行まで素材ログに入るのを待ち、残りを最後の窓として出す")
-    q.add_argument("--now", help="壁時計を固定する（試験用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
+    q.add_argument("--now", help="壁時計を固定する（テスト用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
     q.set_defaults(fn=cmd_next)
 
     q = sub.add_parser("append", help="判断を追記する（素材のある記録では先に next が要る。1回の追記は step とその窓のイベントか、end・pause のどちらか1件。open は受けない）")
@@ -4750,7 +4750,7 @@ def main(argv=None):
     q.add_argument("batch", nargs="?", help="バッチのファイル（無ければ標準入力）")
     q.add_argument("--transcript")
     q.add_argument("--json", action="store_true")
-    q.add_argument("--now", help="壁時計を固定する（試験用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
+    q.add_argument("--now", help="壁時計を固定する（テスト用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
     q.set_defaults(fn=cmd_append)
 
     q = sub.add_parser("status", help="いまの状態を出す")
@@ -4772,10 +4772,10 @@ def main(argv=None):
         q.add_argument("log")
         q.add_argument("--t", type=float, help=(
             "素材時間（秒）。既定は、live は聞き終えた時計の秒（聞き始めからの整数の秒）と直前の窓の終わりの大きいほう、"
-            "file は直前の窓の終わり（窓が無ければ 0）。live では聞き終えた時計の秒より先に置けない（試験の時計のときを除く）"
+            "file は直前の窓の終わり（窓が無ければ 0）。live では聞き終えた時計の秒より先に置けない（テストの時計のときを除く）"
             if name == "end" else
             "素材時間（秒）。既定は直前の窓の終わり（窓が無ければ 0）。直前の窓の終わりより先には置けない"))
-        q.add_argument("--now", help="壁時計を固定する（試験用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
+        q.add_argument("--now", help="壁時計を固定する（テスト用。ISO 8601 の UTC）。live の記録では実時計から 120 秒以上進んだ値は受けない")
         if name == "pause":
             q.add_argument("--why", default="")
         q.set_defaults(fn=fn)

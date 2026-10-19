@@ -1,10 +1,10 @@
 /*
- * _runner.js — verify.js と fold.js の試験（ブラウザと node で同じものを走らせる）
+ * _runner.js — verify.js と fold.js のテスト（ブラウザと node で同じものを実行する）
  *
  * 入口: runAll({makeVerifier, fold: fold.js の api}, data) → [{group, name, ok, detail}]
  *   data は tests/_data.js（tools/make_test_data.py が作る）
  *
- * 試験の群:
+ * テストのグループ:
  *   1. cases      tests/cases/*.json を verify に通し、受理／拒否・規則の id・警告・押した at が期待どおりか。
  *                 forbid_rules にある規則の文が出ていないか。入力を変えていないか
  *   2. fold       fixture を 1 ステップずつ foldInc で畳み、全量 fold（壁時計 at で切る／素材時間 t で切る）と一致するか。
@@ -17,7 +17,7 @@
   'use strict';
 
   function deepEq(a, b) { return canon(a) === canon(b); }
-  // 鍵の順に依らない比較
+  // キーの順に依らない比較
   function canon(x) {
     if (Array.isArray(x)) return '[' + x.map(canon).join(',') + ']';
     if (x && typeof x === 'object') return '{' + Object.keys(x).sort().map(function (k) { return JSON.stringify(k) + ':' + canon(x[k]); }).join(',') + '}';
@@ -126,7 +126,7 @@
       ['H3 は 2 回閉じる（5:38 と 8:39）。1つ目で閉じ、2つ目は答えとして足す', h3 && h3.answers.length === 2 && h3.answers[0].t === 338 && h3.answers[1].t === 519 && h3.closed.t === 338],
       ['H4（gap）は決着の統計に入らず、ステップ 7 で C10 により閉じる', h4 && h4.kind === 'gap' && h4.closed && h4.closed.sn === 7 && h4.answers[0].by[0] === 'C10' && F.settled(inc).count === 7],
       ['H7 は開いたまま終わる', h7 && !h7.closed && F.openHolds(inc).length === 1],
-      ['E は retro。印は 7:08、範囲 6:31〜7:14', E && E.kind === 'retro' && E.t === 428 && E.span[0] === 391 && E.span[1] === 434],
+      ['E は retro。マーカーは 7:08、範囲 6:31〜7:14', E && E.kind === 'retro' && E.t === 428 && E.span[0] === 391 && E.span[1] === 434],
       ['最上位は C4 → C15 → C34', inc.tops.join(',') === 'C4,C15,C34' && inc.top.id === 'C34'],
       ['C15 は fix(d) で深さ 0 → 1。書いた時点の値は orig に残る', c15 && c15.d === 1 && c15.orig.d === 0 && c15.fixes.length === 1 && c15.fixes[0].sn === 19],
       ['B の仮名は 3:01 に確定。echo は A に 2 回、B に 1 回', B && B.lb === '価値をどう説明するか' && B.lb0 === '（仮）値段の話の向きが変わる' && B.renames.length === 1 && B.renames[0].t === 181 && A.echoes.length === 2 && B.echoes.length === 1],

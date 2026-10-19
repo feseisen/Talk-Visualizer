@@ -1,17 +1,17 @@
 /*
- * timeline.js — 中央の縦の時系列（行の作り・rail・訂正の札・echo の描き方）
+ * timeline.js — 中央の縦の時系列（行の作り・rail・訂正のラベル・echo の描き方）
  *
  * 違い（ライブ特有）:
  *   - 起動時の一括生成ではなく、到着ごとに行を t の位置に挿入する。並べ替え関数を持たない（R1）
  *   - 未来の行は DOM に存在しない（R2b）。畳んだ状態（fold.js）に無い行は作らない。追体験で T を戻せば行は消える
- *   - 印は ●（カード）と ◆（区切り）の 2 種だけ。深さは rail の幅で表す（R5）
- *   - 札はカード枠の中に置く。縦線（.itl-spine）の上に文字を置かない（R7）
+ *   - 記号は ●（カード）と ◆（区切り）の 2 種類だけ。深さは rail の幅で表す（R5）
+ *   - ラベルはカード枠の中に置く。縦線（.itl-spine）の上に文字を置かない（R7）
  *   - 画面を拡大縮小する CSS を使わない（R8）
  *
  * 使い方:
  *   const tl = makeTimeline(rowsEl, {fmt});
  *   tl.setMode('key' | 'all');
- *   tl.sync(state, {T, fresh});   // state は fold.js の状態。T は素材時間（echo の光らせ方と「最上位」札の判定に使う）
+ *   tl.sync(state, {T, fresh});   // state は fold.js の状態。T は素材時間（echo の光らせ方と「最上位」ラベルの判定に使う）
  *   tl.jump(kind, id)             // その行へスクロール
  *   tl.lastVisible()              // いちばん下の見えている行（追従のため）
  */
@@ -19,7 +19,7 @@
   'use strict';
 
   const ROLE = { claim: '主張', counter: '揺り戻し', case: '実例', land: '着地' };
-  const FIELD = { d: '深さ', ti: '見出し', b: '本文', role: '役割', span: '範囲', items: '項目', n: '数' };
+  const FIELD = { d: '深さ', ti: '見出し', b: '詳細', role: '役割', span: '範囲', items: '項目', n: '数' };
   const ECHO_WIN = 90; // 補強を光らせる長さ（素材の秒数。補強を記録した窓の終わりを起点に数える）
 
   function fmtDefault(s) {
@@ -41,7 +41,7 @@
       if (f === 'items') return Array.isArray(v) ? v.join('・') : String(v);
       return String(v);
     };
-    const rows = Object.create(null); // 'c:C1' / 'g:A' -> {node, k, id, t}。記録の id を鍵にするので、素の表にする
+    const rows = Object.create(null); // 'c:C1' / 'g:A' -> {node, k, id, t}。記録の id をキーにするので、素の表にする
     let mode = 'key';
 
     // t の位置に挿入する。同じ t は到着順（後から来たものが後ろ）。並べ替えはしない（R1）
@@ -83,7 +83,7 @@
       const lb = el('span', 'dlb', g.lb);
       const sb = el('span', 'dsub', spanText(g.span));
       [n, lb, sb].forEach(function (x) { dv.appendChild(x); });
-      if (g.kind === 'retro') dv.appendChild(el('span', 'rf', 'あとから括った。印の位置は、ひとまとまりだと気づいた時刻'));
+      if (g.kind === 'retro') dv.appendChild(el('span', 'rf', 'あとから括った。マーカーの位置は、ひとまとまりだと気づいた時刻'));
       const gf = el('span', 'gfix'); gf.hidden = true; dv.appendChild(gf);
       const rn = el('span', 'gfix'); rn.hidden = true; dv.appendChild(rn);
       const et = el('span', 'echotag'); et.hidden = true; dv.appendChild(et);
@@ -139,7 +139,7 @@
         if (o.fresh) { r.node.classList.add('fresh'); }
       });
       // 光らせている最中の補強（書いてから一定の時間内のもの）
-      const activeEcho = Object.create(null); // 鍵は記録の id（素の表。__proto__ などの名前でも壊れない）
+      const activeEcho = Object.create(null); // キーは記録の id（素の表。__proto__ などの名前でも壊れない）
       Object.keys(st.groups).forEach(function (id) {
         const g = st.groups[id];
         if (!g.echoes.length) return;

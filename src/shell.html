@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>話の構造</title>
 <!--
-  kiku.html の骨。build_html.py が @@ の印を src/ と format/ の中身で置き換え、1 枚の HTML にする。
-  外部参照は無い（CDN・Web フォントを使わない）。鍵はこのファイルに入らない（画面で貼る）。
-  表に出すのは「聞き取りを開始」と「書き起こしを貼る」の 2 つだけ。名前・入口・分析役・窓幅などは「設定と記録」の引き出しの中。
+  kiku.html の骨。build_html.py が @@ のマーカーを src/ と format/ の中身で置き換え、1 枚の HTML にする。
+  外部参照は無い（CDN・Web フォントを使わない）。API キーはこのファイルに入らない（画面で貼る）。
+  表に出すのは「聞き取りを開始」と「文字起こしを貼って組み上げる」の 2 つだけ。名前・入力方法・分析役・窓幅などは「設定と記録」の引き出しの中。
 -->
 <!--@@css base.css-->
 </head>
@@ -43,15 +43,15 @@
 
   <section class="dsec" id="setup">
     <h2>聞き取りの設定</h2>
-    <p class="soft">どれも触らなくても始められます。</p>
+    <p class="soft">アーティファクトの中では、どれも触らなくても始められます。ZIP 版では「整理する AI」だけ選べば始められます。</p>
     <div class="row">
       <label>記録の名前 <input type="text" id="name" placeholder="空なら日時で付ける" size="24"></label>
-      <label>音の入り方
+      <label>入力方法
         <select id="intake">
           <option value="text">打つ／貼る（OS の音声入力もここ）</option>
           <option value="speech">ブラウザ音声認識（この PC のマイク）</option>
           <option value="file">ファイル（時刻つきの文字起こし）</option>
-          <option value="bridge">拡張「橋」（画面共有の音）</option>
+          <option value="bridge">拡張機能「ブリッジ」（画面共有の音）</option>
         </select>
       </label>
       <label>整理する AI
@@ -59,17 +59,17 @@
           <option value="none">未選択</option>
           <option value="anthropic">API（Anthropic）</option>
           <option value="openai">API（OpenAI 互換）</option>
-          <option value="claude">この画面の Claude（枠の中）</option>
-          <option value="manual">手動の輪（遅い）</option>
+          <option value="claude">この画面の Claude（アーティファクトの中）</option>
+          <option value="manual">手動でチャットに貼る（遅い）</option>
           <option value="human">人が書く</option>
-          <option value="mock">内蔵の模擬（試験用）</option>
+          <option value="mock">内蔵のダミー（テスト用）</option>
         </select>
       </label>
       <label>区切りの長さ <input type="number" id="win" value="30" min="5" max="180" step="1" size="4"> 秒（5〜180）</label>
       <label>前から知っていたこと <input type="text" id="known" placeholder="前回の引き継ぎなど（無ければ空）" size="28" maxlength="2000"></label>
     </div>
-    <p class="soft">同じ記録の名前を打って始めると、その記録の続きに書きます。区切りの長さは、AI に一度に渡す長さです（貼った書き起こしは 120 秒）。</p>
-    <p id="claudenote" class="soft" hidden>「この画面の Claude」は、この画面を開いている人の Claude に問います（鍵は要りません。使った量は、開いている人の使用量に数えられます）。最初に問うとき、この画面から問うことを許すかの確認が 1 回出ます。</p>
+    <p class="soft">同じ記録の名前を入力して始めると、その記録の続きに書きます。区切りの長さは、AI に一度に渡す長さです（貼った文字起こしは 120 秒）。</p>
+    <p id="claudenote" class="soft" hidden>「この画面の Claude」は、この画面を開いている人の Claude を使います（API キーは要りません。使った量は、開いている人の使用量に数えられます）。最初に使うとき、この画面から Claude を使うことを許可するかの確認が 1 回出ます。</p>
   </section>
 
   <section class="dsec" id="recbox">
@@ -80,32 +80,32 @@
     </div>
     <div class="row">
       <button id="export" type="button">書き出す（判断ログと素材ログ）</button>
-      <button id="bindlog" type="button">判断ログをファイルに結び付ける</button>
-      <button id="bindsrc" type="button">素材ログをファイルに結び付ける</button>
+      <button id="bindlog" type="button">判断ログを保存するファイルを選ぶ</button>
+      <button id="bindsrc" type="button">素材ログを保存するファイルを選ぶ</button>
       <button class="danger" id="clear" type="button">記録を消す</button>
       <span id="clearconfirm" hidden><button class="danger" id="clear-yes" type="button">本当に消す</button><button id="clear-no" type="button">やめる</button></span>
     </div>
     <p id="recmsg" class="soft"></p>
     <div class="row" id="db-row" hidden>
-      <label><input type="checkbox" id="db-mirror"> この記録を枠の保存庫（db）にも写す</label>
-      <span class="warn">写すと、判断ログと素材ログ（文字起こしの全文）が、この画面を開ける人の全員が読める置き場に入ります。会議の中身を共有してよいときだけ付けます。</span>
+      <label><input type="checkbox" id="db-mirror"> この記録をアーティファクトのデータベースにも保存する</label>
+      <span class="warn">保存すると、判断ログと素材ログ（文字起こしの全文）が、このアーティファクトを開ける人全員が読める場所に入ります。会議の中身を共有してよいときだけチェックを入れます。</span>
       <span id="db-state" class="soft"></span>
     </div>
   </section>
 
   <details class="dsec" id="apibox">
-    <summary>API の設定（鍵はこの画面で貼る。ページには入っていない）</summary>
-    <p class="warn">API を選ぶと、区切りが閉じるたびに、指示文（約 1.3 万字）と次のものを API の提供元へ送る：「前から知っていたこと」、その区切りの発言（話者名つき）、未確定の区切りの発言（話者名つき。その区切りが片付くまで毎回）、答えを待っている問いと尋ねた人の名前、最上位の候補の見出し、章の名前、宣言された数え上げの項目、最近のカード 8 枚までの見出しと話者名、最近の所感 3 つまで、いまの日時。呼び出しに失敗したときや、返事が決まりに合わないときは、その理由を添えて同じ区切りをもう一度送る（1 つの区切りで 3 回まで）。送ってよい会議かは、使う場所の決まりに従う。</p>
+    <summary>API の設定（API キーはこの画面で貼る。ページには入っていない）</summary>
+    <p class="warn">API を選ぶと、区切りが終わるたびに、指示文（約 1.3 万字）と次のものを API の提供元へ送ります：「前から知っていたこと」、その区切りの発言（話者名つき）、未確定の区切りの発言（話者名つき。その区切りが片付くまで毎回）、答えを待っている問いと尋ねた人の名前、最上位の候補の見出し、章の名前、宣言された数え上げの項目、最近のカード 8 枚までの見出しと話者名、最近の所感 3 つまで、いまの日時。呼び出しに失敗したときや、返事が決まった形式に合わないときは、その理由を添えて同じ区切りをもう一度送ります（1 つの区切りで 3 回まで）。送ってよい会議かは、社内のルールに従ってください。</p>
     <div class="row">
-      <label>送り先の住所 <input type="text" id="api-url" size="40" placeholder="OpenAI 互換だけ。空なら api.openai.com"></label>
-      <label>モデル <input type="text" id="api-model" size="24" placeholder="OpenAI 互換は必ず打つ"></label>
+      <label>送り先の URL <input type="text" id="api-url" size="40" placeholder="OpenAI 互換だけ。空なら api.openai.com"></label>
+      <label>モデル <input type="text" id="api-model" size="24" placeholder="OpenAI 互換では必須"></label>
     </div>
-    <p class="soft">API（Anthropic）は、いつも api.anthropic.com に送る（住所の欄は空にする。モデルは空なら既定のもの）。API（OpenAI 互換）は、住所の後ろに /chat/completions を付けて送る。鍵の見出しが違う送り先（Azure など）や、住所に ?api-version= を付ける送り先は、いまは設定できない。</p>
+    <p class="soft">API（Anthropic）は、いつも api.anthropic.com に送ります（「送り先の URL」の欄は空のままにしてください。モデルは空なら既定のものを使います）。API（OpenAI 互換）は、URL の後ろに /chat/completions を付けて送ります。API キーのヘッダー名が違う送り先（Azure など）や、URL に ?api-version= を付ける送り先は、いまは設定できません。</p>
     <div class="row">
-      <label>鍵 <input type="password" id="api-key" size="40" autocomplete="off"></label>
-      <label><input type="checkbox" id="api-remember"> この PC に覚える（既定はこのタブを閉じるまで）</label>
-      <span class="soft">覚えると、鍵はこの PC の中に平文で残り、ファイルとして開いた他のページからも読める場所に置かれる。共有の PC では選ばない。</span>
-      <button id="api-forget" type="button">鍵を消す</button>
+      <label>API キー <input type="password" id="api-key" size="40" autocomplete="off"></label>
+      <label><input type="checkbox" id="api-remember"> この PC に保存する（既定はこのタブを閉じるまで）</label>
+      <span class="soft">保存すると、API キーはこの PC の中に暗号化されずに残り、ファイルとして開いた他のページからも読める場所に置かれます。共有の PC では選ばないでください。</span>
+      <button id="api-forget" type="button">API キーを消す</button>
       <button id="api-test" type="button">接続を試す</button>
       <span id="api-msg" class="soft"></span>
     </div>
@@ -114,13 +114,13 @@
 
   <section class="dsec">
     <h2>詳しい状態</h2>
-    <div class="status" id="status" aria-label="運転状態">
-      <span><span class="k">聞く：</span><span class="v" id="st-listen">止まっている</span></span>
+    <div class="status" id="status" aria-label="動作の状態">
+      <span><span class="k">聞き取り：</span><span class="v" id="st-listen">止まっている</span></span>
       <span><span class="k">いま：</span><span class="v" id="st-clock">0:00</span></span>
       <span><span class="k">最後の判断から：</span><span class="v" id="st-since">—</span></span>
       <span><span class="k">区切り：</span><span class="v" id="st-win">30 秒</span></span>
       <span><span class="k">整理する AI：</span><span class="v" id="st-route">未選択</span></span>
-      <span><span class="k">音の入り方：</span><span class="v" id="st-intake">未選択</span></span>
+      <span><span class="k">入力方法：</span><span class="v" id="st-intake">未選択</span></span>
       <span><span class="k">未確定の区切り：</span><span class="v" id="st-gaps">0 件</span></span>
     </div>
   </section>
@@ -136,60 +136,60 @@
     <section class="ask" id="ask" aria-label="始める前に" hidden>
       <p class="ask-text" id="ask-text"></p>
       <div class="ask-row" id="ask-install-row" hidden>
-        <button id="bridge-install" type="button">日本語の部品を入れる</button>
-        <span class="soft">入れるときに音声は送りません。約 60MB です。</span>
+        <button id="bridge-install" type="button">日本語の音声認識データをダウンロードする</button>
+        <span class="soft">ダウンロードするときに音声は送りません。約 60MB です。</span>
       </div>
       <label class="ask-row ask-cloud" id="ask-cloud-row" hidden><input type="checkbox" id="bridge-cloud" autocomplete="off"> <span>音声を Google（Chrome の提供元）のサーバーへ送って文字にすることを承知する（このページを開き直すと外れます）</span></label>
       <div class="setup" id="ask-setup" hidden>
         <ol class="setup-steps">
           <li id="step-save">
             <div class="step-body">
-              <div class="step-act"><button class="step-btn" id="bridge-save" type="button">拡張を保存する</button><span class="soft" id="bridge-save-msg"></span></div>
+              <div class="step-act"><button class="step-btn" id="bridge-save" type="button">拡張機能を保存する</button><span class="soft" id="bridge-save-msg"></span></div>
               <p class="step-result" id="bridge-save-result" role="status"></p>
             </div>
           </li>
           <li id="step-open">
             <div class="step-body">
               <div class="step-act"><button id="ext-copy" type="button">アドレスをコピー</button><code class="addr" id="ext-url">chrome://extensions</code><span class="soft" id="ext-copy-msg" role="status"></span></div>
-              <p>新しいタブのアドレス欄に貼って開き、右上の「デベロッパーモード」をオンにします（オンのままにします）。</p>
+              <p>新しいタブのアドレス欄に貼って開き、右上の「デベロッパー モード」をオンにします（オンのままにします）。</p>
             </div>
           </li>
           <li id="step-drop">
             <div class="step-body">
-              <p>保存した <b id="bridge-zip-name">ZIP</b> を、開いた画面に引きずって落とします。展開は要りません。</p>
+              <p>保存した <b id="bridge-zip-name">ZIP</b> を、開いた画面にドラッグ＆ドロップします。展開は要りません。</p>
               <p class="soft">ZIP は、Chrome のダウンロードの一覧（Ctrl+J）か、エクスプローラーのダウンロードのフォルダにあります。</p>
             </div>
           </li>
         </ol>
-        <p class="setup-wait"><span class="wait-dot" aria-hidden="true"></span>入ると、この画面が自動で気づきます。このタブの読み込み直しは要りません。</p>
+        <p class="setup-wait"><span class="wait-dot" aria-hidden="true"></span>インストールされると、この画面が自動で検出します。このタブの再読み込みは要りません。</p>
         <details class="howto">
-          <summary>落としても入らないとき</summary>
+          <summary>ドラッグ＆ドロップしてもインストールできないとき</summary>
           <ul>
-            <li>まず、拡張機能の画面の右上の「デベロッパーモード」がオンか確かめます。オフのまま落とすと、ZIP がダウンロードされるだけで入りません。</li>
-            <li>それでも入らなければ、ZIP を展開し、拡張機能の画面の「パッケージ化されていない拡張機能を読み込む」で、展開したフォルダ（manifest.json のある所）を選びます。</li>
-            <li>「デベロッパーモード」のスイッチが灰色で押せない PC（会社の PC などで、管理者が止めているとき）では、この拡張は入れられません。その PC では「書き起こしを貼って組み上げる」を使います。画面に「管理されている」という表示が出ているだけなら、止められているとは限りません。</li>
-            <li>前に「橋」をフォルダから読み込んでいたら、拡張機能の画面で古い方を削除します。</li>
+            <li>まず、拡張機能の画面の右上の「デベロッパー モード」がオンか確かめます。オフのままドロップすると、ZIP がダウンロードされるだけでインストールされません。</li>
+            <li>それでもインストールできなければ、ZIP を展開し、拡張機能の画面の「パッケージ化されていない拡張機能を読み込む」で、展開したフォルダ（manifest.json のある所）を選びます。</li>
+            <li>「デベロッパー モード」のスイッチが灰色で押せない PC（会社の PC などで、管理者が止めているとき）では、この拡張機能はインストールできません。その PC では「文字起こしを貼って組み上げる」を使います。画面に「管理されている」という表示が出ているだけなら、止められているとは限りません。</li>
+            <li>前に古いバージョン（拡張機能の画面での名前は「kiku 橋」）をフォルダから読み込んでいたら、拡張機能の画面でそれを削除します。</li>
           </ul>
         </details>
-        <p class="soft">この画面の中では音を取れないので、会議の音を文字にするのは拡張の側です。拡張は通信しません。拡張が無くても「書き起こしを貼る」は使えます。</p>
+        <p class="soft">この画面の中では音声を取り込めないので、会議の音を文字にするのは拡張機能の側です。拡張機能そのものは通信しません（音声を Google に送るのは、送ることを承知したときの Chrome の音声認識です）。拡張機能が無くても「文字起こしを貼って組み上げる」は使えます。</p>
       </div>
       <div class="ask-row ask-update" id="ask-update-row" hidden>
         <span id="ask-update-text"></span>
-        <button id="bridge-update" type="button">新しい版を保存する</button>
+        <button id="bridge-update" type="button">新しいバージョンを保存する</button>
         <span class="soft" id="bridge-update-msg" role="status"></span>
       </div>
       <div class="probe" id="ask-probe-row" hidden>
         <div class="ask-row"><button id="probe-go" type="button">音の診断（約 40 秒）</button></div>
-        <p class="soft">画面全体の音が拡張に届くか、文字になるかを測ります。話している YouTube などを流したまま押します。最後の 12 秒は音声を Google のサーバーへ送るので、外に出てよい音だけを流します。</p>
+        <p class="soft">画面全体の音が拡張機能に届くか、文字になるかを測ります。人が話している YouTube の動画などを流したまま押します。最後の 12 秒は音声を Google のサーバーへ送るので、外に出てよい音だけを流します。</p>
         <p class="probe-msg" id="probe-msg" role="status"></p>
         <div class="probe-out" id="probe-out"></div>
       </div>
     </section>
-    <div class="hero-alt"><button class="link-btn" id="paste-open" type="button">書き起こしを貼って組み上げる</button><span class="soft">会議のあとでも使えます。時刻が無くても読めます</span></div>
-    <section class="paste" id="paste" aria-label="書き起こしを貼る" hidden>
-      <label class="paste-head" for="paste-text">書き起こしを貼って組み上げる</label>
+    <div class="hero-alt"><button class="link-btn" id="paste-open" type="button">文字起こしを貼って組み上げる</button><span class="soft">会議のあとでも使えます。時刻が無くても読めます</span></div>
+    <section class="paste" id="paste" aria-label="文字起こしを貼る" hidden>
+      <label class="paste-head" for="paste-text">文字起こしを貼って組み上げる</label>
       <p class="soft">時刻が無くても読めます（1 分に 300 字として時刻を見積もります）。貼った文は先を読まず、区切りごとに順に、整理する AI へ渡します。</p>
-      <textarea id="paste-text" rows="8" placeholder="会議の書き起こしをここに貼る"></textarea>
+      <textarea id="paste-text" rows="8" placeholder="会議の文字起こしをここに貼る"></textarea>
       <div class="row">
         <button class="go-btn small" id="paste-go" type="button">構造にする</button>
         <button id="paste-cancel" type="button">やめる</button>
@@ -208,10 +208,10 @@
     <div class="panel"><h3>全体のテーマ（仮）</h3><div id="topbox"></div></div>
     <div class="panel"><h3>章</h3><div id="chaps"></div></div>
     <div class="panel"><h3>答えが出た問い</h3><div id="closed"></div></div>
-    <div class="panel"><h3 id="gaphead">未確定の窓</h3><div id="gaps"></div></div>
+    <div class="panel"><h3 id="gaphead">未確定の区切り</h3><div id="gaps"></div></div>
   </aside>
   <main class="center">
-    <section class="intake" id="intakebox" aria-label="音の入り方">
+    <section class="intake" id="intakebox" aria-label="入力方法">
       <div id="in-text">
         <h3>打つ／貼る</h3>
         <details class="howto"><summary>使い方</summary><p class="soft">Enter か、入力が 2 秒止まったら確定して 1 発話になる。行の先頭に「名前: 本文」（半角の「:」のあとに空白）か「名前：本文」（全角の「：」）と書くと、名前が話者になる。名前は 20 字まで、空白を含まず、数字で始まらないものだけ。「15:00までに」「9:00 から」「https://…」のような行は、行の全体が本文になる（話者は無し）。表から貼った「時刻・話者・本文」をタブで区切った行は、時刻の列を使わず、届いた時刻で記録する。一時停止の間に打った行も捨てず、再開した後の最初の区切りに入る。OS の音声入力（Windows は Win+H）もこの欄に打てる。</p></details>
@@ -219,20 +219,20 @@
       </div>
       <div id="in-speech" hidden>
         <h3>ブラウザ音声認識</h3>
-        <details class="howto"><summary>使い方</summary><p class="soft">このブラウザが持つ音声認識で、この PC のマイクを聞く（オンライン会議の相手の声をヘッドホンで聞いているときは入らない）。この PC の中だけで文字にできるかをブラウザに尋ね、できると答えたら、この PC の中で文字にする（音声は外へ出ない）。できないときは音声を提供元のサーバーへ送ることになるので、下の印を付けないと始めない。この印は覚えないので、ページを開き直したら付け直す。この PC の中で文字にすると決めて始めた後に失敗しても、黙ってサーバーへ切り替えることはしない。何も聞き取れないまま続けて 5 回失敗したときや、マイクの許可が無いときは止めて、そう出す。「停止」を押すと、認識の終わりの知らせを 3 秒まで待ち、その間に届いた言葉も最後の区切りに入れてから閉じる。</p></details>
+        <details class="howto"><summary>使い方</summary><p class="soft">このブラウザが持つ音声認識で、この PC のマイクの音を聞き取る（オンライン会議の相手の声をヘッドホンで聞いているときは入らない）。この PC の中だけで文字にできるかをブラウザに尋ね、できると答えたら、この PC の中で文字にする（音声は外へ出ない）。できないときは音声を提供元のサーバーへ送ることになるので、下のチェックを入れないと始めない。このチェックは保存されないので、ページを開き直したら入れ直す。この PC の中で文字にすると決めて始めた後に失敗しても、黙ってサーバーへ切り替えることはしない。何も聞き取れないまま続けて 5 回失敗したときや、マイクの許可が無いときは止めて、そう出す。「停止」を押すと、認識の終わりの知らせを 3 秒まで待ち、その間に届いた言葉も最後の区切りに入れてから閉じる。</p></details>
         <p id="speechwhere" class="soft"></p>
         <div class="row" id="speech-installrow" hidden>
-          <button id="speech-install" type="button">日本語の部品を入れる</button>
-          <span class="soft">入れるときに音声は送らない。部品の取得が止められている PC では入らないことがある。</span>
+          <button id="speech-install" type="button">日本語の音声認識データをダウンロードする</button>
+          <span class="soft">ダウンロードするときに音声は送らない。データのダウンロードが止められている PC ではダウンロードできないことがある。</span>
         </div>
         <div class="row" id="speech-cloudrow" hidden>
-          <label><input type="checkbox" id="speech-cloud" autocomplete="off"> 音声をブラウザの提供元（Chrome なら Google、Edge なら Microsoft）のサーバーへ送って文字にすることを承知した</label>
+          <label><input type="checkbox" id="speech-cloud" autocomplete="off"> 音声をブラウザの提供元（Chrome なら Google、Edge なら Microsoft）のサーバーへ送って文字にすることを承知する</label>
         </div>
         <p id="speechmsg" class="soft"></p>
       </div>
       <div id="in-file" hidden>
         <h3>ファイル</h3>
-        <details class="howto"><summary>使い方</summary><p class="soft">書き方は 4 つ: 時刻・話者・本文をタブで区切った表／時刻だけの行と本文の行／「0:05 甲: 始めます」のように時刻のあとに空白と本文を続けた行／WebVTT の字幕（会議の道具が書き出す .vtt）。1 発話ずつ読み、残りの長さは数えない。時刻として読めない行は発話にせず、行の番号を出す。同じ名前の記録の続きから聞くときは、前と同じファイルを読み込んでから始める（前に聞いた分は読み飛ばす）。時刻の無い文は、表の「書き起こしを貼る」に貼る。</p></details>
+        <details class="howto"><summary>使い方</summary><p class="soft">書き方は 4 つ: 時刻・話者・本文をタブで区切った表／時刻だけの行と本文の行／「0:05 甲: 始めます」のように時刻のあとに空白と本文を続けた行／WebVTT の字幕（会議ツールが書き出す .vtt）。1 発話ずつ読み、残りの長さは数えない。時刻として読めない行は発話にせず、行の番号を出す。同じ名前の記録の続きから聞くときは、前と同じファイルを読み込んでから始める（前に聞いた分は読み飛ばす）。時刻の無い文は、最初の画面の「文字起こしを貼って組み上げる」に貼る。</p></details>
         <div class="row">
           <input type="file" id="file" accept=".txt,.tsv,.vtt" hidden>
           <button id="file-pick" type="button">ファイルを選ぶ</button><span id="file-name" class="soft">（まだ選んでいない）</span>
@@ -244,25 +244,25 @@
         <textarea id="file-paste" rows="3" placeholder="ファイルの代わりにここに貼ってもよい（時刻つきのもの）"></textarea>
       </div>
       <div id="in-bridge" hidden>
-        <h3>拡張「橋」</h3>
-        <details class="howto"><summary>使い方</summary><p class="soft">Chrome の拡張「橋」が、画面共有の音を文字にして、この画面へ流す。この画面の中では音を取れない（claude.ai のアーティファクトの枠の中など）ので、文字にするのは拡張の側。表の「聞き取りを開始」を押すと、拡張に画面共有を始めさせる（拡張が見つからないときは、入れ方を出す）。</p></details>
+        <h3>拡張機能「ブリッジ」</h3>
+        <details class="howto"><summary>使い方</summary><p class="soft">Chrome の拡張機能「ブリッジ」が、画面共有の音を文字にして、この画面へ流す。この画面の中では音声を取り込めない（claude.ai のアーティファクトの中など）ので、文字にするのは拡張機能の側。最初の画面の「聞き取りを開始」を押すと、拡張機能が画面共有を始める（拡張機能が見つからないときは、インストール方法を表示する）。</p></details>
         <p id="bridgemsg" class="soft">（まだ始めていない）</p>
       </div>
       <p id="intakemsg" class="soft"></p>
     </section>
     <section class="analyst" id="analystbox" hidden>
       <div id="an-manual" hidden>
-        <h2>手動の輪（遅い）</h2>
-        <p class="soft">区切りが閉じるたびに下にプロンプトが出る。コピーしてチャットに貼り、返事（機械向けの形式）を下の欄に貼って「取り込む」。</p>
-        <p class="warn">プロンプトには、指示文（約 1.3 万字）と次のものが入る：「前から知っていたこと」、その区切りの発言（話者名つき）、未確定の区切りの発言（話者名つき。その区切りが片付くまで毎回）、答えを待っている問いと尋ねた人の名前、最上位の候補の見出し、章の名前、宣言された数え上げの項目、最近のカード 8 枚までの見出しと話者名、最近の所感 3 つまで、いまの日時。返事が決まりに合わないときは、合わなかった理由を添えた同じ区切りのプロンプトがもう一度出る（1 つの区切りで 3 回まで）。貼ったものは全部、貼った先のチャットの提供元に渡る。</p>
+        <h2>手動でチャットに貼る（遅い）</h2>
+        <p class="soft">区切りが終わるたびに下にプロンプトが出る。コピーしてチャットに貼り、返ってきた JSON を下の欄に貼って「返事を取り込む」を押す。</p>
+        <p class="warn">プロンプトには、指示文（約 1.3 万字）と次のものが入る：「前から知っていたこと」、その区切りの発言（話者名つき）、未確定の区切りの発言（話者名つき。その区切りが片付くまで毎回）、答えを待っている問いと尋ねた人の名前、最上位の候補の見出し、章の名前、宣言された数え上げの項目、最近のカード 8 枚までの見出しと話者名、最近の所感 3 つまで、いまの日時。返事が決まった形式に合わないときは、合わなかった理由を添えた同じ区切りのプロンプトがもう一度出る（1 つの区切りで 3 回まで）。貼ったものは全部、貼った先のチャットの提供元に渡る。</p>
         <div class="row"><button id="man-copy" type="button">プロンプトをコピー</button><span id="man-msg" class="soft"></span></div>
-        <textarea id="man-prompt" rows="6" readonly placeholder="区切りが閉じるとここに出る"></textarea>
-        <div class="row"><button id="man-apply" type="button">返事を貼ったら取り込む</button></div>
-        <textarea id="man-reply" rows="5" placeholder="返事（機械向けの形式）をここに貼る"></textarea>
+        <textarea id="man-prompt" rows="6" readonly placeholder="区切りが終わるとここに出る"></textarea>
+        <div class="row"><button id="man-apply" type="button">返事を取り込む</button></div>
+        <textarea id="man-reply" rows="5" placeholder="返事の JSON をここに貼る"></textarea>
       </div>
       <div id="an-human" hidden>
         <h2>人が書く</h2>
-        <p class="soft">区切りが閉じたら、この区切りの判断を自分で書く。番号は自動で振られる。所感は必ず 1 件（書くまで送れない）。</p>
+        <p class="soft">区切りが終わったら、この区切りの判断を自分で書く。番号は自動で振られる。所感は必ず 1 件（書かないと「この区切りを書く」で記録できない）。</p>
         <div class="l0form">
           <div class="row"><b>区切り：</b><span id="h-win">（まだ無い）</span></div>
           <div class="row">カード
@@ -272,8 +272,8 @@
             <label>話者<input type="text" id="h-cwho" size="8" placeholder="無ければ空"></label>
           </div>
           <div class="row"><input type="text" id="h-cti" placeholder="見出し（1〜50 字）"><input type="text" id="h-cb" placeholder="詳細（120 字まで）"><button id="h-cadd" type="button">カードを足す</button></div>
-          <div class="row">保留 <input type="text" id="h-hq" placeholder="問い（1〜120 字）"><label>話者<input type="text" id="h-hwho" size="8"></label><button id="h-hadd" type="button">保留を足す</button></div>
-          <div class="row">決着 <select id="h-xid"></select><input type="text" id="h-xas" placeholder="答え（1〜120 字）"><button id="h-xadd" type="button">決着を足す</button></div>
+          <div class="row">問い <input type="text" id="h-hq" placeholder="問い（1〜120 字）"><label>話者<input type="text" id="h-hwho" size="8"></label><button id="h-hadd" type="button">問いを足す</button></div>
+          <div class="row">答え <select id="h-xid"></select><input type="text" id="h-xas" placeholder="答え（1〜120 字）"><button id="h-xadd" type="button">答えを足す</button></div>
           <div class="row">所感 <input type="text" id="h-note" placeholder="この区切りで考えたこと（1〜400 字）"></div>
           <div class="row"><span id="h-list" class="soft">（まだ何も足していない）</span></div>
           <div class="row"><button class="go-btn small" id="h-write" type="button">この区切りを書く</button><button id="h-reset" type="button">足したものを消す</button></div>

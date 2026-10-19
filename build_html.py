@@ -4,23 +4,23 @@ build_html.py — src/ と format/・prompts/ を 1 枚の kiku.html に組み�
 
     python3 build_html.py            このファイルと同じフォルダに kiku.html を書く
     python3 build_html.py --check    書かずに、組み立てた結果の検査だけ出す
-    python3 build_html.py --artifact 枠（claude.ai のアーティファクト）に貼る中身 kiku-artifact.html を書く。
-                                     doctype・html・head・body・meta は枠が付けるので外し、<title> と <style> と本文と <script> だけにする。
-                                     中身は kiku.html と同じ（枠の中かどうかは app.js が起動時に window.claude の有無で決める）。
-                                     --check と合わせると、枠で効かない呼び出し（alert・confirm・prompt・window.print・a[download]）の
-                                     ある場所を src/ のファイルと行で出す（注意。落とさない。行に「枠では使わない」と書いてあれば出さない）
+    python3 build_html.py --artifact claude.ai のアーティファクトに貼る中身 kiku-artifact.html を書く。
+                                     doctype・html・head・body・meta はアーティファクト側が付けるので外し、<title> と <style> と本文と <script> だけにする。
+                                     中身は kiku.html と同じ（アーティファクトの中かどうかは app.js が起動時に window.claude の有無で決める）。
+                                     --check と合わせると、アーティファクトで効かない呼び出し（alert・confirm・prompt・window.print・a[download]）の
+                                     ある場所を src/ のファイルと行で出す（注意として出す。失敗にはしない。行に「枠では使わない」と書いてあれば出さない）
 
-src/shell.html の印を置き換える:
+src/shell.html のマーカーを置き換える:
     <!--@@css <ファイル>-->            src/<ファイル> を <style> として埋め込む
     <!--@@js <ファイル>-->             src/<ファイル> を <script> として埋め込む（無ければ失敗）
-    <!--@@js? <ファイル>-->            同上。無ければ「未配線」の印を残して通す（まだ作っていない部品）
+    <!--@@js? <ファイル>-->            同上。無ければ「未配線」のマーカーを残して通す（まだ作っていない部品）
     <!--@@data <名前> <パス>-->        <パス>（このフォルダからの相対）の JSON を globalThis.<名前> に入れる <script>
     <!--@@text <名前> <パス>-->        <パス>（このフォルダからの相対）の文字列を globalThis.<名前> に入れる <script>（無ければ空文字）
-    <!--@@zip <名前> bridge-->          枠に貼る形（--artifact）だけ: 拡張「橋」の ZIP（bridge/chrome/build_bridge.py の make_zip）を
-                                     globalThis.<名前> = {file, version, b64} に入れる。kiku.html では null（枠の外では拡張が要らない）
+    <!--@@zip <名前> bridge-->          アーティファクトに貼る形（--artifact）だけ: 拡張機能「ブリッジ」の ZIP（bridge/chrome/build_bridge.py の make_zip）を
+                                     globalThis.<名前> = {file, version, b64} に入れる。kiku.html では null（アーティファクトの外では拡張機能が要らない）
 
 組み立てたあと、外部参照（http(s):// の src/href、@import）が無いことと、
-API の鍵の形（決まった頭の文字で始まる長い英数字）が紛れていないことを検査する。
+API キーの形（決まった接頭辞で始まる長い英数字）が紛れていないことを検査する。
 """
 import base64
 import importlib.util
@@ -52,14 +52,14 @@ def inline_script(body: str) -> str:
 
 
 def bridge_zip() -> dict:
-    """拡張「橋」の ZIP を bridge/chrome/build_bridge.py で作り、{file, version, b64} にする。
-    写しが元と違う・中身を変えたのに版を上げていない（zip.lock が合わない）ときは失敗する"""
+    """拡張機能「ブリッジ」の ZIP を bridge/chrome/build_bridge.py で作り、{file, version, b64} にする。
+    コピーが元と違う・中身を変えたのにバージョンを上げていない（zip.lock が合わない）ときは失敗する"""
     spec = importlib.util.spec_from_file_location("build_bridge", KIT / "bridge" / "chrome" / "build_bridge.py")
     bb = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(bb)
     for problem in (bb.copy_problem(), bb.lock_problem()):
         if problem:
-            raise ValueError("拡張: " + problem)
+            raise ValueError("拡張機能: " + problem)
     data = bb.make_zip()
     return {"file": bb.zip_name(), "version": bb.manifest()["version"], "b64": base64.b64encode(data).decode("ascii")}
 
@@ -101,8 +101,8 @@ def build(shell_text: str, report: list, artifact: bool = False) -> str:
             if what != "bridge":
                 raise ValueError(f"@@zip が知らないもの: {what}")
             if not artifact:
-                report.append(("zip", "bridge（枠に貼る形だけ）", True))
-                return f"<script>globalThis.{name} = null; /* 拡張の ZIP は枠に貼る形（--artifact）にだけ入れる */</script>"
+                report.append(("zip", "bridge（アーティファクトに貼る形だけ）", True))
+                return f"<script>globalThis.{name} = null; /* 拡張機能の ZIP はアーティファクトに貼る形（--artifact）にだけ入れる */</script>"
             z = bridge_zip()
             report.append(("zip", f"{z['file']}（{len(z['b64'])} 字）", True))
             return f"<script>globalThis.{name} = {js_json(z)};</script>"
@@ -111,7 +111,7 @@ def build(shell_text: str, report: list, artifact: bool = False) -> str:
     return MARK.sub(repl, shell_text)
 
 
-# 枠（アーティファクト）に貼る形: 枠が付けるものを外す。残るのは <title>・<style>・本文・<script>
+# アーティファクトに貼る形: アーティファクト側が付けるものを外す。残るのは <title>・<style>・本文・<script>
 FRAME_STRIP = [
     re.compile(r"<!doctype html>\s*", re.I),
     re.compile(r"<html[^>]*>\s*"),
@@ -129,13 +129,13 @@ def to_artifact(html: str) -> str:
     for rx in FRAME_STRIP:
         html, n = rx.subn("", html, count=1)
         if n != 1:
-            raise ValueError(f"枠に貼る形に直せない（{rx.pattern} が 1 つでない）")
-    head = ("<!-- kiku-artifact.html: 枠（claude.ai のアーティファクト）に貼る中身。build_html.py --artifact が作る生成物。\n"
-            "     doctype・html・head・body・meta は枠が付ける。kiku.html と中身は同じで、枠の中かどうかは app.js が起動時に決める -->\n")
+            raise ValueError(f"アーティファクトに貼る形に直せない（{rx.pattern} が 1 つでない）")
+    head = ("<!-- kiku-artifact.html: claude.ai のアーティファクトに貼る中身。build_html.py --artifact が作る生成物。\n"
+            "     doctype・html・head・body・meta はアーティファクト側が付ける。kiku.html と中身は同じで、アーティファクトの中かどうかは app.js が起動時に決める -->\n")
     return head + html
 
 
-# 枠で効かない呼び出し（画面の外に出る確認・印刷・a[download]）。src/ のファイルを行ごとに見て、場所を出す
+# アーティファクトで効かない呼び出し（画面の外に出る確認・印刷・a[download]）。src/ のファイルを行ごとに見て、場所を出す
 FRAME_UNFRIENDLY = [
     (re.compile(r"(?<![\w.])alert\("), "alert()"),
     (re.compile(r"(?<![\w.])confirm\("), "confirm()"),
@@ -160,28 +160,28 @@ def frame_warnings() -> list:
                 continue
             for rx, what in FRAME_UNFRIENDLY:
                 if rx.search(line) and not (what.rstrip("()") in local and not line.lstrip().startswith("window.")):
-                    out.append(f"src/{f.name}:{i}: {what} は枠（アーティファクト）の中では効かない")
+                    out.append(f"src/{f.name}:{i}: {what} はアーティファクトの中では効かない")
     return out
 
 
 def check(html: str, artifact: bool = False) -> list:
-    """組み立てた 1 枚の検査。問題があれば文の一覧を返す。artifact なら、枠が付けるもの（doctype・meta・lang）は求めない"""
+    """組み立てた 1 枚の検査。問題があれば文の一覧を返す。artifact なら、アーティファクト側が付けるもの（doctype・meta・lang）は求めない"""
     problems = []
     # 外部参照
     for m in re.finditer(r"""(?:src|href)\s*=\s*["'](https?:)?//""", html):
         problems.append(f"外部参照がある: …{html[max(0, m.start()-40):m.end()+60]!r}")
     if re.search(r"@import\s+url\(\s*['\"]?https?://", html):
         problems.append("CSS の @import に外部参照がある")
-    # CSS の url(https://…) / url(//…)（背景画像・書体など。<style> の中も style="…" の中も）
+    # CSS の url(https://…) / url(//…)（背景画像・フォントなど。<style> の中も style="…" の中も）
     for m in re.finditer(r"""url\(\s*['"]?(?:https?:)?//""", html):
         problems.append(f"CSS の url() に外部参照がある: …{html[max(0, m.start()-40):m.end()+60]!r}")
     if re.search(r"<link\b[^>]*\bhref", html):
         problems.append("<link> がある（外部参照の疑い）")
-    # 鍵の形（実物も鍵風の例文も入れない）。k を [] で囲むのは、この検査の文そのものが
-    # 鍵の頭の文字に見えて、公開前の残り物の検査に引っかからないようにするため（当たる文字は同じ）
+    # API キーの形（実物も API キー風の例文も入れない）。k を [] で囲むのは、この検査の文そのものが
+    # API キーの接頭辞に見えて、公開前の残り物の検査に引っかからないようにするため（一致する文字は同じ）
     if re.search(r"s[k]-[A-Za-z0-9_-]{16,}", html):
-        problems.append("鍵の形の文字列がある")
-    # 必ずある印
+        problems.append("API キーの形の文字列がある")
+    # 必ずある目印
     needles = [("等倍", "速度表記「等倍」（R9）")]
     if not artifact:
         needles = [
@@ -193,7 +193,7 @@ def check(html: str, artifact: bool = False) -> list:
     else:
         for rx, why in [(r"<!doctype\b", "doctype"), (r"<html[\s>]", "html の開き"), (r"<body[\s>]", "body の開き"), (r"<head[\s>]", "head の開き"), (r"<meta\b", "meta")]:
             if re.search(rx, html, re.I):
-                problems.append(f"枠に貼る形に {why} が残っている")
+                problems.append(f"アーティファクトに貼る形に {why} が残っている")
     for needle, why in needles:
         if needle not in html:
             problems.append(f"{why} が無い")
@@ -220,7 +220,7 @@ def main(argv):
     problems = check(html, artifact)
     marks = MARK.findall(html)
     if marks:
-        problems.append(f"置き換えられなかった印が残っている: {marks}")
+        problems.append(f"置き換えられなかったマーカーが残っている: {marks}")
     if problems:
         print("検査に落ちた:")
         for p in problems:
@@ -231,7 +231,7 @@ def main(argv):
             print("  注意  " + w)
     out = OUT_ARTIFACT if artifact else OUT
     if only_check:
-        print(f"検査だけ: 問題なし（{len(html.encode('utf-8'))} バイト。{'枠に貼る形' if artifact else out.name}）")
+        print(f"検査だけ: 問題なし（{len(html.encode('utf-8'))} バイト。{'アーティファクトに貼る形' if artifact else out.name}）")
         return 0
     out.write_text(html, encoding="utf-8", newline="\n")
     print(f"書いた: {out}（{len(html.encode('utf-8'))} バイト）")

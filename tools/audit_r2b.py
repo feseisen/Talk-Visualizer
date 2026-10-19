@@ -19,26 +19,26 @@ rt.py の検査器とは独立に、ログを先頭から1行ずつ歩いて次�
      上限の件数のときだけ（上限で切って終わりを縮めた窓）。v2 の open.t0 が暦に在る壁時計
  10. 行が JSON のオブジェクトで、数が有限で絶対値が 2^53−1 以下、文字列に片割れのサロゲートが無い
  11. 並びの位置（R1）: すべての t（step は t[0]）が 0 以上。close の t が、閉じる保留の t 以上
- 12. 1 つの素材に 1 つのログ（v2 で open.src のある記録）: 素材の隣の持ち主の印 <素材>.owner が
+ 12. 1 つの素材に 1 つのログ（v2 で open.src のある記録）: 素材の隣のロックファイル <素材>.owner が
      このログを指している。別のログを指していれば違反（同じ素材を別のログでも開いた疑い）。
-     素材か印が見つからなければ、違反にはせず「見ていない」と書く
+     素材かロックファイルが見つからなければ、違反にはせず「見ていない」と書く
  13. v2 のカードは根拠の発話を 1 つ以上指す（src が空の配列でない）
  14. 素材の名前（v2 の open.src）が素材ファイル・メモ帳の形（.txt・.tsv・.vtt。大小文字を問わない）で、
-     記録のファイル（判断ログ・素材ログ・印・覚え書き）や、別のログの記録（持ち主の印が指す別のログの
+     記録のファイル（判断ログ・素材ログ・ロックファイル・状態ファイル・覚え書き）や、別のログの記録（ロックファイルが指す別のログの
      素材ログ・覚え書き）を名指していない（捨てるログで本番の素材ログを読む道を、後から見つける）
  15. live の記録が end で閉じているとき、素材ログ（<ログ名>.src.jsonl）の発話が、どれかのステップの窓に
      入っている（聞き終えたときに、まだ渡していない発話が残っていない）。数えるのは発話の番号だけで、本文は読まない。
      素材ログが見つからなければ、違反にはせず「見ていない」と書く
 
 監査が見ないもの: 素材の中身（文字起こし・素材ログの本文）と会話記録。判断ログに書かれた窓が、素材から計算した
-窓と一致するか、カードの位置が根拠の発話の時刻の間にあるかは、rt.py の追記の時点で照らしている
-（P07・P29）。会話の中で素材を直接開かなかったか、持ち主の印や覚え書きを手で書き換えなかったかは、
+窓と一致するか、カードの位置が根拠の発話の時刻の間にあるかは、rt.py の追記の時点で照合している
+（P07・P29）。会話の中で素材を直接開かなかったか、ロックファイルや覚え書きを手で書き換えなかったかは、
 Claude Code が持っている会話記録を人が開いて確かめる。
 
-判断ログの名前は rt.py と同じ決め（check_log_target）で照らし、素材ログ・覚え書き・watch の印・「..」を挟んだ名前・
+判断ログの名前は rt.py と同じ決まり（check_log_target）で照合し、素材ログ・覚え書き・watch の状態ファイル・「..」を挟んだ名前・
 「/」で終わる名前・リンク・フォルダ・無いログは、中身を読まずに断る（終了コード 1）。
 
-終了コード: 0 違反なし / 1 読めない・名前の決めに合わない / 2 違反あり
+終了コード: 0 違反なし / 1 読めない・名前の決まりに合わない / 2 違反あり
 """
 import argparse
 import json
@@ -48,7 +48,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True   # rt を読み込んでも tools/ に __pycache__ を残さない
-# 版の判定（Rules.version_of）と、JSON の読み方・壁時計の読み方・持ち主の印の読み方だけを借りる
+# 版の判定（Rules.version_of）と、JSON の読み方・壁時計の読み方・ロックファイルの読み方だけを借りる
 from rt import (MAX_LINES, Fail, check_log_target, find_src, has_lone_surrogate, has_nonfinite, iso_sec as _rt_iso_sec,  # noqa: E402
                 load_rules, loads, named_record, owner_record, read_srclog, read_utf8, same_file, split_lines,
                 src_exts, src_name_ok, srclog_path)
@@ -72,20 +72,20 @@ def iso_sec(s):
 
 
 def owner_check(log, open_ev, v, notes):
-    """12. 素材の持ち主の印がこのログを指しているか。"""
+    """12. 素材のロックファイルがこのログを指しているか。"""
     name = open_ev.get("src")
     if not isinstance(name, str) or not name:
         return
     material = find_src(log, name)
     if not material:
-        notes.append(f"素材 {name} が見つからないので、持ち主の印は見ていません")
+        notes.append(f"素材 {name} が見つからないので、ロックファイルは見ていません")
         return
     mark, rec = owner_record(material)
     if rec is None:
-        notes.append(f"素材 {name} の隣に持ち主の印 {mark.name} がありません（rt.py open を通さずに始めた記録か、印が消えている）")
+        notes.append(f"素材 {name} の隣にロックファイル {mark.name} がありません（rt.py open を通さずに始めた記録か、ロックファイルが消えている）")
         return
     if not same_file(rec, log):
-        v.append(f"素材 {name} の持ち主の印 {mark.name} は、このログではなく {rec} を指しています"
+        v.append(f"素材 {name} のロックファイル {mark.name} は、このログではなく {rec} を指しています"
                  "（同じ素材を別のログでも開いた疑い。ログを動かしただけなら、そのことを確かめる）")
 
 
@@ -313,7 +313,7 @@ def main():
     p.add_argument("--json", action="store_true")
     a = p.parse_args()
     try:
-        # 判断ログの名前と実体の決め（rt.py と同じ。K20・K28）: 素材ログ・覚え書き・watch の印（それを指すリンクも）・
+        # 判断ログの名前と実体の決まり（rt.py と同じ。K20・K28）: 素材ログ・覚え書き・watch の状態ファイル（それを指すリンクも）・
         # フォルダ・無いログを判断ログとして渡されたら、中身を読まずに断る（行の数も出さない）
         check_log_target(a.log)
     except Fail as ex:

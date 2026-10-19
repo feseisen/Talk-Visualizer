@@ -6,7 +6,7 @@
  *   - rename を扱う（括りの名前の現在値と履歴）
  *   - card への fix（d / ti / b / role）を状態に反映する
  *   - 並ぶ位置は card.t、画面に出る時刻はそのカードを書き込んだ step で決める（二つを混ぜない）
- *   - 増分で畳める形（foldInc）を持ち、全量（fold）と同じ結果になることを試験で縛る
+ *   - 増分で畳める形（foldInc）を持ち、全量（fold）と同じ結果になることをテストで縛る
  *
  * 規則（docs/rules.md の R1・R2b）:
  *   R1  縦の並びは t の位置に挿入するだけ。並べ替え関数を持たない
@@ -36,7 +36,7 @@
  * 状態は JSON にできる素のオブジェクト（Map / Set を使わない）。ただし id で引く表（cards / holds / groups / lists）は
  * 原型の無いオブジェクト（Object.create(null)）で持ち、在るかどうかは自前の欄かどうかで見る。
  * constructor・toString・__proto__ のような id でも「在る」と誤らず、__proto__ という id で原型を書き換えない。
- * foldInc で写したあとも表は原型の無いオブジェクトに戻す（写すと素のオブジェクトになるため）。
+ * foldInc でコピーしたあとも表は原型の無いオブジェクトに戻す（コピーすると素のオブジェクトになるため）。
  * ブラウザでは globalThis.TSV_FOLD、node では module.exports に同じものを出す。
  */
 (function () {
@@ -44,7 +44,7 @@
 
   // ---- 状態の形 ----
 
-  // id で引く表。原型が無いので、constructor などの名前も「無い」と分かり、__proto__ も普通の鍵として入る
+  // id で引く表。原型が無いので、constructor などの名前も「無い」と分かり、__proto__ も普通のキーとして入る
   function table(from) {
     const o = Object.create(null);
     if (from) Object.keys(from).forEach(function (k) { o[k] = from[k]; });
@@ -226,7 +226,7 @@
   // 前の状態に新しいイベントを足す。元の状態は変えない
   function foldInc(state, events) {
     const st = clone(state || initState());
-    TABLES.forEach(function (k) { st[k] = table(st[k]); }); // 写すと素のオブジェクトになるので、原型の無い表に戻す
+    TABLES.forEach(function (k) { st[k] = table(st[k]); }); // コピーすると素のオブジェクトになるので、原型の無い表に戻す
     for (const e of events) apply(st, e);
     return st;
   }
@@ -287,7 +287,7 @@
     return s;
   }
 
-  // 次に使う id（v2 の採番規則。v1 の記録には当てない）
+  // 次に使う id（v2 の採番規則。v1 の記録には適用しない）
   function nextIds(st) {
     return {
       card: 'C' + (Object.keys(st.cards).length + 1),
@@ -297,7 +297,7 @@
     };
   }
 
-  // 試験や左欄のための要約（開いている保留・最上位・括り・数え上げ・決着の統計）
+  // テストや左欄のための要約（開いている保留・最上位・括り・数え上げ・決着の統計）
   function summary(st) {
     const groups = table();
     Object.keys(st.groups).sort().forEach(function (id) {

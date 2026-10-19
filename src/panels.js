@@ -4,7 +4,7 @@
  * 左: 宣言された数え上げ（list と card.li から、全部で何点あって、いまその何点目か）・開いている問い・未確定の窓（kind:gap）・
  *     最上位の候補・章・答えが出た問い
  * 右: 考えたこと（直近の note）・逐語（確定分＋途中結果 1 本。各行から、どのカードになったかへ飛べる）
- * 上: 運転状態の札（最後の判断から N 秒／窓幅／経路／未確定の窓 n 件）
+ * 上: 運転状態のラベル（最後の判断から N 秒／窓幅／経路／未確定の窓 n 件）
  *
  * 文字は全部日本語。内部名（英字の項目名）は画面に出さない
  */
@@ -36,7 +36,7 @@
       else {
         lb.innerHTML = '';
         lists.forEach(function (l) {
-          const head = el('div', 'soft', l.id + '　' + (l.who ? l.who + ' が ' : '') + fmt(l.t) + ' に ' + l.n + ' 点と宣言' + (l.at_item ? '。いま ' + l.at_item + ' 点目' : ''));
+          const head = el('div', 'soft', l.id + '　' + (l.who ? l.who + 'が ' : '') + fmt(l.t) + ' に ' + l.n + ' 点と宣言' + (l.at_item ? '。いま ' + l.at_item + ' 点目' : ''));
           lb.appendChild(head);
           const ul = el('ul', 'lst');
           for (let k = 1; k <= l.n; k++) {
@@ -62,18 +62,18 @@
         qs.forEach(function (h) {
           const d = el('div', 'q');
           d.appendChild(el('span', '', h.id + '　' + h.q + (h.who ? '（' + h.who + '）' : '')));
-          d.appendChild(el('span', 'qt', fmt(h.t) + ' に立ててから ' + fmt(Math.max(0, (T == null ? h.t : T) - h.t)) + ' 開いたまま'));
+          d.appendChild(el('span', 'qt', fmt(h.t) + ' に出た問い。答えが出ないまま ' + fmt(Math.max(0, (T == null ? h.t : T) - h.t)) + ' 経過'));
           els.holds.appendChild(d);
         });
       }
-      els.gaphead.textContent = '未確定の窓' + (gaps.length ? '（' + gaps.length + ' 件）' : '');
+      els.gaphead.textContent = '未確定の区切り' + (gaps.length ? '（' + gaps.length + ' 件）' : '');
       if (!gaps.length) empty(els.gaps, '無い');
       else {
         els.gaps.innerHTML = '';
         gaps.forEach(function (h) {
           const d = el('div', 'q gap');
           d.appendChild(el('span', '', h.id + '　' + h.q));
-          d.appendChild(el('span', 'qt', 'S' + h.sn + ' で検証に3回落ちた窓。後の窓で閉じられる'));
+          d.appendChild(el('span', 'qt', 'S' + h.sn + ' の区切り。後の区切りで答えが付くことがある'));
           els.gaps.appendChild(d);
         });
       }
@@ -84,7 +84,7 @@
         els.topbox.innerHTML = '';
         const c = st.cards[st.top.id];
         const d = el('div', 'topbox', c ? c.ti : st.top.id);
-        d.appendChild(el('span', 'tt', st.top.id + '　' + (st.swaps === 1 ? '最初に立てた候補' : '入替 ' + (st.swaps - 1) + ' 回目') + '（' + fmt(st.top.t) + '）' + (st.top.why ? '　' + st.top.why : '')));
+        d.appendChild(el('span', 'tt', st.top.id + '　' + (st.swaps === 1 ? '最初に立てた候補' : '入れ替え ' + (st.swaps - 1) + ' 回目') + '（' + fmt(st.top.t) + '）' + (st.top.why ? '　' + st.top.why : '')));
         els.topbox.appendChild(d);
       }
 
@@ -96,7 +96,7 @@
         groups.forEach(function (g) {
           const d = el('div', 'chap');
           d.appendChild(el('span', '', '章' + g.id + '　' + g.lb));
-          d.appendChild(el('span', 'crange', fmt(g.span[0]) + '〜' + (g.span[1] == null ? '（続いている）' : fmt(g.span[1])) + (g.kind === 'retro' ? '・遡って括った' : '') + (g.echoes.length ? '・補強 ' + g.echoes.length + ' 回' : '')));
+          d.appendChild(el('span', 'crange', fmt(g.span[0]) + '〜' + (g.span[1] == null ? '（続いている）' : fmt(g.span[1])) + (g.kind === 'retro' ? '・あとから括った' : '') + (g.echoes.length ? '・補強 ' + g.echoes.length + ' 回' : '')));
           els.chaps.appendChild(d);
         });
       }
@@ -111,10 +111,10 @@
         closed.forEach(function (h) {
           const d = el('div', 'done');
           d.appendChild(el('b', '', h.id + '　' + h.q));
-          d.appendChild(el('span', '', '　' + fmt(h.answers[0].t) + ' に答えが出た（立ててから ' + fmt(h.answers[0].t - h.t) + '）' + (h.kind === 'gap' ? '・未確定の窓' : '')));
+          d.appendChild(el('span', '', '　' + fmt(h.answers[0].t) + ' に答えが出た（問いが出てから ' + fmt(h.answers[0].t - h.t) + '）' + (h.kind === 'gap' ? '・未確定の区切り' : '')));
           const many = h.answers.length > 1;
           h.answers.forEach(function (a, k) {
-            d.appendChild(el('span', 'ans', (many ? (k + 1) + 'つ目の答え（' + fmt(a.t) + '）：' : '答え：') + (a.as || '') + (a.by && a.by.length ? '　← ' + a.by.join('・') : '')));
+            d.appendChild(el('span', 'ans', (many ? (k + 1) + ' つ目の答え（' + fmt(a.t) + '）：' : '答え：') + (a.as || '') + (a.by && a.by.length ? '　← ' + a.by.join('・') : '')));
           });
           els.closed.appendChild(d);
         });
@@ -136,26 +136,26 @@
     // ライブでは末尾に足すだけ。追体験で T を戻すと、発話も出来事も T より先の行が消える（R2b）
     const shown = [];       // [{key, node, fc, cards, i}]。画面の並びと同じ順
     let interimNode = null;
-    // 出来事の札。英字の符号は括弧の中に添える
-    // 音声認識の誤りの種類（ブラウザが返す符号）を日本語に。知らない符号は「そのほか」とだけ言う（英字を画面に出さない）
+    // 出来事のラベル。英字のコードは括弧の中に添える
+    // 音声認識のエラーの種類（ブラウザが返すコード）を日本語に。知らないコードは「そのほか」とだけ言う（英字を画面に出さない）
     const ASR_ERROR = {
-      'no-speech': '声が聞こえない', 'aborted': '止められた', 'audio-capture': 'マイクが無い', 'network': '認識の通信が切れた',
-      'not-allowed': 'マイクの許可が無い', 'service-not-allowed': '認識の機能が許されていない', 'language-not-supported': '言語が使えない',
-      'bad-grammar': '認識の設定の誤り'
+      'no-speech': '声が聞こえない', 'aborted': '中断された', 'audio-capture': 'マイクが無い', 'network': '音声認識の通信に失敗した',
+      'not-allowed': 'マイクの許可が無い', 'service-not-allowed': '音声認識の機能が許可されていない', 'language-not-supported': '日本語の音声認識に対応していない',
+      'bad-grammar': '認識の設定エラー'
     };
     function eventText(l) {
-      if (l.ev === 'asr_start') return '（認識を始めた' + (l.local === true ? '。この端末の中で文字にする' : l.local === false ? '。音声は提供元のサーバーへ送る' : '') + '）';
+      if (l.ev === 'asr_start') return '（認識を始めた' + (l.local === true ? '。この PC の中で文字にする' : l.local === false ? '。音声は提供元のサーバーへ送る' : '') + '）';
       if (l.ev === 'asr_end') return '（認識が切れた）';
       if (l.ev === 'asr_restart') return '（認識を再開した' + (l.n != null ? '。' + l.n + ' 回目' : '') + '）';
-      if (l.ev === 'asr_error') return '（認識の誤り：' + (Object.prototype.hasOwnProperty.call(ASR_ERROR, l.error) ? ASR_ERROR[l.error] : 'そのほか') + '）';
+      if (l.ev === 'asr_error') return '（認識のエラー：' + (Object.prototype.hasOwnProperty.call(ASR_ERROR, l.error) ? ASR_ERROR[l.error] : 'そのほか') + '）';
       // 聞き終えるときに、認識の終わりの知らせを上限まで待っても来なかった（この後に認識が返した結果は記録に入れず、出来事 late として残す）
       if (l.ev === 'asr_stop_timeout') return '（認識の終わりを待ちきれずに聞き終えた' + (typeof l.ms === 'number' && isFinite(l.ms) ? '。' + Math.round(l.ms / 100) / 10 + ' 秒待った' : '') + '）';
       // 聞き取りを止めた後（聞き終えた後・記録に書けずに止まった後）に届いた認識の結果。窓にも判断にも入れていないので、
       // そう添えて本文を出す（K29）
-      if (l.ev === 'late') return '（聞き取りを止めた後に届いた認識の結果。記録の外：' + (typeof l.text === 'string' ? l.text : '') + '）';
+      if (l.ev === 'late') return '（聞き取りを止めた後に届いた認識の結果。構造には入れていない：' + (typeof l.text === 'string' ? l.text : '') + '）';
       // 読めない行（素材の時刻が読めなかった行）。中身は出さず、行の番号だけ
       if (l.ev === 'unreadable') return '（読めない行があった。' + (typeof l.line === 'number' ? l.line + ' 行目。' : '') + '発話にしていない）';
-      return '（入口の出来事）';
+      return '（入力方法の記録）';
     }
     function keyOf(l) {
       if (l.i != null) return 'i:' + l.i;
@@ -220,7 +220,7 @@
       els.feed.scrollTop = els.feed.scrollHeight;
     }
 
-    // ---- 上: 運転状態の札 ----
+    // ---- 上: 運転状態のラベル ----
     function renderStatus(s) {
       const set = function (key, text, cls) { const e = els.status[key]; if (!e) return; e.textContent = text; e.className = 'v' + (cls ? ' ' + cls : ''); };
       // 追体験（s.replay）では T で畳んだ状態から数える。T より前に判断が無ければ「まだ」、
@@ -231,12 +231,12 @@
         const sec = Math.max(0, Math.floor((s.nowMs - s.lastAt) / 1000));
         set('since', fmt(sec) + (s.busy ? '（返事を待っている' + (s.attempt > 1 ? '・' + s.attempt + ' 回目' : '') + '）' : ''), sec > s.win * 2 ? 'slow' : (s.busy ? 'busy' : ''));
       }
-      set('win', s.winEff + ' 秒' + (s.winEff > s.win ? '（追いつくため ' + s.winEff + ' 秒窓で動いている）' : '') + (s.pending ? '・溜まり ' + s.pending + ' 発話' : ''));
+      set('win', s.winEff + ' 秒' + (s.winEff > s.win ? '（追いつくため ' + s.winEff + ' 秒の区切りで動いている）' : '') + (s.pending ? '・未整理 ' + s.pending + ' 件' : ''));
       set('route', s.route);
       set('intake', s.intake);
       set('gaps', s.gaps ? s.gaps + ' 件' : '0 件', s.gaps ? 'slow' : '');
       set('clock', fmt(s.T));
-      set('listen', s.halted ? '止まった（記録に書けない）' : s.listening ? (s.paused ? '中断中' : '聞いている') : (s.ended ? '聞き終えた' : '止まっている'), s.halted ? 'slow' : '');
+      set('listen', s.halted ? '止まった（記録に書けない）' : s.listening ? (s.paused ? '一時停止中' : '聞いている') : (s.ended ? '聞き終えた' : '止まっている'), s.halted ? 'slow' : '');
     }
 
     return { renderLeft: renderLeft, renderNote: renderNote, renderFeed: renderFeed, renderStatus: renderStatus };

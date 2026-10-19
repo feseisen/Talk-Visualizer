@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "kiku 橋（画面共有の音を枠へ）",
-  "version": "0.2.2",
-  "description": "claude.ai の親ページで画面共有の音（PC で鳴っている会議の音）をブラウザの音声認識で文字にし、kiku のアーティファクトの枠へ postMessage で流す。この拡張は通信しない。",
+  "name": "kiku ブリッジ（画面共有の音をアーティファクトへ）",
+  "version": "0.2.4",
+  "description": "claude.ai のページで、画面共有の音（PC で鳴っている会議の音）をブラウザの音声認識で文字にし、kiku のアーティファクトへ渡す。拡張機能自体は通信しない（PC の中で文字にできず、承知したときだけ、ブラウザが音声を Google へ送る）。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsPP09OyOxifJcX1lW5DFOoh0Dt+QB6uJyUC9JTKrqX8DKkbgfp65RDg0vn0B3kyJuCjS7pVHW31k39BQPb4Q7DadeE5gaONNA+ESTOoVHX6PZFh3CCMmneNOIs3QwLdAY1k6UsSujqUlpYDIWDFolQ2w6x6mrwvOYL/hVPXpC7tJheB5FcnM5LwSJt58rPYgDRkbF4+Eo8RiOH6eO7CFVO1bZkueWDY4qWhJWdpuNcX7lfbRgvloILWKHJ/z8lL4uwqXbZm9j5IBFXEXDSLl8jz4khhQsUopO9X3+qqX9vXnceW1+bDZ7ZpuZnlk4D1wjUYabeiNdok2gZf53pWx+wIDAQAB",
   "background": {
     "service_worker": "background.js"
